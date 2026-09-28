@@ -102,6 +102,9 @@ fun MiniPlayerBar(
 /** 播放页标题行距状态栏的呼吸位。 */
 private val TopRowGap = 8.dp
 
+/** 播放页整页均匀压暗的强度（不是渐变：渐变会在边界留下可察觉的硬边）。 */
+private const val ScrimAlpha = 0.28f
+
 /**
  * 全屏播放器。
  *
@@ -144,11 +147,14 @@ fun PlayerOverlay(
         }
     }
 
-    // 顶部渐隐（保证文字/图标在任何封面上都读得清），底部同理；都不是玻璃。
-    // topInset 留的是状态栏；播放页自己的标题行就在它下面（顶栏此时已隐藏，不会抢位）。
+    // ⚠️ modifier 顺序：**先** background 再 padding。
+    // 反过来的话（先 padding 再 background）压暗层只覆盖"状态栏以下、dock 以上"那块，
+    // 上下会各留一条没压暗的硬边 —— 看起来就是"有的地方加深了、有的地方没有"（深色模式同样明显）。
+    // 现在是一层铺满全屏的**均匀**压暗；内容间距由后面的 padding 负责。
     Box(
-        Modifier.fillMaxSize().padding(top = topInset + TopRowGap, bottom = bottomInset)
-            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .35f), Color.Transparent, Color.Black.copy(alpha = .45f)))),
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = ScrimAlpha))
+            .padding(top = topInset + TopRowGap, bottom = bottomInset),
     ) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page),
