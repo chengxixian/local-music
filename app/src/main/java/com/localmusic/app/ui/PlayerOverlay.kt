@@ -102,9 +102,6 @@ fun MiniPlayerBar(
 /** 播放页标题行距状态栏的呼吸位。 */
 private val TopRowGap = 8.dp
 
-/** 播放页整页均匀压暗的强度（不是渐变：渐变会在边界留下可察觉的硬边）。 */
-private const val ScrimAlpha = 0.28f
-
 /**
  * 全屏播放器。
  *
@@ -147,14 +144,11 @@ fun PlayerOverlay(
         }
     }
 
-    // ⚠️ modifier 顺序：**先** background 再 padding。
-    // 反过来的话（先 padding 再 background）压暗层只覆盖"状态栏以下、dock 以上"那块，
-    // 上下会各留一条没压暗的硬边 —— 看起来就是"有的地方加深了、有的地方没有"（深色模式同样明显）。
-    // 现在是一层铺满全屏的**均匀**压暗；内容间距由后面的 padding 负责。
+    // 这里**不再自己压暗**：压暗统一画在采集层里（见 MainActivity），
+    // 否则玻璃采样到的是没压暗的页面，会出现"背景暗、玻璃亮"的不一致。
+    // 这里只负责给内容留出状态栏与 dock 的空间。
     Box(
-        Modifier.fillMaxSize()
-            .background(Color.Black.copy(alpha = ScrimAlpha))
-            .padding(top = topInset + TopRowGap, bottom = bottomInset),
+        Modifier.fillMaxSize().padding(top = topInset + TopRowGap, bottom = bottomInset),
     ) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page),
@@ -163,11 +157,11 @@ fun PlayerOverlay(
             // 顶部只放三个**独立的玻璃圆钮**：返回 / 换封面 / 均衡器（不放文字标题，
             // 歌名信息在下面的控件面板里，避免两处重复）
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
+                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose, surfaceTint = DarkGlassTint)
                 Spacer(Modifier.weight(1f))
-                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
+                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover, surfaceTint = DarkGlassTint)
                 Spacer(Modifier.width(LiquidSpacing.inline))
-                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq)
+                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq, surfaceTint = DarkGlassTint)
             }
 
             Spacer(Modifier.height(LiquidSpacing.item))
@@ -182,6 +176,7 @@ fun PlayerOverlay(
                         shape = RoundedCornerShape(28.dp),
                         refractionHeight = 20.dp,
                         refractionAmount = 30.dp,
+                        surfaceTint = DarkGlassTint,
                         modifier = Modifier.fillMaxSize().clickable { showLyrics = false },
                     ) {
                         LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = player.position)
@@ -195,6 +190,7 @@ fun PlayerOverlay(
             GlassPanel(
                 backdrop = backdrop,
                 shape = RoundedCornerShape(28.dp),
+                surfaceTint = DarkGlassTint,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(
@@ -264,6 +260,7 @@ private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: (
                 shape = RoundedCornerShape(48.dp),
                 refractionHeight = 20.dp,
                 refractionAmount = 34.dp,
+                surfaceTint = DarkGlassTint,
             )
         )
         Box(Modifier.matchParentSize().padding(18.dp)) {

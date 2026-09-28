@@ -276,6 +276,10 @@ private fun AppShell() {
                                 }
                             }
                         }
+
+                        // 注意：这里**不压暗背景**。用户要的是"周围亮、玻璃暗"——
+                        // 压暗画在玻璃自己的 surfaceTint 上（见 ui/Glass.kt 的 DarkGlassTint），
+                        // 背景保持原亮度，玻璃采样到的也就还是亮的页面，折射依然成立。
                     }
 
                     // ── 玻璃浮层：顶栏 + 迷你播放条 + dock，都在采集层之外 ──
@@ -308,8 +312,15 @@ private fun AppShell() {
                                     scaleX = barScale; scaleY = barScale
                                 }
                             ) {
-                                // ① 玻璃底板：不含任何子内容
-                                Box(Modifier.matchParentSize().glassNavBar(backdrop = backdrop, shape = RoundedCornerShape(50)))
+                                // ① 玻璃底板：不含任何子内容。
+                                // 播放页打开时整屏换成"烟熏玻璃"，与封面光环/控件面板保持一致。
+                                Box(
+                                    Modifier.matchParentSize().liquidGlass(
+                                        backdrop = backdrop,
+                                        shape = RoundedCornerShape(50),
+                                        surfaceTint = if (playerOpen) DarkGlassTint else com.liquidmiuix.glass.GlassSurfaceTint,
+                                    )
+                                )
                                 // ② 内容层：与玻璃是兄弟
                                 GlassNavBarContent(
                                     items = Page.entries.map { it.icon to it.title },
