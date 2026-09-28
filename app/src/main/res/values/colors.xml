@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 取自用户提供的图标源图四角底色（design/ic_launcher_background.txt） -->
+    <color name="ic_launcher_background">#001830</color>
+</resources>

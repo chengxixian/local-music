@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package com.localmusic.app.data
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
+import java.security.MessageDigest
+
+/**
+ * 用户自定义封面。
+ *
+ * 选择的图片会被**复制进应用目录**（`filesDir/covers/<hash>.img`）而不是只记一个 Uri：
+ * 原图可能被移动、删除，或者权限在重启后失效（SAF 授权被回收），
+ * 那样用户"设过的封面"就会变成空白——复制一份才真的持久。
+ */
+object CoverStore {
+    private val _revision = MutableStateFlow(0)
+
+    /** 封面变更计数：UI 用它当 key 触发重新解码。 */
+    val revision: StateFlow<Int> = _revision.asStateFlow()
+
+    @Volatile private var cache: Map<String, String>? = null
+    private val lock = Any()
+
+    private fun mapping(context: Context): Map<String, String> = cache ?: synchronized(lock) {
+        cache ?: MusicDatabase(context.applicationContext).covers().also { cache = it }
+    }
+
+    fun pathFor(context: Context, songUri: String): File? =
+        mapping(context)[songUri]?.let(::File)?.takeIf { it.isFile && it.length() > 0 }
+
+    /** 保存用户选的图片；返回是否成功。 */
+    fun set(context: Context, songUri: String, image: Uri): Boolean {
+        val app = context.applicationContext
+        return try {
+            val dir = File(app.filesDir, "covers").apply { mkdirs() }
+            val target = File(dir, sha1(songUri) + ".img")
+            app.contentResolver.openInputStream(image)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            } ?: return false
+            // 立刻读一次尺寸，确认存下来的确实是张能解码的图片
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(target.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { target.delete(); return false }
+            MusicDatabase(app).setCover(songUri, target.absolutePath)
+            synchronized(lock) { cache = null }
+            _revision.value += 1
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun clear(context: Context, songUri: String) {
+        val app = context.applicationContext
+        pathFor(app, songUri)?.delete()
+        MusicDatabase(app).setCover(songUri, null)
+        synchronized(lock) { cache = null }
+        _revision.value += 1
+    }
+
+    /** 供 Artwork 直接解码用（已经降采样到需要的大小）。 */
+    fun decode(context: Context, songUri: String, requestPx: Int): Bitmap? {
+        val file = pathFor(context, songUri) ?: return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0) return null
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= requestPx) sample *= 2
+        return try {
+            BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = if (requestPx <= 512) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
+            })
+        } catch (_: Exception) { null }
+    }
+
+    private fun sha1(text: String) =
+        MessageDigest.getInstance("SHA-1").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+}
