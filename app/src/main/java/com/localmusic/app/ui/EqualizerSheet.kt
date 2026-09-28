@@ -44,8 +44,10 @@ fun EqualizerSheet(
     onClose: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    // 不铺全屏压暗：背景保持原亮度，由烟熏玻璃自己变暗（"周围亮、玻璃暗"）。
+    // 仍保留"点面板外收起"的手势。
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f)).clickable(onClick = onClose),
+        Modifier.fillMaxSize().clickable(onClick = onClose),
         contentAlignment = Alignment.Center,
     ) {
         GlassPanel(
@@ -53,6 +55,7 @@ fun EqualizerSheet(
             shape = RoundedCornerShape(32.dp),
             refractionHeight = 22.dp,
             refractionAmount = 32.dp,
+            surfaceTint = DarkGlassTint,
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.88f).padding(horizontal = 20.dp),
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page, vertical = LiquidSpacing.item)) {

@@ -31,8 +31,9 @@ fun ExportFolderPrompt(
     onDismiss: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    // 同均衡器面板：不压暗背景，靠烟熏玻璃自身变暗
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f)).clickable(onClick = onDismiss),
+        Modifier.fillMaxSize().clickable(onClick = onDismiss),
         contentAlignment = Alignment.Center,
     ) {
         GlassPanel(
@@ -40,6 +41,7 @@ fun ExportFolderPrompt(
             shape = RoundedCornerShape(32.dp),
             refractionHeight = 22.dp,
             refractionAmount = 32.dp,
+            surfaceTint = DarkGlassTint,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         ) {
             Column(
