@@ -54,6 +54,28 @@ Push-Location $RepoRoot
 try {
     if (-not $Repo) { throw "-Repo is required" }
 
+    # Re-runnable: find the current head, otherwise seed the repo.
+    $headSha = $null
+    try {
+        $refInfo = Invoke-GhJson -Method GET -Endpoint "/repos/$Owner/$Repo/git/ref/heads/$Branch"
+        $headSha = $refInfo.object.sha
+    } catch { $headSha = $null }
+
+    if (-not $headSha) {
+        # The Git Database API returns 409 "Git Repository is empty" until the repo has one commit,
+        # so put a README in through the Contents API first (it works on empty repos).
+        Write-Host "empty repository -> seeding with README.md"
+        $seedPath = Join-Path $RepoRoot "README.md"
+        $seed = if (Test-Path $seedPath) { [System.IO.File]::ReadAllText($seedPath) } else { "# $Repo`n" }
+        $b64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($seed))
+        $seedRes = Invoke-GhJson -Method PUT -Endpoint "/repos/$Owner/$Repo/contents/README.md" `
+            -Body @{ message = "chore: seed repository"; content = $b64; branch = $Branch }
+        $headSha = $seedRes.commit.sha
+        Write-Host "  seed commit $headSha"
+    } else {
+        Write-Host "existing head $headSha"
+    }
+
     $files = & git ls-files
     Write-Host "files to push: $($files.Count)"
 
@@ -80,10 +102,11 @@ try {
     $tree = Invoke-GhJson -Method POST -Endpoint "/repos/$Owner/$Repo/git/trees" -Body @{ tree = $treeEntries }
 
     Write-Host "creating commit..."
-    $commit = Invoke-GhJson -Method POST -Endpoint "/repos/$Owner/$Repo/git/commits" -Body @{ message = $Message; tree = $tree.sha }
+    $commit = Invoke-GhJson -Method POST -Endpoint "/repos/$Owner/$Repo/git/commits" `
+        -Body @{ message = $Message; tree = $tree.sha; parents = @($headSha) }
 
-    Write-Host "creating ref refs/heads/$Branch..."
-    $ref = Invoke-GhJson -Method POST -Endpoint "/repos/$Owner/$Repo/git/refs" -Body @{ ref = "refs/heads/$Branch"; sha = $commit.sha }
+    Write-Host "updating ref refs/heads/$Branch..."
+    $ref = Invoke-GhJson -Method PATCH -Endpoint "/repos/$Owner/$Repo/git/refs/heads/$Branch" -Body @{ sha = $commit.sha; force = $true }
 
     Write-Host ""
     Write-Host "OK  commit $($commit.sha)"
