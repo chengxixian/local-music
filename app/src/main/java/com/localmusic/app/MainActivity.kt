@@ -312,13 +312,11 @@ private fun AppShell() {
                                     scaleX = barScale; scaleY = barScale
                                 }
                             ) {
-                                // ① 玻璃底板：不含任何子内容。
-                                // 播放页打开时整屏换成"烟熏玻璃"，与封面光环/控件面板保持一致。
+                                // ① 玻璃底板：不含任何子内容。全 app 用同一档玻璃（库默认填充），不额外压暗。
                                 Box(
                                     Modifier.matchParentSize().liquidGlass(
                                         backdrop = backdrop,
                                         shape = RoundedCornerShape(50),
-                                        surfaceTint = if (playerOpen) DarkGlassTint else com.liquidmiuix.glass.GlassSurfaceTint,
                                     )
                                 )
                                 // ② 内容层：与玻璃是兄弟
