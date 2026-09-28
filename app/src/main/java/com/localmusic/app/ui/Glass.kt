@@ -21,15 +21,6 @@ import com.liquidmiuix.glass.liquidGlass
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 深色玻璃（"烟熏玻璃"）的填充色。
- *
- * 与库默认的浅冷灰 `GlassSurfaceTint` 相对：库那套是"亮玻璃"，适用于页面底色本就比卡片暗的场合。
- * 播放页 / 弹层这类**要求背景保持原亮度、只让玻璃自身压暗**的场合用这一档：
- * 折射与模糊照旧（背后仍是亮的页面内容），只是玻璃自己那层填充变深 —— 观感就是"周围亮、玻璃暗"。
- */
-val DarkGlassTint = Color(0xFF0E1626).copy(alpha = 0.42f)
-
-/**
  * 液态玻璃面板。
  *
  * ⚠️ 库的绘制顺序是 `onDrawBehind → drawBackdropLayer(含形状裁剪) → onDrawSurface → drawContent()`，
@@ -51,7 +42,6 @@ fun GlassPanel(
     blurRadius: Dp = GlassRegularBlurRadius,
     refractionHeight: Dp = 28.dp,
     refractionAmount: Dp = 40.dp,
-    surfaceTint: Color = com.liquidmiuix.glass.GlassSurfaceTint,
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(modifier) {
@@ -62,7 +52,6 @@ fun GlassPanel(
                 blurRadius = blurRadius,
                 refractionHeight = refractionHeight,
                 refractionAmount = refractionAmount,
-                surfaceTint = surfaceTint,
             )
         )
         // 普通子项：由它决定外层的尺寸（见上面那条尺寸说明）
@@ -85,7 +74,6 @@ fun GlassIconButton(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     tint: Color = MiuixTheme.colorScheme.onSurface,
-    surfaceTint: Color = com.liquidmiuix.glass.GlassSurfaceTint,
 ) {
     Box(modifier.size(size).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Box(
@@ -95,7 +83,6 @@ fun GlassIconButton(
                 blurRadius = 4.dp,
                 refractionHeight = 10.dp,
                 refractionAmount = 18.dp,
-                surfaceTint = surfaceTint,
             )
         )
         Icon(icon, contentDescription, Modifier.size(size * 0.5f), tint = tint)

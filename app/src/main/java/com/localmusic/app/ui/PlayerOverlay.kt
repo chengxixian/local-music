@@ -157,11 +157,11 @@ fun PlayerOverlay(
             // 顶部只放三个**独立的玻璃圆钮**：返回 / 换封面 / 均衡器（不放文字标题，
             // 歌名信息在下面的控件面板里，避免两处重复）
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose, surfaceTint = DarkGlassTint)
+                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
                 Spacer(Modifier.weight(1f))
-                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover, surfaceTint = DarkGlassTint)
+                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
                 Spacer(Modifier.width(LiquidSpacing.inline))
-                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq, surfaceTint = DarkGlassTint)
+                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq)
             }
 
             Spacer(Modifier.height(LiquidSpacing.item))
@@ -176,7 +176,6 @@ fun PlayerOverlay(
                         shape = RoundedCornerShape(28.dp),
                         refractionHeight = 20.dp,
                         refractionAmount = 30.dp,
-                        surfaceTint = DarkGlassTint,
                         modifier = Modifier.fillMaxSize().clickable { showLyrics = false },
                     ) {
                         LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = player.position)
@@ -190,7 +189,6 @@ fun PlayerOverlay(
             GlassPanel(
                 backdrop = backdrop,
                 shape = RoundedCornerShape(28.dp),
-                surfaceTint = DarkGlassTint,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(
@@ -260,7 +258,6 @@ private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: (
                 shape = RoundedCornerShape(48.dp),
                 refractionHeight = 20.dp,
                 refractionAmount = 34.dp,
-                surfaceTint = DarkGlassTint,
             )
         )
         Box(Modifier.matchParentSize().padding(18.dp)) {

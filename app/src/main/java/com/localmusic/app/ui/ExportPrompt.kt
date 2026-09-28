@@ -41,7 +41,6 @@ fun ExportFolderPrompt(
             shape = RoundedCornerShape(32.dp),
             refractionHeight = 22.dp,
             refractionAmount = 32.dp,
-            surfaceTint = DarkGlassTint,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         ) {
             Column(

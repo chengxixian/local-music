@@ -55,7 +55,6 @@ fun EqualizerSheet(
             shape = RoundedCornerShape(32.dp),
             refractionHeight = 22.dp,
             refractionAmount = 32.dp,
-            surfaceTint = DarkGlassTint,
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.88f).padding(horizontal = 20.dp),
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page, vertical = LiquidSpacing.item)) {
