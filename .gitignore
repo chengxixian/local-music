@@ -1,0 +1,11 @@
+# 构建产物
+build/
+.gradle/
+.kotlin/
+local.properties
+*.iml
+.idea/
+
+# 上游 ncmdump 的测试样本：第三方版权内容，不随仓库分发
+# 想跑 NcmDecoderTest，按 audio/src/test/java/.../NcmDecoderTest.kt 的说明自行放入
+audio/src/test/resources/ncm/test.ncm
