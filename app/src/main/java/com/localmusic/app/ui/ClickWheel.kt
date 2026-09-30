@@ -48,21 +48,35 @@ import kotlin.math.atan2
  *  - 玻璃环必须挂在**不含子内容**的 Box 上，按键内容是它的兄弟（库的硬性要求）。
  */
 /**
- * 滚轮圆环可选的**有色玻璃**。
+ * 滚轮圆环的有色玻璃。
  *
- * 实现就是给液态玻璃换一个 `surfaceTint`（玻璃自己的半透明填充），只作用于滚轮那一圈，
- * dock / 顶栏 / 控件面板仍然用统一的无色玻璃。
- * 注意 alpha 要留出透明度：填成不透明就成塑料片了，折射和模糊都看不见。
+ * **真实的有色玻璃是"吸光"的**：颜色本身要变暗、透光率下降，而不是在玻璃上叠一层亮色
+ * （那样看着像贴纸）。所以这里把色相和"透光率"分开：
+ *  - `hue`：色相（0~360），null 表示无色（用库默认玻璃）
+ *  - `level`：透光率 0.15(最暗) ~ 1.0(最亮)。越暗 → RGB 越接近黑、且填色 alpha 越大，
+ *    于是整体越暗、颜色越沉 —— 这才是玻璃吸光的样子。
  */
-val WheelGlassTints: List<Pair<String, Color>> = listOf(
-    "默认" to com.liquidmiuix.glass.GlassSurfaceTint,
-    "红" to Color(0xFFE53935).copy(alpha = 0.38f),
-    "橙" to Color(0xFFFB8C00).copy(alpha = 0.38f),
-    "黄" to Color(0xFFFDD835).copy(alpha = 0.34f),
-    "绿" to Color(0xFF43A047).copy(alpha = 0.38f),
-    "青" to Color(0xFF00ACC1).copy(alpha = 0.38f),
-    "蓝" to Color(0xFF1E88E5).copy(alpha = 0.38f),
-    "紫" to Color(0xFF8E24AA).copy(alpha = 0.38f),
+data class WheelTint(val name: String, val hue: Float?, val level: Float) {
+    val color: Color
+        get() {
+            val h = hue ?: return com.liquidmiuix.glass.GlassSurfaceTint
+            val l = level.coerceIn(0.15f, 1f)
+            val pure = Color.hsv(h, 0.62f, 1f)
+            // 暗 → 颜色乘下去 + 覆盖率提上来，等价于"透光率低"
+            return Color(pure.red * l, pure.green * l, pure.blue * l, alpha = 0.30f + 0.30f * (1f - l))
+        }
+}
+
+/** 预设：默认无色 + 7 个色相，透光率统一偏低（0.55）——比之前那种"亮色贴纸"沉得多。 */
+val WheelGlassTints: List<WheelTint> = listOf(
+    WheelTint("默认", null, 1f),
+    WheelTint("红", 0f, 0.55f),
+    WheelTint("橙", 28f, 0.55f),
+    WheelTint("黄", 52f, 0.55f),
+    WheelTint("绿", 135f, 0.55f),
+    WheelTint("青", 185f, 0.55f),
+    WheelTint("蓝", 215f, 0.55f),
+    WheelTint("紫", 280f, 0.55f),
 )
 
 @Composable
