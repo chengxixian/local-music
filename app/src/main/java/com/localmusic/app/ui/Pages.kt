@@ -372,7 +372,10 @@ fun SettingsPage(
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
     glassTintIndex: Int = 0,
-    onGlassTint: (Int) -> Unit = {},
+    glassHue: Float = 215f,
+    glassLevel: Float = 0.55f,
+    glassCustomColor: Color = Color.Transparent,
+    onGlassTint: (Int, Float?, Float?) -> Unit = { _, _, _ -> },
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -481,30 +484,48 @@ fun SettingsPage(
         item {
             LiquidCard {
                 Text("滚轮圆环玻璃颜色", style = MiuixTheme.textStyles.title4)
-                Text("只改滚轮那一圈玻璃的色调；dock、顶栏和播放控件保持统一的无色玻璃。",
+                Text("有色玻璃是「吸光」的：颜色越沉、透光率越低。只改滚轮那一圈，dock / 顶栏 / 播放控件保持无色玻璃。",
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    WheelGlassTints.forEachIndexed { index, (name, color) ->
+                    WheelGlassTints.forEachIndexed { index, tint ->
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 Modifier.size(30.dp).clip(CircleShape)
-                                    .background(if (index == 0) scheme.surfaceContainerHighest else color)
+                                    .background(tint.color)
                                     .border(
                                         width = if (index == glassTintIndex) 3.dp else 1.dp,
                                         color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
                                         shape = CircleShape,
                                     )
-                                    .clickable { onGlassTint(index) }
+                                    .clickable { onGlassTint(index, null, null) }
                             )
                             Spacer(Modifier.height(4.dp))
-                            Text(name, style = MiuixTheme.textStyles.footnote1,
+                            Text(tint.name, style = MiuixTheme.textStyles.footnote1,
                                 color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary)
                         }
                     }
+                }
+                // 调色盘：色相 0~360、透光率 0.15~1.0（拖动即进入"自定义"，实时生效）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("自定义色相", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text("${glassHue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                }
+                Slider(value = glassHue, onValueChange = { onGlassTint(-1, it, null) }, valueRange = 0f..360f)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("透光率（越低调越暗）", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text("${(glassLevel * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                }
+                Slider(value = glassLevel, onValueChange = { onGlassTint(-1, null, it) }, valueRange = 0.15f..1f)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(glassCustomColor))
+                    Text(
+                        if (glassTintIndex < 0) "当前：自定义（更暗的玻璃）" else "当前：${WheelGlassTints.getOrNull(glassTintIndex)?.name ?: "默认"}",
+                        style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
+                    )
                 }
             }
         }

@@ -131,8 +131,17 @@ private fun AppShell() {
     var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
     var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
-    // 滚轮圆环的玻璃颜色（0 = 默认无色）
+    // 滚轮圆环的玻璃颜色：预设下标（-1 = 自定义）+ 自定义的色相/透光率
     var glassTintIndex by remember { mutableStateOf(prefs.getInt("wheelGlassTint", 0)) }
+    var glassHue by remember { mutableStateOf(prefs.getFloat("wheelGlassHue", 215f)) }
+    var glassLevel by remember { mutableStateOf(prefs.getFloat("wheelGlassLevel", 0.55f)) }
+    val glassColor = remember(glassTintIndex, glassHue, glassLevel) {
+        if (glassTintIndex in com.localmusic.app.ui.WheelGlassTints.indices) {
+            com.localmusic.app.ui.WheelGlassTints[glassTintIndex].color
+        } else {
+            com.localmusic.app.ui.WheelTint("自定义", glassHue, glassLevel).color
+        }
+    }
 
     var page by remember { mutableStateOf(Page.Library) }
     // 搜索词提到顶层：输入框在顶栏（额头）里，曲库/喜欢两页共用它
@@ -287,7 +296,7 @@ private fun AppShell() {
                         }
                     },
                     "滚轮玻璃颜色" to {
-                        glassTintIndex = (glassTintIndex + 1) % com.localmusic.app.ui.WheelGlassTints.size
+                        glassTintIndex = if (glassTintIndex < 0) 0 else (glassTintIndex + 1) % com.localmusic.app.ui.WheelGlassTints.size
                         prefs.edit().putInt("wheelGlassTint", glassTintIndex).apply()
                     },
                     "重新扫描" to { library.scan() },
@@ -388,7 +397,19 @@ private fun AppShell() {
                                         onScan = { library.scan() },
                                         onCancel = { library.cancel() },
                                         glassTintIndex = glassTintIndex,
-                                        onGlassTint = { glassTintIndex = it; prefs.edit().putInt("wheelGlassTint", it).apply() },
+                                        glassHue = glassHue,
+                                        glassLevel = glassLevel,
+                                        glassCustomColor = glassColor,
+                                        onGlassTint = { index, hue, level ->
+                                            glassTintIndex = index
+                                            hue?.let { glassHue = it }
+                                            level?.let { glassLevel = it }
+                                            prefs.edit()
+                                                .putInt("wheelGlassTint", glassTintIndex)
+                                                .putFloat("wheelGlassHue", glassHue)
+                                                .putFloat("wheelGlassLevel", glassLevel)
+                                                .apply()
+                                        },
                                         topPadding = pageTopPadding,
                                     )
                                 }
@@ -466,9 +487,7 @@ private fun AppShell() {
                                 modifier = Modifier.align(Alignment.BottomEnd)
                                     .padding(end = BarMargin + 6.dp, bottom = BarMargin + BarHeight + 96.dp)
                                     .size(190.dp),
-                                ringTint = com.localmusic.app.ui.WheelGlassTints[
-                                    glassTintIndex.coerceIn(0, com.localmusic.app.ui.WheelGlassTints.lastIndex)
-                                ].second,
+                                ringTint = glassColor,
                             )
                         }
                         Column(
