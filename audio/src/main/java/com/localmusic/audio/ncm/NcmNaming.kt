@@ -12,18 +12,21 @@ import org.json.JSONObject
 object NcmNaming {
     private val illegal = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
 
-    fun sanitizeFileName(raw: String): String {
+    fun sanitizeFileName(raw: String, extension: String = "flac"): String {
         val cleaned = illegal.replace(raw, "_").trim().trimEnd('.')
         val limited = if (cleaned.length > 120) cleaned.take(120) else cleaned
         val name = limited.ifBlank { "ncm" }
-        return if (name.endsWith(".flac", true)) name else "$name.flac"
+        // 回退产物可能是 mp3 / m4a，扩展名要跟着实际输出走
+        val ext = extension.removePrefix(".").lowercase().ifBlank { "flac" }
+        return if (name.endsWith(".$ext", true)) name else "$name.$ext"
     }
 
     /**
      * @param ncmMetadataJson NcmFileStore 写出的侧车里那份原始元数据（可能为 null）
      * @param fallback 原 ncm 的显示名
+     * @param extension 实际输出格式的扩展名（flac / mp3 / m4a）
      */
-    fun exportName(ncmMetadataJson: String?, fallback: String): String {
+    fun exportName(ncmMetadataJson: String?, fallback: String, extension: String = "flac"): String {
         val meta = ncmMetadataJson?.takeIf { it.isNotBlank() && it != "null" }
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
         val title = meta?.optString("musicName")?.takeIf { it.isNotBlank() }
@@ -33,6 +36,6 @@ object NcmNaming {
                 .joinToString("/").takeIf { it.isNotBlank() }
         }
         val stem = if (artist.isNullOrBlank()) title else "$artist - $title"
-        return sanitizeFileName(stem)
+        return sanitizeFileName(stem, extension)
     }
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -137,6 +141,20 @@ fun PlayerOverlay(
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
 
+    // ── 进入播放页的"弹出"动画 ──
+    // 一个 0→1 的弹簧进度，再按窗口切成三拍错峰：图标钮先出现 → 封面放大淡入 → 控件面板从下往上推到
+    // 位。用弹簧（有回弹）而不是 tween，配合液态玻璃的形变手感。
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow))
+    }
+    val progress = enter.value
+    fun stage(from: Float, until: Float): Float =
+        ((progress - from) / (until - from).coerceAtLeast(0.001f)).coerceIn(0f, 1f)
+    val iconStage = stage(0f, 0.45f)
+    val coverStage = stage(0.10f, 0.75f)
+    val controlStage = stage(0.30f, 1f)
+
     LaunchedEffect(song?.uri, showLyrics) {
         if (showLyrics && !lyricsLoaded && song != null) {
             lyrics = withContext(Dispatchers.IO) { LyricsRepository.load(context.applicationContext, song) }
@@ -155,8 +173,15 @@ fun PlayerOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // 顶部只放三个**独立的玻璃圆钮**：返回 / 换封面 / 均衡器（不放文字标题，
-            // 歌名信息在下面的控件面板里，避免两处重复）
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // 歌名信息在下面的控件面板里，避免两处重复）。第一拍入场。
+            Row(
+                Modifier.fillMaxWidth().graphicsLayer {
+                    alpha = iconStage
+                    val s = 0.7f + 0.3f * iconStage
+                    scaleX = s; scaleY = s
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
@@ -166,8 +191,15 @@ fun PlayerOverlay(
 
             Spacer(Modifier.height(LiquidSpacing.item))
 
-            // ① 封面 + 四周的玻璃光环 / 歌词
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // ① 封面 + 四周的玻璃光环 / 歌词。第二拍入场：放大 + 淡入（带弹簧回弹）。
+            Box(
+                Modifier.weight(1f).fillMaxWidth().graphicsLayer {
+                    alpha = coverStage
+                    val s = 0.88f + 0.12f * coverStage
+                    scaleX = s; scaleY = s
+                },
+                contentAlignment = Alignment.Center,
+            ) {
                 if (!showLyrics) {
                     CoverWithGlassRing(backdrop = backdrop, song = song, onClick = { showLyrics = true })
                 } else {
@@ -185,11 +217,16 @@ fun PlayerOverlay(
 
             Spacer(Modifier.height(LiquidSpacing.item))
 
-            // ② 播放控件：单独一块玻璃
+            // ② 播放控件：单独一块玻璃。第三拍入场：从下往上推 + 淡入 + 轻微放大。
             GlassPanel(
                 backdrop = backdrop,
                 shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().graphicsLayer {
+                    alpha = controlStage
+                    translationY = (1f - controlStage) * 56.dp.toPx()
+                    val s = 0.94f + 0.06f * controlStage
+                    scaleX = s; scaleY = s
+                },
             ) {
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = LiquidSpacing.card, vertical = LiquidSpacing.item),

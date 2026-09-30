@@ -47,28 +47,50 @@ internal object NcmFileStore {
             }
             val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
             // Hash the complete original container, not a user-controlled name or URI.
-            val target = File(directory, "ncm-$hash.flac")
-            val sidecar = File(directory, "ncm-$hash.json")
-            if (target.isFile) {
-                val valid = try { FlacValidation.validate(target, checkpoint); true }
-                    catch (_: IOException) { false }
-                if (valid) { checkpoint(); return target }
-                // Never reuse a merely nonempty/FLAC-named file. Invalid cache replaced only on success.
-            }
             val prefix = payload.inputStream().use { input -> ByteArray(4).also {
                 if (input.read(it) != 4) throw IOException("Truncated NCM audio payload")
             } }
             val native = prefix.contentEquals("fLaC".toByteArray())
-            val complete = if (native) payload else {
-                val mp3 = prefix[0] == 'I'.code.toByte() && prefix[1] == 'D'.code.toByte() && prefix[2] == '3'.code.toByte() ||
-                    prefix[0].toInt() and 255 == 255 && prefix[1].toInt() and 0xe0 == 0xe0
-                if (!mp3) throw IOException("Unsupported NCM payload: expected native FLAC or MP3")
-                val file = File.createTempFile(".ncm-flac-", ".tmp", directory)
-                encoded = file
-                transcodeMp3(payload, file, checkpoint)
-                file
+            val isMp3 = prefix[0] == 'I'.code.toByte() && prefix[1] == 'D'.code.toByte() && prefix[2] == '3'.code.toByte() ||
+                prefix[0].toInt() and 255 == 255 && prefix[1].toInt() and 0xe0 == 0xe0
+
+            // ── 输出阶梯：优先 FLAC；转不出 FLAC 就回退，而不是直接失败 ──
+            //   ① FLAC 载荷 + 校验通过                 → 原样发布 .flac（无损、零重编码）
+            //   ② FLAC 载荷 + 校验不通过（截断/失同步） → 仍发布 .flac 但标记 flac-unverified-raw：
+            //      至少能播到断点，也能拿别的工具抢救；比"什么都不给"有用
+            //   ③ MP3 载荷 + 转 FLAC 成功               → .flac
+            //   ④ MP3 载荷 + 转 FLAC 失败               → 直接发布原始 .mp3（它本来就是 mp3）
+            var publish: File
+            var extension: String
+            var fallback: String? = null
+            var info: FlacValidation.Info? = null
+            when {
+                native -> {
+                    info = try { FlacValidation.validate(payload, checkpoint) } catch (_: IOException) { null }
+                    publish = payload
+                    extension = "flac"
+                    if (info == null) fallback = "flac-unverified-raw"
+                }
+                isMp3 -> {
+                    val flacFile = File.createTempFile(".ncm-flac-", ".tmp", directory).also { encoded = it }
+                    val converted = try {
+                        transcodeMp3(payload, flacFile, checkpoint)
+                        info = FlacValidation.validate(flacFile, checkpoint)
+                        true
+                    } catch (_: Exception) { false }
+                    if (converted) { publish = flacFile; extension = "flac" }
+                    else { publish = payload; extension = "mp3"; fallback = "mp3-passthrough"; info = null }
+                }
+                else -> throw IOException("Unsupported NCM payload: expected native FLAC or MP3")
             }
-            val info = FlacValidation.validate(complete, checkpoint)
+
+            val sidecar = File(directory, "ncm-$hash.json")
+            val target = File(directory, "ncm-$hash.$extension")
+            if (target.isFile && target.length() > 4096 && fallback == null) {
+                val stillValid = try { FlacValidation.validate(target, checkpoint); true } catch (_: IOException) { false }
+                if (stillValid) { checkpoint(); return target }
+            }
+
             checkpoint()
             val metadataFile = File.createTempFile(".ncm-meta-", ".tmp", directory)
             sidecarTemp = metadataFile
@@ -76,7 +98,9 @@ internal object NcmFileStore {
                 append("{\n  \"schema\": 1,\n  \"sourceSha256\": ").append(quote(hash))
                 append(",\n  \"displayName\": ").append(quote(displayName.take(4096)))
                 append(",\n  \"payloadFormat\": ").append(quote(if (native) "flac" else "mp3"))
-                append(",\n  \"sampleRate\": ${info.sampleRate},\n  \"channels\": ${info.channels},\n  \"bitsPerSample\": ${info.bitsPerSample},\n  \"samples\": ${info.samples}")
+                append(",\n  \"outputFormat\": ").append(quote(extension))
+                append(",\n  \"fallback\": ").append(fallback?.let(::quote) ?: "null")
+                append(",\n  \"sampleRate\": ${info?.sampleRate ?: 0},\n  \"channels\": ${info?.channels ?: 0},\n  \"bitsPerSample\": ${info?.bitsPerSample ?: 0},\n  \"samples\": ${info?.samples ?: 0L}")
                 // Preserve raw upstream metadata without depending on Android org.json on the JVM.
                 append(",\n  \"ncmMetadataJson\": ").append(metadata.metadataJson?.let(::quote) ?: "null")
                 append("\n}\n")
@@ -85,7 +109,7 @@ internal object NcmFileStore {
             checkpoint()
             atomicMove(metadataFile, sidecar); publishedSidecar = sidecar
             // Same-filesystem atomic replacement; never fall back to non-atomic copy.
-            atomicMove(complete, target)
+            atomicMove(publish, target)
             committed = true
             return target
         } finally {
