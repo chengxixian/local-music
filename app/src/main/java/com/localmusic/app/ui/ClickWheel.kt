@@ -12,8 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.liquidmiuix.glass.liquidGlass
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlinx.coroutines.launch
 import kotlin.math.atan2
 
 /**
@@ -117,8 +117,9 @@ fun ClickWheel(
     val tick by rememberUpdatedState(onTick)
     val centerTap by rememberUpdatedState(onCenterTap)
     val centerDoubleTap by rememberUpdatedState(onCenterDoubleTap)
-    val pendingSingle = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val scope = rememberCoroutineScope()
+    // 中间键按下去时的即时反馈（缩放 + 触感）。单击的真正响应时间由平台的
+    // 双击判定窗口决定（约 300ms），这一点去不掉，但"按下去就有反应"能让人感觉它是即时的。
+    var centerPressed by remember { mutableStateOf(false) }
     // 一格 = 环上滚过 30dp 的弧长。之前是 52dp，转起来发钝（用户反馈"触摸不灵敏"）。
     // 每帧仍然最多响一格并清空余量，所以调小步长只会更跟手，不会回到"一划十几格"。
     val stepPx = with(density) { 30.dp.toPx() }
@@ -212,21 +213,23 @@ fun ClickWheel(
             Modifier.fillMaxSize(0.46f)
                 .clip(CircleShape)
                 .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.34f))
+                .graphicsLayer {
+                    val s = if (centerPressed) 0.93f else 1f
+                    scaleX = s; scaleY = s
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        // 单击延迟一点点再执行：给双击留出判定窗口。
-                        // 不这样做的话，双击会被拆成两次单击 → 一次双击跳两页（用户反馈"页面切换太快"）。
-                        onTap = {
-                            pendingSingle.value?.cancel()
-                            pendingSingle.value = scope.launch {
-                                kotlinx.coroutines.delay(DOUBLE_TAP_WINDOW_MS)
-                                centerTap()
-                            }
+                        onPress = {
+                            centerPressed = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            tryAwaitRelease()
+                            centerPressed = false
                         },
-                        onDoubleTap = {
-                            pendingSingle.value?.cancel()
-                            centerDoubleTap()
-                        },
+                        // 注意：**不要再自己 delay**。提供了 onDoubleTap 之后，平台本来就会把
+                        // onTap 推迟约 300ms 等第二下；之前我又加了 340ms，单击要等 ~640ms，
+                        // 这就是"单击响应有点慢"的原因。
+                        onTap = { centerTap() },
+                        onDoubleTap = { centerDoubleTap() },
                     )
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -258,9 +261,6 @@ fun ClickWheel(
 /** 手指位置相对圆心、以正右方为 0°、顺时针为正的角度。 */
 private fun angleDeg(v: Offset): Float =
     Math.toDegrees(atan2(v.y.toDouble(), v.x.toDouble())).toFloat()
-
-/** 单击要等这么久再执行，给双击留判定窗口（平台的双击超时约 300ms）。 */
-private const val DOUBLE_TAP_WINDOW_MS = 340L
 
 /** 转动一格时的那一下震动节流（毫秒）：太密会糊成一片，就分不出"一格一格"了。 */
 private const val TICK_THROTTLE_MS = 45L
