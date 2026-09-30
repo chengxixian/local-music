@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +56,10 @@ fun ClickWheel(
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    // 直接拿 Vibrator 自己发短震：强度可控（Compose 的 HapticFeedbackType 只有固定几档，
+    // TextHandleMove 是最轻的"滴答"，用户反馈太弱）。
+    val vibrator = remember { context.getSystemService(android.os.Vibrator::class.java) }
     val density = LocalDensity.current
     // 手势闭包只会在首次组合时创建一次（pointerInput(Unit) 不会重建），
     // 所以回调必须用 rememberUpdatedState 包一层，否则双击时拿到的是**第一次组合**的列表和下标
@@ -118,9 +123,24 @@ fun ClickWheel(
                             if (fired) {
                                 // 触感节流：每次 tick 都震会明显掉帧
                                 val now = android.os.SystemClock.uptimeMillis()
-                                if (now - lastHapticAt > 60L) {
+                                if (now - lastHapticAt > 55L) {
                                     lastHapticAt = now
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    // 优先用振幅可控的短震（最"脆"）；不支持振幅就走预定义 CLICK；
+                                    // 再不行退回 Compose 触感，并且挑最重的一档。
+                                    val sent = runCatching {
+                                        val v = vibrator
+                                        if (v == null || !v.hasVibrator()) {
+                                            false
+                                        } else {
+                                            if (v.hasAmplitudeControl()) {
+                                                v.vibrate(android.os.VibrationEffect.createOneShot(TICK_MS, TICK_AMPLITUDE))
+                                            } else {
+                                                v.vibrate(android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK))
+                                            }
+                                            true
+                                        }
+                                    }.getOrDefault(false)
+                                    if (!sent) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 }
                             }
                             change.consume()
@@ -184,3 +204,8 @@ private fun angleDeg(v: Offset): Float =
 
 /** 单击要等这么久再执行，给双击留判定窗口（平台的双击超时约 300ms）。 */
 private const val DOUBLE_TAP_WINDOW_MS = 340L
+
+/** 转动一格时的那一下震动：22ms、振幅 0~255 里的 240。
+ *  比系统默认"滴答"和 MIUI 的 HEAVY_CLICK(MEDIUM) 都更重（时长与振幅两头都加上去）。 */
+private const val TICK_MS = 22L
+private const val TICK_AMPLITUDE = 240
