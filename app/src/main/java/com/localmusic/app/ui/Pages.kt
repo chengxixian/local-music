@@ -371,11 +371,8 @@ fun SettingsPage(
     onScrapeLyrics: (Boolean) -> Unit = {},
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
-    glassTintIndex: Int = 0,
-    glassHue: Float = 215f,
-    glassLevel: Float = 0.55f,
-    glassCustomColor: Color = Color.Transparent,
-    onGlassTint: (Int, Float?, Float?) -> Unit = { _, _, _ -> },
+    tintState: WheelTintState = WheelTintState(),
+    onGlassTint: (WheelTintState) -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -497,33 +494,50 @@ fun SettingsPage(
                                 Modifier.size(30.dp).clip(CircleShape)
                                     .background(tint.color)
                                     .border(
-                                        width = if (index == glassTintIndex) 3.dp else 1.dp,
-                                        color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+                                        width = if (index == tintState.index) 3.dp else 1.dp,
+                                        color = if (index == tintState.index) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
                                         shape = CircleShape,
                                     )
-                                    .clickable { onGlassTint(index, null, null) }
+                                    .clickable { onGlassTint(tintState.copy(index = index)) }
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(tint.name, style = MiuixTheme.textStyles.footnote1,
-                                color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary)
+                                color = if (index == tintState.index) scheme.primary else scheme.onSurfaceVariantSummary)
                         }
                     }
                 }
-                // 调色盘：色相 0~360、透光率 0.15~1.0（拖动即进入"自定义"，实时生效）
+                // 调色盘：色相 / 饱和度 / 透光率。拖动任意一个即进入"自定义"，实时生效
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("自定义色相", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    Text("${glassHue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                    Text("色相", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text("${tintState.hue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
-                Slider(value = glassHue, onValueChange = { onGlassTint(-1, it, null) }, valueRange = 0f..360f)
+                Slider(
+                    value = tintState.hue,
+                    onValueChange = { onGlassTint(tintState.copy(index = -1, hue = it)) },
+                    valueRange = 0f..360f,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("饱和度", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text("${(tintState.sat * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                }
+                Slider(
+                    value = tintState.sat,
+                    onValueChange = { onGlassTint(tintState.copy(index = -1, sat = it)) },
+                    valueRange = 0f..1f,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("透光率（越低调越暗）", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    Text("${(glassLevel * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                    Text("${(tintState.level * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
-                Slider(value = glassLevel, onValueChange = { onGlassTint(-1, null, it) }, valueRange = 0.15f..1f)
+                Slider(
+                    value = tintState.level,
+                    onValueChange = { onGlassTint(tintState.copy(index = -1, level = it)) },
+                    valueRange = 0.15f..1f,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
-                    Box(Modifier.size(28.dp).clip(CircleShape).background(glassCustomColor))
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(tintState.color))
                     Text(
-                        if (glassTintIndex < 0) "当前：自定义（更暗的玻璃）" else "当前：${WheelGlassTints.getOrNull(glassTintIndex)?.name ?: "默认"}",
+                        "当前：${tintState.label}${if (tintState.index < 0) "（色相 ${tintState.hue.toInt()}° · 饱和 ${(tintState.sat * 100).toInt()}% · 透光 ${(tintState.level * 100).toInt()}%）" else ""}",
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
                     )
                 }

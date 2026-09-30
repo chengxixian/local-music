@@ -56,12 +56,12 @@ import kotlin.math.atan2
  *  - `level`：透光率 0.15(最暗) ~ 1.0(最亮)。越暗 → RGB 越接近黑、且填色 alpha 越大，
  *    于是整体越暗、颜色越沉 —— 这才是玻璃吸光的样子。
  */
-data class WheelTint(val name: String, val hue: Float?, val level: Float) {
+data class WheelTint(val name: String, val hue: Float?, val level: Float, val sat: Float = 0.62f) {
     val color: Color
         get() {
             val h = hue ?: return com.liquidmiuix.glass.GlassSurfaceTint
             val l = level.coerceIn(0.15f, 1f)
-            val pure = Color.hsv(h, 0.62f, 1f)
+            val pure = Color.hsv(h % 360f, sat.coerceIn(0f, 1f), 1f)
             // 暗 → 颜色乘下去 + 覆盖率提上来，等价于"透光率低"
             return Color(pure.red * l, pure.green * l, pure.blue * l, alpha = 0.30f + 0.30f * (1f - l))
         }
@@ -78,6 +78,21 @@ val WheelGlassTints: List<WheelTint> = listOf(
     WheelTint("蓝", 215f, 0.55f),
     WheelTint("紫", 280f, 0.55f),
 )
+
+/** 滚轮玻璃颜色的完整状态：预设下标（-1 = 自定义）+ 自定义的色相/透光率/饱和度。 */
+data class WheelTintState(
+    val index: Int = 0,
+    val hue: Float = 215f,
+    val level: Float = 0.55f,
+    val sat: Float = 0.62f,
+) {
+    val color: Color
+        get() = if (index in WheelGlassTints.indices) WheelGlassTints[index].color
+        else WheelTint("自定义", hue, level, sat).color
+
+    val label: String
+        get() = if (index in WheelGlassTints.indices) WheelGlassTints[index].name else "自定义"
+}
 
 @Composable
 fun ClickWheel(
