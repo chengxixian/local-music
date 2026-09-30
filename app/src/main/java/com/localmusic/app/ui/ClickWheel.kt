@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import android.os.VibrationEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -123,19 +124,25 @@ fun ClickWheel(
                             if (fired) {
                                 // 触感节流：每次 tick 都震会明显掉帧
                                 val now = android.os.SystemClock.uptimeMillis()
-                                if (now - lastHapticAt > 55L) {
+                                if (now - lastHapticAt > TICK_THROTTLE_MS) {
                                     lastHapticAt = now
-                                    // 优先用振幅可控的短震（最"脆"）；不支持振幅就走预定义 CLICK；
-                                    // 再不行退回 Compose 触感，并且挑最重的一档。
                                     val sent = runCatching {
                                         val v = vibrator
                                         if (v == null || !v.hasVibrator()) {
                                             false
                                         } else {
-                                            if (v.hasAmplitudeControl()) {
-                                                v.vibrate(android.os.VibrationEffect.createOneShot(TICK_MS, TICK_AMPLITUDE))
-                                            } else {
-                                                v.vibrate(android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK))
+                                            when {
+                                                // ① 最好：CLICK 原语（系统专为"咔哒"设计的极短脉冲）
+                                                v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK) ->
+                                                    v.vibrate(
+                                                        VibrationEffect.startComposition()
+                                                            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 1.0f)
+                                                            .compose()
+                                                    )
+                                                // ② 本机（HyperOS）不支持原语，走系统预定义 CLICK ——
+                                                //    **实测这就是最清脆的那一档**（用户确认），别再换成
+                                                //    自己拼的短脉冲：22ms/240 与 8ms/255 都试过，都比它闷。
+                                                else -> v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
                                             }
                                             true
                                         }
@@ -205,7 +212,5 @@ private fun angleDeg(v: Offset): Float =
 /** 单击要等这么久再执行，给双击留判定窗口（平台的双击超时约 300ms）。 */
 private const val DOUBLE_TAP_WINDOW_MS = 340L
 
-/** 转动一格时的那一下震动：22ms、振幅 0~255 里的 240。
- *  比系统默认"滴答"和 MIUI 的 HEAVY_CLICK(MEDIUM) 都更重（时长与振幅两头都加上去）。 */
-private const val TICK_MS = 22L
-private const val TICK_AMPLITUDE = 240
+/** 转动一格时的那一下震动节流（毫秒）：太密会糊成一片，就分不出"一格一格"了。 */
+private const val TICK_THROTTLE_MS = 45L
