@@ -21,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.LocalContentColor
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
 private enum class Page(val title: String, val icon: ImageVector) {
     Library("曲库", Icons.Rounded.LibraryMusic),
+    Favorites("喜欢", Icons.Rounded.Favorite),
     Settings("设置", Icons.Rounded.Settings),
 }
 
@@ -124,10 +126,11 @@ private fun AppShell() {
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
 
     var page by remember { mutableStateOf(Page.Library) }
+    // 搜索词提到顶层：输入框在顶栏（额头）里，曲库/喜欢两页共用它
+    var searchQuery by remember { mutableStateOf("") }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var playerOpen by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
-    var showFavorites by remember { mutableStateOf(false) }
     var bitPerfect by remember { mutableStateOf(prefs.getBoolean("bitPerfect", false)) }
     var autoNcm by remember { mutableStateOf(prefs.getBoolean("autoNcm", true)) }
     var trees by remember(status) { mutableStateOf(library.treeUris().toList()) }
@@ -253,10 +256,10 @@ private fun AppShell() {
                                     // 播放页不在这里渲染 —— 带玻璃的界面必须待在采集层之外，
                                     // 否则玻璃会采样"正在录制自己"的层 → 渲染树自引用 → RenderThread 栈溢出闪退。
                                     Page.Library -> LibraryPage(
-                                        songs = songs, status = status, nowPlaying = playback.id,
+                                        songs = songs, nowPlaying = playback.id,
                                         favorites = favorites,
-                                        showFavorites = showFavorites,
-                                        onShowFavorites = { showFavorites = it },
+                                        query = searchQuery,
+                                        favoritesOnly = false,
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
@@ -265,8 +268,21 @@ private fun AppShell() {
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
                                         },
-                                        onScan = { library.scan() },
-                                        onCancel = { library.cancel() },
+                                        topPadding = pageTopPadding,
+                                    )
+                                    Page.Favorites -> LibraryPage(
+                                        songs = songs, nowPlaying = playback.id,
+                                        favorites = favorites,
+                                        query = searchQuery,
+                                        favoritesOnly = true,
+                                        onToggleFavorite = { song ->
+                                            com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
+                                        },
+                                        onPlay = { song -> player.play(songs, song); playerOpen = true },
+                                        onAddToQueue = { song ->
+                                            player.appendToQueue(listOf(song))
+                                            android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                        },
                                         topPadding = pageTopPadding,
                                     )
                                     Page.Settings -> SettingsPage(
@@ -305,6 +321,7 @@ private fun AppShell() {
                                         onPickExport = { pickExportFolder.launch(ExportInitialUri) },
                                         onRemoveTree = { library.removeTree(it); trees = library.treeUris().toList(); exportLabel = prefs.getString("exportLabel", null) },
                                         onScan = { library.scan() },
+                                        onCancel = { library.cancel() },
                                         topPadding = pageTopPadding,
                                     )
                                 }
@@ -352,6 +369,9 @@ private fun AppShell() {
                             GlassTopBar(
                                 backdrop = backdrop,
                                 title = page.title,
+                                // 曲库/喜欢：顶栏直接当搜索框；设置页还是标题
+                                query = searchQuery,
+                                onQueryChange = if (page == Page.Settings) null else { q -> searchQuery = q },
                                 modifier = Modifier.align(Alignment.TopCenter)
                                     .padding(start = BarMargin, end = BarMargin, top = TopBarMargin)
                                     .fillMaxWidth()
