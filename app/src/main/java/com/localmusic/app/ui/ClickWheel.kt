@@ -139,13 +139,10 @@ fun ClickWheel(
                                                             .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 1.0f)
                                                             .compose()
                                                     )
-                                                // ② 本机（HyperOS）不支持原语，实测会退成 Prebaked=CLICK(MEDIUM)
-                                                //    —— 那玩意儿 68ms、中等强度，就是"闷"的来源。
-                                                //    改用**极短 + 满振幅**的脉冲：越短越脆。
-                                                v.hasAmplitudeControl() ->
-                                                    v.vibrate(VibrationEffect.createOneShot(TICK_MS, 255))
-                                                // ③ 连振幅都不支持时，TICK 比 CLICK 更干脆
-                                                else -> v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
+                                                // ② 本机（HyperOS）不支持原语，走系统预定义 CLICK ——
+                                                //    **实测这就是最清脆的那一档**（用户确认），别再换成
+                                                //    自己拼的短脉冲：22ms/240 与 8ms/255 都试过，都比它闷。
+                                                else -> v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
                                             }
                                             true
                                         }
@@ -217,6 +214,3 @@ private const val DOUBLE_TAP_WINDOW_MS = 340L
 
 /** 转动一格时的那一下震动节流（毫秒）：太密会糊成一片，就分不出"一格一格"了。 */
 private const val TICK_THROTTLE_MS = 45L
-
-/** 不支持 CLICK 原语时的退路：极短 + 满振幅 = 尽量脆。 */
-private const val TICK_MS = 8L
