@@ -12,7 +12,16 @@ import android.database.sqlite.SQLiteOpenHelper
  * v2 → v3：新增 `favorites` 表（我喜欢的音乐）。
  * 迁移都是**增量**的：用户数据（收藏、自选封面）升级时不能清。
  */
-class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", null, 3) {
+/**
+ * 封面来源。区分它是因为：**用户自己设的封面永远不能被自动逻辑清掉**，
+ * 而刮削下载的封面在"这首歌本来就有封面"时应该被撤掉、让原图重新显示。
+ */
+object CoverSource {
+    const val USER = "user"
+    const val SCRAPED = "scraped"
+}
+
+class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", null, 4) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE songs (uri TEXT PRIMARY KEY, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL, duration INTEGER NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL, format TEXT NOT NULL, sampleRate INTEGER NOT NULL, bitDepth INTEGER NOT NULL, channels INTEGER NOT NULL, origin TEXT NOT NULL, artwork TEXT)")
         db.execSQL("CREATE INDEX song_origin ON songs(origin)")
@@ -23,10 +32,12 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createCovers(db)
         if (oldVersion < 3) createFavorites(db)
+        // v4：区分"用户自己设的封面"和"自动刮削下载的封面"，前者永远不许被自动清理
+        if (oldVersion < 4) runCatching { db.execSQL("ALTER TABLE covers ADD COLUMN source TEXT NOT NULL DEFAULT 'scraped'") }
     }
 
     private fun createCovers(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS covers (uri TEXT PRIMARY KEY, path TEXT NOT NULL, updated INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS covers (uri TEXT PRIMARY KEY, path TEXT NOT NULL, updated INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'scraped')")
     }
 
     private fun createFavorites(db: SQLiteDatabase) {
@@ -64,13 +75,19 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
             buildMap { while (c.moveToNext()) put(c.getString(0), c.getString(1)) }
         }
 
-    fun setCover(uri: String, path: String?) {
+    fun setCover(uri: String, path: String?, source: String = CoverSource.SCRAPED) {
         val db = writableDatabase
         if (path == null) db.delete("covers", "uri = ?", arrayOf(uri))
         else db.insertWithOnConflict("covers", null, android.content.ContentValues().apply {
-            put("uri", uri); put("path", path); put("updated", System.currentTimeMillis())
+            put("uri", uri); put("path", path); put("updated", System.currentTimeMillis()); put("source", source)
         }, SQLiteDatabase.CONFLICT_REPLACE)
     }
+
+    /** uri → 封面来源（`user` 是用户自己设的，`scraped` 是自动刮削来的）。 */
+    fun coverSources(): Map<String, String> = readableDatabase
+        .rawQuery("SELECT uri, source FROM covers", null).use { c ->
+            buildMap { while (c.moveToNext()) put(c.getString(0), c.getString(1) ?: CoverSource.SCRAPED) }
+        }
 
     /** 我喜欢的音乐（按加入时间倒序，界面直接按这个顺序展示）。 */
     fun favorites(): List<String> = readableDatabase

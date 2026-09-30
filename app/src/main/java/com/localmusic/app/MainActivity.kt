@@ -287,6 +287,18 @@ private fun AppShell() {
                                                 com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
                                             }
                                         },
+                                        onRestoreCovers = {
+                                            scrapeScope.launch {
+                                                val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                    com.localmusic.app.data.CoverStore.restoreOriginals(context, songs)
+                                                }
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    if (n > 0) "已恢复 $n 首的自带封面" else "没有需要恢复的（这些歌没有自带封面）",
+                                                    android.widget.Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                        },
                                         onBitPerfect = { bitPerfect = it; prefs.edit().putBoolean("bitPerfect", it).apply() },
                                         onAutoNcm = { autoNcm = it; prefs.edit().putBoolean("autoNcm", it).apply() },
                                         onPickTree = { pickFolder.launch(NeteaseTreeUri) },
