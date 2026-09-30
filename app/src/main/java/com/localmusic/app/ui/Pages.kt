@@ -362,6 +362,7 @@ fun SettingsPage(
     onScrapeCover: (Boolean) -> Unit = {},
     onScrapeLyrics: (Boolean) -> Unit = {},
     onScrapeNow: () -> Unit = {},
+    onRestoreCovers: () -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -455,6 +456,13 @@ fun SettingsPage(
                     Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
                     TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) "刮削中…" else "立即刮削") }
                 }
+                // 之前刮削把歌曲自带的封面盖掉过？这里一键把原封面放回来（用户自己设的封面不动）
+                LiquidListItem(
+                    title = "恢复歌曲自带封面",
+                    subtitle = "撤掉自动刮削下载的封面，让文件内嵌/系统专辑封面重新显示（手动设过的封面保留）",
+                    leading = Icons.Rounded.Restore,
+                    onClick = onRestoreCovers,
+                )
                 scrapeStatus.failures.forEach {
                     LiquidStatusBanner(text = it, icon = Icons.Rounded.CloudOff, color = scheme.onSurfaceVariantSummary)
                 }

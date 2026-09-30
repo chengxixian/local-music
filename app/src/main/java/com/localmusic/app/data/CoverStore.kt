@@ -47,7 +47,7 @@ object CoverStore {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(target.absolutePath, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { target.delete(); return false }
-            commit(app, songUri, target.absolutePath, refresh = true)
+            commit(app, songUri, target.absolutePath, refresh = true, source = CoverSource.USER)
             true
         } catch (_: Exception) { false }
     }
@@ -71,7 +71,7 @@ object CoverStore {
                 target.delete()
                 false
             } else {
-                commit(app, songUri, target.absolutePath, refresh)
+                commit(app, songUri, target.absolutePath, refresh, source = CoverSource.SCRAPED)
                 true
             }
         } catch (_: Exception) { false }
@@ -80,8 +80,31 @@ object CoverStore {
     /** 批量场景收尾：一次性让封面 UI 重载。 */
     fun refresh() { _revision.value += 1 }
 
-    private fun commit(app: Context, songUri: String, path: String, refresh: Boolean) {
-        MusicDatabase(app).setCover(songUri, path)
+    /**
+     * 撤掉"刮削下载的封面"、让歌曲**自带的封面**重新显示（用户自己设的 user 封面一律保留）。
+     *
+     * 判定"自带封面"用 [ArtworkProbe]（系统媒体库专辑封面 / 文件内嵌图）。
+     * 返回清掉的数量。
+     */
+    fun restoreOriginals(context: Context, songs: List<Song>): Int {
+        val app = context.applicationContext
+        val sources = MusicDatabase(app).coverSources()
+        var restored = 0
+        for (song in songs) {
+            val path = pathFor(app, song.uri) ?: continue
+            if (sources[song.uri] == CoverSource.USER) continue
+            if (!ArtworkProbe.hasOwnArtwork(app, song)) continue
+            path.delete()
+            MusicDatabase(app).setCover(song.uri, null)
+            synchronized(lock) { cache = cache?.minus(song.uri) }
+            restored++
+        }
+        if (restored > 0) _revision.value += 1
+        return restored
+    }
+
+    private fun commit(app: Context, songUri: String, path: String, refresh: Boolean, source: String) {
+        MusicDatabase(app).setCover(songUri, path, source)
         synchronized(lock) {
             // 缓存已加载过才增量更新；没加载过就继续保持 null，下次读会连带新行一起读出来
             cache?.let { cache = it + (songUri to path) }

@@ -60,6 +60,8 @@ object Scraper {
         val failures = mutableListOf<String>()
         _status.value = Status(true, "开始刮削…")
         try {
+            // 先把"之前刮削盖住的、其实自带封面"的歌恢复原样（自动纠错，不用用户手动点）
+            val restored = runCatching { CoverStore.restoreOriginals(context, songs) }.getOrDefault(0)
             for (song in songs) {
                 currentCoroutineContext().ensureActive()
                 if (tried >= limit) break
@@ -88,7 +90,8 @@ object Scraper {
                 }
             }
             if (covers % 6 != 0) CoverStore.refresh()
-            _status.value = Status(false, "刮削完成：封面 $covers · 歌词 $lyrics（共试 $tried 首）", covers, lyrics, tried, failures.takeLast(5))
+            val restoredNote = if (restored > 0) "，已恢复 $restored 首自带封面" else ""
+            _status.value = Status(false, "刮削完成：封面 $covers · 歌词 $lyrics（共试 $tried 首$restoredNote）", covers, lyrics, tried, failures.takeLast(5))
         } catch (e: CancellationException) {
             CoverStore.refresh()
             _status.value = Status(false, "已停止：封面 $covers · 歌词 $lyrics", covers, lyrics, tried, failures.takeLast(3))
@@ -264,26 +267,31 @@ object ArtworkProbe {
 
     private fun probe(context: Context, song: Song): Boolean {
         val uri = android.net.Uri.parse(song.uri)
-        if (uri.scheme == "content" && uri.authority == "media") return mediaStoreAlbumArt(context, uri)
-        // 本地/SAF 文件：看有没有内嵌封面
-        return android.media.MediaMetadataRetriever().use { retriever ->
-            retriever.setDataSource(context, uri)
-            retriever.embeddedPicture != null
+        // ① 本地文件：直接按路径读**内嵌封面**——这正是"歌曲本来就带的封面"
+        val path = runCatching {
+            when {
+                uri.scheme == "file" -> uri.path
+                uri.authority == "media" -> context.contentResolver
+                    .query(uri, arrayOf(android.provider.MediaStore.Audio.Media.DATA), null, null, null)
+                    ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                else -> null
+            }
+        }.getOrNull()
+        if (path != null && java.io.File(path).canRead()) {
+            return runCatching {
+                android.media.MediaMetadataRetriever().use { retriever ->
+                    retriever.setDataSource(path)
+                    retriever.embeddedPicture != null
+                }
+            }.getOrDefault(false)
         }
-    }
-
-    /** 系统媒体库里这条音频的专辑封面是否存在（`content://media/external/audio/albumart/<albumId>`）。 */
-    private fun mediaStoreAlbumArt(context: Context, uri: android.net.Uri): Boolean {
-        val albumId = context.contentResolver
-            .query(uri, arrayOf(android.provider.MediaStore.Audio.Media.ALBUM_ID), null, null, null)
-            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else -1L }
-            ?: -1L
-        if (albumId <= 0) return false
-        val artUri = android.content.ContentUris.withAppendedId(
-            android.net.Uri.parse("content://media/external/audio/albumart"), albumId,
-        )
-        return runCatching { context.contentResolver.openAssetFileDescriptor(artUri, "r")?.use { true } ?: false }
-            .getOrDefault(false)
+        // ② SAF 文档：只能按 uri 读
+        return runCatching {
+            android.media.MediaMetadataRetriever().use { retriever ->
+                retriever.setDataSource(context, uri)
+                retriever.embeddedPicture != null
+            }
+        }.getOrDefault(false)
     }
 }
 
