@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -46,6 +47,24 @@ import kotlin.math.atan2
  *    这样直线拖动也能转（`adb input swipe` 只能走直线，验证时就靠这条）。
  *  - 玻璃环必须挂在**不含子内容**的 Box 上，按键内容是它的兄弟（库的硬性要求）。
  */
+/**
+ * 滚轮圆环可选的**有色玻璃**。
+ *
+ * 实现就是给液态玻璃换一个 `surfaceTint`（玻璃自己的半透明填充），只作用于滚轮那一圈，
+ * dock / 顶栏 / 控件面板仍然用统一的无色玻璃。
+ * 注意 alpha 要留出透明度：填成不透明就成塑料片了，折射和模糊都看不见。
+ */
+val WheelGlassTints: List<Pair<String, Color>> = listOf(
+    "默认" to com.liquidmiuix.glass.GlassSurfaceTint,
+    "红" to Color(0xFFE53935).copy(alpha = 0.38f),
+    "橙" to Color(0xFFFB8C00).copy(alpha = 0.38f),
+    "黄" to Color(0xFFFDD835).copy(alpha = 0.34f),
+    "绿" to Color(0xFF43A047).copy(alpha = 0.38f),
+    "青" to Color(0xFF00ACC1).copy(alpha = 0.38f),
+    "蓝" to Color(0xFF1E88E5).copy(alpha = 0.38f),
+    "紫" to Color(0xFF8E24AA).copy(alpha = 0.38f),
+)
+
 @Composable
 fun ClickWheel(
     backdrop: LayerBackdrop?,
@@ -55,6 +74,7 @@ fun ClickWheel(
     onCenterTap: () -> Unit,
     onCenterDoubleTap: () -> Unit,
     modifier: Modifier = Modifier,
+    ringTint: Color = com.liquidmiuix.glass.GlassSurfaceTint,
 ) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -82,6 +102,7 @@ fun ClickWheel(
                 shape = CircleShape,
                 refractionHeight = 20.dp,
                 refractionAmount = 32.dp,
+                surfaceTint = ringTint,
             )
         )
         // ② 转动识别

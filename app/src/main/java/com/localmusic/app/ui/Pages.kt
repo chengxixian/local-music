@@ -371,6 +371,8 @@ fun SettingsPage(
     onScrapeLyrics: (Boolean) -> Unit = {},
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
+    glassTintIndex: Int = 0,
+    onGlassTint: (Int) -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -473,6 +475,36 @@ fun SettingsPage(
                 )
                 scrapeStatus.failures.forEach {
                     LiquidStatusBanner(text = it, icon = Icons.Rounded.CloudOff, color = scheme.onSurfaceVariantSummary)
+                }
+            }
+        }
+        item {
+            LiquidCard {
+                Text("滚轮圆环玻璃颜色", style = MiuixTheme.textStyles.title4)
+                Text("只改滚轮那一圈玻璃的色调；dock、顶栏和播放控件保持统一的无色玻璃。",
+                    style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    WheelGlassTints.forEachIndexed { index, (name, color) ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                Modifier.size(30.dp).clip(CircleShape)
+                                    .background(if (index == 0) scheme.surfaceContainerHighest else color)
+                                    .border(
+                                        width = if (index == glassTintIndex) 3.dp else 1.dp,
+                                        color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+                                        shape = CircleShape,
+                                    )
+                                    .clickable { onGlassTint(index) }
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(name, style = MiuixTheme.textStyles.footnote1,
+                                color = if (index == glassTintIndex) scheme.primary else scheme.onSurfaceVariantSummary)
+                        }
+                    }
                 }
             }
         }
