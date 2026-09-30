@@ -406,6 +406,7 @@ private fun AppShell() {
                                         onScan = { library.scan() },
                                         onCancel = { library.cancel() },
                                         tintState = tintState,
+                                        wheelIndex = wheelIndex,
                                         onGlassTint = { saveTint(it) },
                                         topPadding = pageTopPadding,
                                     )
