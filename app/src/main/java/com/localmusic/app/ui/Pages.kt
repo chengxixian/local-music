@@ -392,6 +392,8 @@ fun SettingsPage(
     onScrapeLyrics: (Boolean) -> Unit = {},
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
+    neteaseSource: Boolean = true,
+    onNeteaseSource: (Boolean) -> Unit = {},
     tintState: WheelTintState = WheelTintState(),
     wheelIndex: Int = 0,
     onGlassTint: (WheelTintState) -> Unit = {},
@@ -489,6 +491,14 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("刮歌词", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Switch(checked = scrapeLyrics, onCheckedChange = onScrapeLyrics, enabled = autoScrape)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("网易云音乐源", style = MiuixTheme.textStyles.title4)
+                        Text("优先用网易云音乐搜索封面与歌词（非官方接口，不需要账号；可能被限流或随时失效，失败会自动回落到 iTunes / Deezer / LRCLIB）。",
+                            style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                    }
+                    Switch(checked = neteaseSource, onCheckedChange = onNeteaseSource)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))

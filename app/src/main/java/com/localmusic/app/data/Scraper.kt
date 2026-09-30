@@ -53,10 +53,13 @@ object Scraper {
         wantCover: Boolean,
         wantLyrics: Boolean,
         limit: Int = 40,
+        wantNetease: Boolean = true,
     ) = withContext(Dispatchers.IO) {
         var covers = 0
         var lyrics = 0
         var tried = 0
+        var neteaseCovers = 0
+        var neteaseLyrics = 0
         val failures = mutableListOf<String>()
         _status.value = Status(true, "开始刮削…")
         try {
@@ -71,10 +74,14 @@ object Scraper {
                 if (!needCover && !needLyrics) continue
                 tried++
                 _status.value = Status(true, "刮削中：${song.title}", covers, lyrics, tried, failures.takeLast(3))
+                // 网易云一首只搜一次，封面和歌词共用这个结果
+                val netease = if (wantNetease) runCatching { neteaseSearch(song.title, song.artist) }.getOrNull() else null
                 if (needCover) {
-                    val bytes = runCatching { findCover(song.title, song.artist) }.getOrNull()
+                    val fromNetease = netease?.let { hit -> runCatching { neteaseCover(hit) }.getOrNull() }
+                    val bytes = fromNetease ?: runCatching { findCover(song.title, song.artist) }.getOrNull()
                     if (bytes != null && CoverStore.setFromBytes(context, song.uri, bytes, refresh = false)) {
                         covers++
+                        if (fromNetease != null) neteaseCovers++
                         // 攒够几张再让 UI 重载一次：每存一张就刷新会让整墙封面反复重解码（卡顿来源）
                         if (covers % 6 == 0) CoverStore.refresh()
                     } else {
@@ -83,15 +90,21 @@ object Scraper {
                     delay(180)
                 }
                 if (needLyrics) {
-                    val hit = runCatching { findLyrics(song) }.getOrNull()
-                    if (hit != null && LyricCache.write(context, song.uri, hit)) lyrics++
-                    else failures += "${song.title}：没找到歌词"
+                    val fromNetease = netease?.let { hit -> runCatching { neteaseLyrics(hit.id) }.getOrNull() }
+                    val hit = fromNetease ?: runCatching { findLyrics(song) }.getOrNull()
+                    if (hit != null && LyricCache.write(context, song.uri, hit)) {
+                        lyrics++
+                        if (fromNetease != null) neteaseLyrics++
+                    } else {
+                        failures += "${song.title}：没找到歌词"
+                    }
                     delay(180)
                 }
             }
             if (covers % 6 != 0) CoverStore.refresh()
             val restoredNote = if (restored > 0) "，已恢复 $restored 首自带封面" else ""
-            _status.value = Status(false, "刮削完成：封面 $covers · 歌词 $lyrics（共试 $tried 首$restoredNote）", covers, lyrics, tried, failures.takeLast(5))
+            val sourceNote = if (neteaseCovers + neteaseLyrics > 0) "，其中网易云 封面$neteaseCovers/歌词$neteaseLyrics" else ""
+            _status.value = Status(false, "刮削完成：封面 $covers · 歌词 $lyrics$sourceNote（共试 $tried 首$restoredNote）", covers, lyrics, tried, failures.takeLast(5))
         } catch (e: CancellationException) {
             CoverStore.refresh()
             _status.value = Status(false, "已停止：封面 $covers · 歌词 $lyrics", covers, lyrics, tried, failures.takeLast(3))
@@ -99,7 +112,50 @@ object Scraper {
         }
     }
 
-    // ── 封面 ──
+    // ── 网易云音乐（非官方接口，不需要 key；随时可能被限流或改动）──
+
+    private val neteaseHeaders = mapOf(
+        "Referer" to "https://music.163.com/",
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36",
+        "Accept" to "*/*",
+    )
+
+    internal data class NeteaseSong(val id: Long, val name: String, val artist: String, val cover: String?)
+
+    internal fun neteaseSearch(title: String, artist: String): NeteaseSong? {
+        val keyword = if (artist.isBlank() || artist.startsWith("未知")) title else "$artist $title"
+        val url = "https://music.163.com/api/search/get?s=${encode(keyword)}&type=1&offset=0&limit=5"
+        val body = get(url, neteaseHeaders) ?: return null
+        val songs = JSONObject(body).optJSONObject("result")?.optJSONArray("songs") ?: return null
+        for (i in 0 until songs.length()) {
+            val song = songs.optJSONObject(i) ?: continue
+            if (!titleMatches(title, song.optString("name"))) continue
+            val artists = song.optJSONArray("artists")?.let { array ->
+                (0 until array.length())
+                    .mapNotNull { array.optJSONObject(it)?.optString("name")?.takeIf { name -> name.isNotBlank() } }
+                    .joinToString("/")
+            }.orEmpty()
+            val cover = song.optJSONObject("album")?.optString("picUrl")?.takeIf { it.isNotBlank() }
+            return NeteaseSong(song.optLong("id"), song.optString("name"), artists, cover)
+        }
+        return null
+    }
+
+    /** 网易云的图片 URL 支持 `?param=600y600` 指定尺寸。 */
+    internal fun neteaseCover(song: NeteaseSong): ByteArray? {
+        val url = song.cover ?: return null
+        val sized = if (url.contains("?")) "$url&param=600y600" else "$url?param=600y600"
+        return fetchImage(sized) ?: fetchImage(url)
+    }
+
+    /** 取带时间戳的歌词（`lrc.lyric`）。 */
+    internal fun neteaseLyrics(id: Long): String? = try {
+        val body = get("https://music.163.com/api/song/lyric?id=$id&lv=-1&kv=-1&tv=-1", neteaseHeaders) ?: return null
+        val lrc = JSONObject(body).optJSONObject("lrc")?.optString("lyric")
+        pick(lrc)
+    } catch (_: Exception) { null }
+
+    // ── 封面（iTunes → Deezer 兜底；网易云在 scrape 里优先试）──
 
     private fun findCover(title: String, artist: String): ByteArray? {
         if (title.isBlank()) return null
@@ -185,7 +241,7 @@ object Scraper {
 
     // ── HTTP ──
 
-    private fun get(url: String): String? {
+    private fun get(url: String, headers: Map<String, String>? = null): String? {
         var connection: HttpURLConnection? = null
         return try {
             connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -195,6 +251,7 @@ object Scraper {
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", UA)
                 setRequestProperty("Accept", "application/json")
+                headers?.forEach { (key, value) -> setRequestProperty(key, value) }
             }
             if (connection.responseCode !in 200..299) null
             else connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
