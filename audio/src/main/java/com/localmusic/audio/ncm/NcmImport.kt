@@ -28,8 +28,19 @@ import kotlinx.coroutines.withContext
 object NcmImport {
     private val mutex = Mutex()
 
-    /** @param location 发布后的位置（file:// 路径或 content:// Uri） @param name 文件名 */
-    data class Exported(val location: String, val name: String, val inUserFolder: Boolean)
+    /**
+     * @param location 发布后的位置（file:// 路径或 content:// Uri）
+     * @param name 文件名
+     * @param format 实际输出格式：flac / mp3 / m4a
+     * @param fallback 非空表示这次是回退产物（原因），界面据此如实提示
+     */
+    data class Exported(
+        val location: String,
+        val name: String,
+        val inUserFolder: Boolean,
+        val format: String = "flac",
+        val fallback: String? = null,
+    )
 
     suspend fun convert(context: Context, source: Uri, displayName: String): Exported =
         withContext(Dispatchers.IO) {
@@ -65,20 +76,33 @@ object NcmImport {
                         checkpoint()
                         val sidecar = File(directory, flac.nameWithoutExtension + ".json")
                         val metadataJson = runCatching { sidecar.takeIf { it.isFile }?.readText(Charsets.UTF_8) }
-                            .getOrNull()?.let { json ->
-                                runCatching { org.json.JSONObject(json).optString("ncmMetadataJson") }.getOrNull()
-                            }
-                        val exportName = NcmNaming.exportName(metadataJson, displayName)
+                            .getOrNull()
+                        val ncmMetadata = metadataJson?.let { json ->
+                            runCatching { org.json.JSONObject(json).optString("ncmMetadataJson") }.getOrNull()
+                        }
+                        // 回退信息也读出来，交给上层如实提示（"这次是回退产物"）
+                        val fallback = metadataJson?.let { json ->
+                            runCatching { org.json.JSONObject(json).optString("fallback").takeIf { it.isNotBlank() && it != "null" } }.getOrNull()
+                        }
+                        val format = flac.extension.lowercase().ifBlank { "flac" }
+                        val exportName = NcmNaming.exportName(ncmMetadata, displayName, format)
+                        val mime = when (format) {
+                            "flac" -> "audio/flac"
+                            "mp3" -> "audio/mpeg"
+                            "m4a", "mp4" -> "audio/mp4"
+                            "ogg" -> "audio/ogg"
+                            else -> "audio/*"
+                        }
 
-                        val exported = NcmExport.publish(context, flac, exportName)
+                        val exported = NcmExport.publish(context, flac, exportName, mime)
                         if (exported != null) {
                             // 已经在用户文件夹里了，私有暂存没有存在价值（4GB 级重复没必要）。
                             val deleted = flac.delete()
                             sidecar.delete()
-                            return@withLock Exported(exported.toString(), exportName, true)
+                            return@withLock Exported(exported.toString(), exportName, true, format, fallback)
                                 .also { if (!deleted) android.util.Log.w("NcmImport", "私有暂存未能删除：${flac.name}") }
                         }
-                        Exported(flac.absolutePath, flac.name, false)
+                        Exported(flac.absolutePath, flac.name, false, format, fallback)
                     } finally { lock.release() }
                 }
             }

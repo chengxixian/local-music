@@ -145,6 +145,10 @@ class LibraryRepository(private val context: Context) {
                                     val exported = NcmImport.convert(context, source, entry.name)
                                     imports.edit().putString(key, exported.location).apply()
                                     imported++
+                                    // 回退产物如实说一声：用户应该知道"这次不是无损 FLAC"
+                                    exported.fallback?.let { reason ->
+                                        warnings += "${entry.name}：已回退为 .${exported.format}（$reason）"
+                                    }
                                 } catch (e: CancellationException) { throw e } catch (e: Exception) { warnings += "${entry.name}：${e.message}" }
                             } else if (ext in MetadataReader.extensions) {
                                 // documentId 形如 "primary:Download/x.mp3" → /storage/emulated/0/Download/x.mp3
@@ -163,7 +167,9 @@ class LibraryRepository(private val context: Context) {
 
             val privateRoot = File(context.filesDir, "music/ncm")
             privateRoot.mkdirs()
-            privateRoot.listFiles()?.filter { it.isFile && it.extension.equals("flac", true) }?.forEach { file ->
+            // 回退产物可能是 mp3/m4a，这里要一并索引，否则"转了但曲库里看不到"
+            val privateFormats = setOf("flac", "mp3", "m4a", "mp4", "ogg", "opus")
+            privateRoot.listFiles()?.filter { it.isFile && it.extension.lowercase(Locale.ROOT) in privateFormats }?.forEach { file ->
                 currentCoroutineContext().ensureActive()
                 val named = SidecarNaming.read(File(file.parentFile, file.nameWithoutExtension + ".json"))
                 val base = Song(
@@ -172,7 +178,7 @@ class LibraryRepository(private val context: Context) {
                     artist = named?.artist ?: "未知艺术家",
                     album = named?.album ?: "NCM 导入",
                     duration = 0, size = file.length(), modified = file.lastModified(),
-                    format = "flac", origin = "private",
+                    format = file.extension.lowercase(Locale.ROOT), origin = "private",
                 )
                 found += enrich(base, file)
             }

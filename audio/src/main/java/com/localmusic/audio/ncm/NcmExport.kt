@@ -50,17 +50,17 @@ object NcmExport {
     }
 
     /** 发布成功返回文档 Uri；未设置导出目录返回 null（调用方回落到私有目录）。 */
-    fun publish(context: Context, source: File, displayName: String): Uri? {
+    fun publish(context: Context, source: File, displayName: String, mime: String = "audio/flac"): Uri? {
         val tree = tree(context) ?: return null
         val resolver = context.contentResolver
-        val safeName = NcmNaming.sanitizeFileName(displayName)
+        val safeName = NcmNaming.sanitizeFileName(displayName, source.extension.ifBlank { "flac" })
         find(context, safeName)?.let { return it }
 
         val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         val tempName = ".ncm-tmp-${System.currentTimeMillis()}-$safeName"
         var document: Uri? = null
         try {
-            document = DocumentsContract.createDocument(resolver, parent, "audio/flac", tempName)
+            document = DocumentsContract.createDocument(resolver, parent, mime, tempName)
                 ?: throw IOException("导出目录不允许创建文件")
             resolver.openOutputStream(document, "w")?.use { out ->
                 source.inputStream().use { it.copyTo(out) }
