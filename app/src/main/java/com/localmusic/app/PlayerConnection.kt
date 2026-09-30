@@ -13,7 +13,22 @@ import com.localmusic.audio.playback.PlaybackService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-data class PlaybackUi(val connected: Boolean = false, val id: String? = null, val title: String = "还没有开始播放", val artist: String = "从曲库选择一首音乐", val playing: Boolean = false, val position: Long = 0, val duration: Long = 0, val shuffle: Boolean = false, val repeat: Int = Player.REPEAT_MODE_OFF, val error: String? = null)
+/** 播放列表里的一行（index 是在真正队列里的下标，调序/删除都按它来）。 */
+data class QueueItem(val index: Int, val title: String, val artist: String, val current: Boolean)
+
+data class PlaybackUi(
+    val connected: Boolean = false,
+    val id: String? = null,
+    val title: String = "还没有开始播放",
+    val artist: String = "从曲库选择一首音乐",
+    val playing: Boolean = false,
+    val position: Long = 0,
+    val duration: Long = 0,
+    val shuffle: Boolean = false,
+    val repeat: Int = Player.REPEAT_MODE_OFF,
+    val error: String? = null,
+    val queue: List<QueueItem> = emptyList(),
+)
 
 class PlayerConnection(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -42,7 +57,63 @@ class PlayerConnection(context: Context) {
         val p = controller ?: return
         mutable.value = PlaybackUi(true, p.currentMediaItem?.mediaId, p.mediaMetadata.title?.toString() ?: "还没有开始播放",
             p.mediaMetadata.artist?.toString() ?: "从曲库选择一首音乐", p.isPlaying, p.currentPosition.coerceAtLeast(0),
-            p.duration.coerceAtLeast(0), p.shuffleModeEnabled, p.repeatMode, p.playerError?.errorCodeName)
+            p.duration.coerceAtLeast(0), p.shuffleModeEnabled, p.repeatMode, p.playerError?.errorCodeName,
+            queue = buildQueue(p))
+    }
+
+    /** 队列快照给播放列表面板用（上限 500，避免超大队列每 400ms 拼一次字符串）。 */
+    private fun buildQueue(p: MediaController): List<QueueItem> {
+        val count = p.mediaItemCount
+        if (count <= 0) return emptyList()
+        val limit = minOf(count, 500)
+        return (0 until limit).map { i ->
+            val item = p.getMediaItemAt(i)
+            QueueItem(
+                index = i,
+                title = item.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() } ?: "未知曲目",
+                artist = item.mediaMetadata.artist?.toString().orEmpty(),
+                current = i == p.currentMediaItemIndex,
+            )
+        }
+    }
+
+    /** 播放列表编辑：调序 / 删除 / 追加 / 下一首播放 / 跳播。 */
+    fun moveInQueue(from: Int, to: Int) {
+        val p = controller ?: return
+        if (from == to || from !in 0 until p.mediaItemCount || to !in 0 until p.mediaItemCount) return
+        p.moveMediaItem(from, to)
+        update()
+    }
+
+    fun removeFromQueue(index: Int) {
+        val p = controller ?: return
+        if (index !in 0 until p.mediaItemCount) return
+        p.removeMediaItem(index)
+        update()
+    }
+
+    fun appendToQueue(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        val action: MediaController.() -> Unit = { addMediaItems(songs.map { it.mediaItem() }) }
+        val p = controller
+        if (p == null) pending = action else { p.action(); update() }
+    }
+
+    fun playNext(song: Song) {
+        val action: MediaController.() -> Unit = {
+            val at = (currentMediaItemIndex + 1).coerceIn(0, mediaItemCount)
+            addMediaItems(at, listOf(song.mediaItem()))
+        }
+        val p = controller
+        if (p == null) pending = action else { p.action(); update() }
+    }
+
+    fun jumpTo(index: Int) {
+        val p = controller ?: return
+        if (index !in 0 until p.mediaItemCount) return
+        p.seekTo(index, 0L)
+        p.play()
+        update()
     }
     fun play(songs: List<Song>, selected: Song, shuffle: Boolean = false) {
         if (songs.isEmpty()) return

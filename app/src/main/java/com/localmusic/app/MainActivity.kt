@@ -21,7 +21,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.LocalContentColor
@@ -65,7 +64,6 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Page(val title: String, val icon: ImageVector) {
-    Home("local music", Icons.Rounded.Home),
     Library("曲库", Icons.Rounded.LibraryMusic),
     Settings("设置", Icons.Rounded.Settings),
 }
@@ -119,8 +117,14 @@ private fun AppShell() {
     // 我喜欢的音乐：DB 是一份，内存里缓存一份，改了之后 revision +1 → 这里重算
     val favoritesRevision by com.localmusic.app.data.FavoritesStore.revision.collectAsState()
     val favorites = remember(favoritesRevision, context) { com.localmusic.app.data.FavoritesStore.all(context) }
+    val scrapeStatus by com.localmusic.app.data.Scraper.status.collectAsState()
+    val scrapeScope = rememberCoroutineScope()
+    var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
+    var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
+    var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
 
-    var page by remember { mutableStateOf(Page.Home) }
+    var page by remember { mutableStateOf(Page.Library) }
+    // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var playerOpen by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
     var showFavorites by remember { mutableStateOf(false) }
@@ -143,6 +147,21 @@ private fun AppShell() {
     LaunchedEffect(Unit) {
         library.scan()
         while (true) { kotlinx.coroutines.delay(60_000); library.scan() }
+    }
+
+    // 自动刮削：按批次慢慢补齐（每批 40 首，批间 3 分钟），关掉开关就完全不发请求。
+    // 首次启动等 20 秒再开始，避免和扫描/首帧抢网络与 IO。
+    LaunchedEffect(autoScrape, scrapeCover, scrapeLyrics) {
+        if (!autoScrape) return@LaunchedEffect
+        var first = true
+        while (true) {
+            kotlinx.coroutines.delay(if (first) 20_000 else 180_000)
+            first = false
+            if (com.localmusic.app.data.Scraper.status.value.running) continue
+            val list = library.songs.value
+            if (list.isEmpty()) continue
+            com.localmusic.app.data.Scraper.scrape(context, list, scrapeCover, scrapeLyrics, limit = 40)
+        }
     }
 
     val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -192,7 +211,7 @@ private fun AppShell() {
         }
     }
 
-    // 返回键：先收均衡器面板，再收播放页
+    // 返回键：先关播放页，再收均衡器面板
     BackHandler(enabled = showEq) { showEq = false }
     BackHandler(enabled = playerOpen && !showEq) { playerOpen = false }
 
@@ -231,21 +250,8 @@ private fun AppShell() {
                         ) { p ->
                             Box(Modifier.fillMaxSize()) {
                                 when (p) {
-                                    Page.Home -> HomePage(
-                                        songs = songs, player = playback, nowPlaying = nowPlaying,
-                                        onPlay = { song -> player.play(songs, song); playerOpen = true },
-                                        onOpenPlayer = { if (playback.id != null) playerOpen = true },
-                                        onScan = { library.scan() },
-                                        onOpenLibrary = { page = Page.Library },
-                                        onStartListening = {
-                                            // 没有任何当前曲目时：真的开始播放（顺序播放的第一首），而不是空操作。
-                                            if (playback.id != null) playerOpen = true
-                                            else if (songs.isNotEmpty()) { player.play(songs, songs.first()); playerOpen = true }
-                                        },
-                                        favoriteCount = favorites.size,
-                                        onOpenFavorites = { showFavorites = true; page = Page.Library },
-                                        topPadding = pageTopPadding,
-                                    )
+                                    // 播放页不在这里渲染 —— 带玻璃的界面必须待在采集层之外，
+                                    // 否则玻璃会采样"正在录制自己"的层 → 渲染树自引用 → RenderThread 栈溢出闪退。
                                     Page.Library -> LibraryPage(
                                         songs = songs, status = status, nowPlaying = playback.id,
                                         favorites = favorites,
@@ -255,6 +261,10 @@ private fun AppShell() {
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
                                         onPlay = { song -> player.play(songs, song); playerOpen = true },
+                                        onAddToQueue = { song ->
+                                            player.appendToQueue(listOf(song))
+                                            android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                        },
                                         onScan = { library.scan() },
                                         onCancel = { library.cancel() },
                                         topPadding = pageTopPadding,
@@ -265,6 +275,18 @@ private fun AppShell() {
                                         exportLabel = exportLabel,
                                         eq = eqState,
                                         onOpenEq = { showEq = true },
+                                        autoScrape = autoScrape,
+                                        scrapeCover = scrapeCover,
+                                        scrapeLyrics = scrapeLyrics,
+                                        scrapeStatus = scrapeStatus,
+                                        onAutoScrape = { autoScrape = it; prefs.edit().putBoolean("autoScrape", it).apply() },
+                                        onScrapeCover = { scrapeCover = it; prefs.edit().putBoolean("scrapeCover", it).apply() },
+                                        onScrapeLyrics = { scrapeLyrics = it; prefs.edit().putBoolean("scrapeLyrics", it).apply() },
+                                        onScrapeNow = {
+                                            scrapeScope.launch {
+                                                com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
+                                            }
+                                        },
                                         onBitPerfect = { bitPerfect = it; prefs.edit().putBoolean("bitPerfect", it).apply() },
                                         onAutoNcm = { autoNcm = it; prefs.edit().putBoolean("autoNcm", it).apply() },
                                         onPickTree = { pickFolder.launch(NeteaseTreeUri) },
@@ -282,9 +304,36 @@ private fun AppShell() {
                         // 背景保持原亮度，玻璃采样到的也就还是亮的页面，折射依然成立。
                     }
 
-                    // ── 玻璃浮层：顶栏 + 迷你播放条 + dock，都在采集层之外 ──
+                    // ── 玻璃浮层：播放页 + 顶栏 + 迷你播放条 + dock，都在采集层之外 ──
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
-                        // 播放页有自己的标题行（含返回），此时顶栏要收起来，否则两者叠在同一位置
+                        // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
+                        // 顶栏让位给页面自己的那行玻璃圆钮。
+                        if (playerOpen) {
+                            PlayerPage(
+                                backdrop = backdrop,
+                                song = nowPlaying,
+                                player = playback,
+                                favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
+                                topPadding = 8.dp,
+                                bottomPadding = BarHeight + BarMargin + 12.dp,
+                                onToggle = { player.toggle() },
+                                onNext = { player.next() },
+                                onPrev = { player.previous() },
+                                onSeek = { player.seek(it) },
+                                onShuffle = { player.shuffle() },
+                                onRepeat = { player.repeat() },
+                                onFavorite = {
+                                    nowPlaying?.let { song ->
+                                        com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
+                                    }
+                                },
+                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
+                                onOpenEq = { showEq = true },
+                                onJumpTo = { player.jumpTo(it) },
+                                onMoveInQueue = { from, to -> player.moveInQueue(from, to) },
+                                onRemoveFromQueue = { player.removeFromQueue(it) },
+                            )
+                        }
                         if (!playerOpen) {
                             GlassTopBar(
                                 backdrop = backdrop,
@@ -300,6 +349,7 @@ private fun AppShell() {
                                 .padding(start = BarMargin, end = BarMargin, bottom = BarMargin)
                                 .fillMaxWidth(),
                         ) {
+                            // 播放页本身就是播放界面，所以只在别的页面显示迷你播放条
                             if (playback.id != null && !playerOpen) {
                                 MiniPlayerBar(
                                     backdrop = backdrop, song = nowPlaying, player = playback,
@@ -342,31 +392,7 @@ private fun AppShell() {
                         )
                     }
 
-                    // ── 全屏播放器：在采集层之外；**不给 dock 让位**（dock 的玻璃要留在画面上）──
-                    if (playerOpen) {
-                        PlayerOverlay(
-                            backdrop = backdrop, song = nowPlaying, player = playback,
-                            favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
-                            topInset = contentPadding.calculateTopPadding(),
-                            // 底部要给整条 dock 让位：dock 顶边在 (导航栏 inset + BarMargin + BarHeight)，
-                            // 少算一个导航栏 inset 就会和播放控件叠在一起（踩过一次）。
-                            bottomInset = contentPadding.calculateBottomPadding() + BarHeight + BarMargin + 12.dp,
-                            onClose = { playerOpen = false },
-                            onToggle = { player.toggle() },
-                            onNext = { player.next() },
-                            onPrev = { player.previous() },
-                            onSeek = { player.seek(it) },
-                            onShuffle = { player.shuffle() },
-                            onRepeat = { player.repeat() },
-                            onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
-                            onOpenEq = { showEq = true },
-                            onFavorite = {
-                                nowPlaying?.let { song ->
-                                    com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
-                                }
-                            },
-                        )
-                    }
+                    // 播放界面已经不在采集层里渲染（见上面的说明）。
 
                     // ── 均衡器：独立的液态玻璃面板（同窗口浮层，玻璃才折射得到东西）──
                     if (showEq) {

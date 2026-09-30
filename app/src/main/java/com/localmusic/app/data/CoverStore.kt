@@ -54,6 +54,28 @@ object CoverStore {
         } catch (_: Exception) { false }
     }
 
+    /** 刮削/下载得到的图片字节直接落盘（和用户手选封面走同一套存储与映射）。 */
+    fun setFromBytes(context: Context, songUri: String, bytes: ByteArray): Boolean {
+        val app = context.applicationContext
+        return try {
+            if (bytes.isEmpty()) return false
+            val dir = File(app.filesDir, "covers").apply { mkdirs() }
+            val target = File(dir, sha1(songUri) + ".img")
+            target.writeBytes(bytes)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(target.absolutePath, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                target.delete()
+                false
+            } else {
+                MusicDatabase(app).setCover(songUri, target.absolutePath)
+                synchronized(lock) { cache = null }
+                _revision.value += 1
+                true
+            }
+        } catch (_: Exception) { false }
+    }
+
     fun clear(context: Context, songUri: String) {
         val app = context.applicationContext
         pathFor(app, songUri)?.delete()

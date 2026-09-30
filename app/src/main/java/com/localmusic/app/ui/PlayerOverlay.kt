@@ -112,19 +112,20 @@ private val TopRowGap = 8.dp
  * 设计要点（按用户要求）：**不是整页一块玻璃**，而是
  *  ① 围着封面一圈的玻璃光环（折射的是它下面的页面内容）
  *  ② 播放控件单独一块玻璃面板
- *  ③ 底部的 dock 仍然是玻璃，所以本页**不给 dock 让位**（由 [bottomInset] 留白，dock 保持可见可点）
+ *  ③ 页面中间一块区域有三种状态：封面 / 歌词 / **播放列表**（可增删、可上下调序）
  *
- * 点一下封面 → 显示歌词（再点一下回到封面）。
+ * 点封面 → 歌词；点歌词 → 回封面；顶部「列表」玻璃钮 → 播放列表。
  */
+private enum class Middle { Cover, Lyrics, Queue }
+
 @Composable
-fun PlayerOverlay(
+fun PlayerPage(
     backdrop: LayerBackdrop?,
     song: Song?,
     player: PlaybackUi,
     favorite: Boolean,
-    topInset: Dp,
-    bottomInset: Dp,
-    onClose: () -> Unit,
+    topPadding: Dp,
+    bottomPadding: Dp,
     onToggle: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
@@ -134,10 +135,13 @@ fun PlayerOverlay(
     onFavorite: () -> Unit,
     onChangeCover: () -> Unit,
     onOpenEq: () -> Unit,
+    onJumpTo: (Int) -> Unit,
+    onMoveInQueue: (Int, Int) -> Unit,
+    onRemoveFromQueue: (Int) -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
-    var showLyrics by remember(song?.uri) { mutableStateOf(false) }
+    var middle by remember(song?.uri) { mutableStateOf(Middle.Cover) }
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
 
@@ -155,24 +159,22 @@ fun PlayerOverlay(
     val coverStage = stage(0.10f, 0.75f)
     val controlStage = stage(0.30f, 1f)
 
-    LaunchedEffect(song?.uri, showLyrics) {
-        if (showLyrics && !lyricsLoaded && song != null) {
+    LaunchedEffect(song?.uri, middle) {
+        if (middle == Middle.Lyrics && !lyricsLoaded && song != null) {
             lyrics = withContext(Dispatchers.IO) { LyricsRepository.load(context.applicationContext, song) }
             lyricsLoaded = true
         }
     }
 
-    // 这里**不再自己压暗**：压暗统一画在采集层里（见 MainActivity），
-    // 否则玻璃采样到的是没压暗的页面，会出现"背景暗、玻璃亮"的不一致。
-    // 这里只负责给内容留出状态栏与 dock 的空间。
+    // 页面版本：上下留白交给调用方（顶部是玻璃顶栏、底部是 dock）
     Box(
-        Modifier.fillMaxSize().padding(top = topInset + TopRowGap, bottom = bottomInset),
+        Modifier.fillMaxSize().padding(top = topPadding + TopRowGap, bottom = bottomPadding),
     ) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 顶部只放三个**独立的玻璃圆钮**：返回 / 换封面 / 均衡器（不放文字标题，
+            // 顶部三个**独立的玻璃圆钮**：播放列表 / 换封面 / 均衡器（不放文字标题，
             // 歌名信息在下面的控件面板里，避免两处重复）。第一拍入场。
             Row(
                 Modifier.fillMaxWidth().graphicsLayer {
@@ -182,7 +184,12 @@ fun PlayerOverlay(
                 },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
+                GlassIconButton(
+                    backdrop,
+                    if (middle == Middle.Queue) Icons.Rounded.QueueMusic else Icons.Rounded.PlaylistPlay,
+                    "播放列表",
+                    onClick = { middle = if (middle == Middle.Queue) Middle.Cover else Middle.Queue },
+                )
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
                 Spacer(Modifier.width(LiquidSpacing.inline))
@@ -191,7 +198,7 @@ fun PlayerOverlay(
 
             Spacer(Modifier.height(LiquidSpacing.item))
 
-            // ① 封面 + 四周的玻璃光环 / 歌词。第二拍入场：放大 + 淡入（带弹簧回弹）。
+            // ① 中间区域三态：封面（带玻璃光环）/ 歌词 / 播放列表。第二拍入场：放大 + 淡入。
             Box(
                 Modifier.weight(1f).fillMaxWidth().graphicsLayer {
                     alpha = coverStage
@@ -200,17 +207,31 @@ fun PlayerOverlay(
                 },
                 contentAlignment = Alignment.Center,
             ) {
-                if (!showLyrics) {
-                    CoverWithGlassRing(backdrop = backdrop, song = song, onClick = { showLyrics = true })
-                } else {
-                    GlassPanel(
+                when (middle) {
+                    Middle.Cover -> CoverWithGlassRing(backdrop = backdrop, song = song, onClick = { middle = Middle.Lyrics })
+                    Middle.Lyrics -> GlassPanel(
                         backdrop = backdrop,
                         shape = RoundedCornerShape(28.dp),
                         refractionHeight = 20.dp,
                         refractionAmount = 30.dp,
-                        modifier = Modifier.fillMaxSize().clickable { showLyrics = false },
+                        modifier = Modifier.fillMaxSize().clickable { middle = Middle.Cover },
                     ) {
                         LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = player.position)
+                    }
+                    Middle.Queue -> GlassPanel(
+                        backdrop = backdrop,
+                        shape = RoundedCornerShape(28.dp),
+                        refractionHeight = 20.dp,
+                        refractionAmount = 30.dp,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        QueuePane(
+                            queue = player.queue,
+                            onJump = onJumpTo,
+                            onMove = onMoveInQueue,
+                            onRemove = onRemoveFromQueue,
+                            onClose = { middle = Middle.Cover },
+                        )
                     }
                 }
             }
@@ -272,6 +293,76 @@ fun PlayerOverlay(
                     player.error?.let {
                         Spacer(Modifier.height(LiquidSpacing.tight))
                         Text("播放错误：$it", style = MiuixTheme.textStyles.footnote1, color = scheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 播放列表（就是 ExoPlayer 当前队列）：点行跳播、↑↓ 调序、✕ 删除。
+ * 改的是真正在播的顺序（`moveMediaItem` / `removeMediaItem`），不是另存一份 UI 列表。
+ */
+@Composable
+private fun QueuePane(
+    queue: List<com.localmusic.app.QueueItem>,
+    onJump: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
+    onRemove: (Int) -> Unit,
+    onClose: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    if (queue.isEmpty()) {
+        Column(
+            Modifier.fillMaxSize().padding(LiquidSpacing.page),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("播放列表是空的", style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
+            Spacer(Modifier.height(LiquidSpacing.inline))
+            Text(
+                "去曲库点卡片右下角的 ▶ 开始播放，或点封面左下角的 + 追加到当前列表。",
+                style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.item, vertical = LiquidSpacing.item)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("播放列表 · ${queue.size} 首", style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
+            IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "收起列表") }
+        }
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            itemsIndexed(queue, key = { _, item -> item.index }) { _, item ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onJump(item.index) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${item.index + 1}",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = if (item.current) scheme.primary else scheme.onSurfaceVariantSummary,
+                        modifier = Modifier.width(22.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = if (item.current) scheme.primary else scheme.onSurface)
+                        if (item.artist.isNotBlank()) {
+                            Text(item.artist, style = MiuixTheme.textStyles.footnote1,
+                                color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    IconButton(onClick = { onMove(item.index, item.index - 1) }, enabled = item.index > 0,
+                        modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Rounded.ArrowUpward, "上移", modifier = Modifier.size(17.dp))
+                    }
+                    IconButton(onClick = { onMove(item.index, item.index + 1) }, enabled = item.index < queue.lastIndex,
+                        modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Rounded.ArrowDownward, "下移", modifier = Modifier.size(17.dp))
+                    }
+                    IconButton(onClick = { onRemove(item.index) }, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Rounded.Close, "从列表移除", modifier = Modifier.size(17.dp))
                     }
                 }
             }
