@@ -131,6 +131,8 @@ private fun AppShell() {
     var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
     var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
+    // 滚轮圆环的玻璃颜色（0 = 默认无色）
+    var glassTintIndex by remember { mutableStateOf(prefs.getInt("wheelGlassTint", 0)) }
 
     var page by remember { mutableStateOf(Page.Library) }
     // 搜索词提到顶层：输入框在顶栏（额头）里，曲库/喜欢两页共用它
@@ -284,6 +286,10 @@ private fun AppShell() {
                             android.widget.Toast.makeText(context, if (n > 0) "已恢复 $n 首的自带封面" else "没有需要恢复的", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     },
+                    "滚轮玻璃颜色" to {
+                        glassTintIndex = (glassTintIndex + 1) % com.localmusic.app.ui.WheelGlassTints.size
+                        prefs.edit().putInt("wheelGlassTint", glassTintIndex).apply()
+                    },
                     "重新扫描" to { library.scan() },
                 )
                 val wheelList = when (page) {
@@ -381,6 +387,8 @@ private fun AppShell() {
                                         onRemoveTree = { library.removeTree(it); trees = library.treeUris().toList(); exportLabel = prefs.getString("exportLabel", null) },
                                         onScan = { library.scan() },
                                         onCancel = { library.cancel() },
+                                        glassTintIndex = glassTintIndex,
+                                        onGlassTint = { glassTintIndex = it; prefs.edit().putInt("wheelGlassTint", it).apply() },
                                         topPadding = pageTopPadding,
                                     )
                                 }
@@ -458,6 +466,9 @@ private fun AppShell() {
                                 modifier = Modifier.align(Alignment.BottomEnd)
                                     .padding(end = BarMargin + 6.dp, bottom = BarMargin + BarHeight + 96.dp)
                                     .size(190.dp),
+                                ringTint = com.localmusic.app.ui.WheelGlassTints[
+                                    glassTintIndex.coerceIn(0, com.localmusic.app.ui.WheelGlassTints.lastIndex)
+                                ].second,
                             )
                         }
                         Column(
