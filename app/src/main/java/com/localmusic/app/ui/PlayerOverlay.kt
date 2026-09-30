@@ -133,6 +133,7 @@ fun PlayerPage(
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
     onFavorite: () -> Unit,
+    onClose: () -> Unit,
     onChangeCover: () -> Unit,
     onOpenEq: () -> Unit,
     onJumpTo: (Int) -> Unit,
@@ -174,8 +175,8 @@ fun PlayerPage(
             Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // 顶部三个**独立的玻璃圆钮**：播放列表 / 换封面 / 均衡器（不放文字标题，
-            // 歌名信息在下面的控件面板里，避免两处重复）。第一拍入场。
+            // 顶部四个**独立的玻璃圆钮**：返回（收起播放页）/ 播放列表 / 换封面 / 均衡器。
+            // 不放文字标题，歌名信息在下面的控件面板里，避免两处重复。第一拍入场。
             Row(
                 Modifier.fillMaxWidth().graphicsLayer {
                     alpha = iconStage
@@ -184,13 +185,15 @@ fun PlayerPage(
                 },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
+                Spacer(Modifier.weight(1f))
                 GlassIconButton(
                     backdrop,
                     if (middle == Middle.Queue) Icons.Rounded.QueueMusic else Icons.Rounded.PlaylistPlay,
                     "播放列表",
                     onClick = { middle = if (middle == Middle.Queue) Middle.Cover else Middle.Queue },
                 )
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(LiquidSpacing.inline))
                 GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
                 Spacer(Modifier.width(LiquidSpacing.inline))
                 GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq)
