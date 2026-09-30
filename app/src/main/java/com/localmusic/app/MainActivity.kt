@@ -131,6 +131,8 @@ private fun AppShell() {
     var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
     var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
+    // 刮削是否使用网易云音乐源（非官方接口，默认开）
+    var neteaseSource by remember { mutableStateOf(prefs.getBoolean("neteaseSource", true)) }
     // 滚轮圆环的玻璃颜色：预设下标（-1 = 自定义）+ 色相/饱和度/透光率
     var tintState by remember {
         mutableStateOf(
@@ -205,7 +207,7 @@ private fun AppShell() {
             if (com.localmusic.app.data.Scraper.status.value.running) continue
             val list = library.songs.value
             if (list.isEmpty()) continue
-            com.localmusic.app.data.Scraper.scrape(context, list, scrapeCover, scrapeLyrics, limit = 40)
+            com.localmusic.app.data.Scraper.scrape(context, list, scrapeCover, scrapeLyrics, limit = 40, wantNetease = neteaseSource)
         }
     }
 
@@ -293,9 +295,10 @@ private fun AppShell() {
                     "刮歌词" to { scrapeLyrics = !scrapeLyrics; prefs.edit().putBoolean("scrapeLyrics", scrapeLyrics).apply() },
                     "立即刮削" to {
                         scrapeScope.launch {
-                            com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
+                            com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400, wantNetease = neteaseSource)
                         }
                     },
+                    "网易云音乐源" to { neteaseSource = !neteaseSource; prefs.edit().putBoolean("neteaseSource", neteaseSource).apply() },
                     "恢复歌曲自带封面" to {
                         scrapeScope.launch {
                             val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -386,6 +389,8 @@ private fun AppShell() {
                                                 com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
                                             }
                                         },
+                                        neteaseSource = neteaseSource,
+                                        onNeteaseSource = { neteaseSource = it; prefs.edit().putBoolean("neteaseSource", it).apply() },
                                         onRestoreCovers = {
                                             scrapeScope.launch {
                                                 val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
