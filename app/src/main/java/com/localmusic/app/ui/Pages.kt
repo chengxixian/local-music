@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,9 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.localmusic.app.PlaybackUi
 import com.localmusic.app.data.ScanStatus
 import com.localmusic.app.data.Song
@@ -167,8 +171,24 @@ fun LibraryPage(
         }
     }
     // 两列网格：每格是一张竖长方形卡片 —— 上半正方形封面铺满，下半放歌名与信息
+    val gridState = rememberLazyGridState()
+    val gridContext = LocalContext.current
+    // 预取下一屏的封面：滚到它时只剩纹理上传，帧时间更平（见 ArtworkStore.prefetch）
+    LaunchedEffect(gridState, filtered) {
+        snapshotFlow {
+            val visible = gridState.layoutInfo.visibleItemsInfo
+            visible.lastOrNull()?.index ?: 0
+        }.collect { last ->
+            val from = last + 1
+            val to = (last + 8).coerceAtMost(filtered.lastIndex)
+            if (from <= to) {
+                withContext(Dispatchers.IO) { ArtworkStore.prefetch(gridContext.applicationContext, filtered.subList(from, to + 1), 420) }
+            }
+        }
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
+        state = gridState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 200.dp),
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),

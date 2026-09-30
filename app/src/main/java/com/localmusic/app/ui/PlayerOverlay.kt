@@ -126,6 +126,7 @@ fun PlayerPage(
     favorite: Boolean,
     topPadding: Dp,
     bottomPadding: Dp,
+    positionFlow: kotlinx.coroutines.flow.StateFlow<Long>,
     onToggle: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
@@ -142,6 +143,8 @@ fun PlayerPage(
 ) {
     val scheme = MiuixTheme.colorScheme
     val context = LocalContext.current
+    // 播放进度在播放页内部收集：只有这一屏会跟着 400ms 的进度重组，曲库网格不受影响
+    val livePosition by positionFlow.collectAsState()
     var middle by remember(song?.uri) { mutableStateOf(Middle.Cover) }
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
@@ -219,7 +222,7 @@ fun PlayerPage(
                         refractionAmount = 30.dp,
                         modifier = Modifier.fillMaxSize().clickable { middle = Middle.Cover },
                     ) {
-                        LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = player.position)
+                        LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = livePosition)
                     }
                     Middle.Queue -> GlassPanel(
                         backdrop = backdrop,
@@ -266,7 +269,7 @@ fun PlayerPage(
                         }
                     }
                     Spacer(Modifier.height(LiquidSpacing.inline))
-                    SeekBar(player, onSeek)
+                    SeekBar(player, livePosition, onSeek)
                     Spacer(Modifier.height(LiquidSpacing.tight))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onShuffle) {
@@ -442,11 +445,11 @@ private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positi
 }
 
 @Composable
-private fun SeekBar(player: PlaybackUi, onSeek: (Long) -> Unit) {
+private fun SeekBar(player: PlaybackUi, livePosition: Long, onSeek: (Long) -> Unit) {
     val duration = player.duration.coerceAtLeast(1L)
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
-    val position = if (dragging) dragValue.toLong() else player.position.coerceIn(0L, duration)
+    val position = if (dragging) dragValue.toLong() else livePosition.coerceIn(0L, duration)
     Column(Modifier.fillMaxWidth()) {
         Slider(
             value = position.toFloat().coerceIn(0f, duration.toFloat()),

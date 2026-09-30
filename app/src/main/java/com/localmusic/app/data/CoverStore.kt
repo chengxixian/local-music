@@ -47,15 +47,18 @@ object CoverStore {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(target.absolutePath, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { target.delete(); return false }
-            MusicDatabase(app).setCover(songUri, target.absolutePath)
-            synchronized(lock) { cache = null }
-            _revision.value += 1
+            commit(app, songUri, target.absolutePath, refresh = true)
             true
         } catch (_: Exception) { false }
     }
 
-    /** 刮削/下载得到的图片字节直接落盘（和用户手选封面走同一套存储与映射）。 */
-    fun setFromBytes(context: Context, songUri: String, bytes: ByteArray): Boolean {
+    /**
+     * 刮削/下载得到的图片字节直接落盘（和用户手选封面走同一套存储与映射）。
+     *
+     * [refresh] 为 false 时**只更新内存映射、不触发 UI 重载**：批量刮削一批 30 张封面时，
+     * 如果每存一张就让整墙封面失效重解码，界面会肉眼可见地卡；调用方攒一批后用 [refresh] 收尾。
+     */
+    fun setFromBytes(context: Context, songUri: String, bytes: ByteArray, refresh: Boolean = true): Boolean {
         val app = context.applicationContext
         return try {
             if (bytes.isEmpty()) return false
@@ -68,12 +71,22 @@ object CoverStore {
                 target.delete()
                 false
             } else {
-                MusicDatabase(app).setCover(songUri, target.absolutePath)
-                synchronized(lock) { cache = null }
-                _revision.value += 1
+                commit(app, songUri, target.absolutePath, refresh)
                 true
             }
         } catch (_: Exception) { false }
+    }
+
+    /** 批量场景收尾：一次性让封面 UI 重载。 */
+    fun refresh() { _revision.value += 1 }
+
+    private fun commit(app: Context, songUri: String, path: String, refresh: Boolean) {
+        MusicDatabase(app).setCover(songUri, path)
+        synchronized(lock) {
+            // 缓存已加载过才增量更新；没加载过就继续保持 null，下次读会连带新行一起读出来
+            cache?.let { cache = it + (songUri to path) }
+        }
+        if (refresh) _revision.value += 1
     }
 
     fun clear(context: Context, songUri: String) {

@@ -63,15 +63,21 @@ object Scraper {
             for (song in songs) {
                 currentCoroutineContext().ensureActive()
                 if (tried >= limit) break
-                val needCover = wantCover && CoverStore.pathFor(context, song.uri) == null
+                val needCover = wantCover && CoverStore.pathFor(context, song.uri) == null &&
+                    !ArtworkProbe.hasOwnArtwork(context, song)
                 val needLyrics = wantLyrics && LyricCache.read(context, song.uri) == null
                 if (!needCover && !needLyrics) continue
                 tried++
                 _status.value = Status(true, "刮削中：${song.title}", covers, lyrics, tried, failures.takeLast(3))
                 if (needCover) {
                     val bytes = runCatching { findCover(song.title, song.artist) }.getOrNull()
-                    if (bytes != null && CoverStore.setFromBytes(context, song.uri, bytes)) covers++
-                    else failures += "${song.title}：没找到封面"
+                    if (bytes != null && CoverStore.setFromBytes(context, song.uri, bytes, refresh = false)) {
+                        covers++
+                        // 攒够几张再让 UI 重载一次：每存一张就刷新会让整墙封面反复重解码（卡顿来源）
+                        if (covers % 6 == 0) CoverStore.refresh()
+                    } else {
+                        failures += "${song.title}：没找到封面"
+                    }
                     delay(180)
                 }
                 if (needLyrics) {
@@ -81,8 +87,10 @@ object Scraper {
                     delay(180)
                 }
             }
+            if (covers % 6 != 0) CoverStore.refresh()
             _status.value = Status(false, "刮削完成：封面 $covers · 歌词 $lyrics（共试 $tried 首）", covers, lyrics, tried, failures.takeLast(5))
         } catch (e: CancellationException) {
+            CoverStore.refresh()
             _status.value = Status(false, "已停止：封面 $covers · 歌词 $lyrics", covers, lyrics, tried, failures.takeLast(3))
             throw e
         }
@@ -233,6 +241,50 @@ object Scraper {
     }
 
     private fun encode(text: String) = URLEncoder.encode(text, "UTF-8")
+}
+
+/**
+ * 判断一首歌**本来就有封面**（文件内嵌图 / 系统专辑封面）。
+ *
+ * 有就不许刮削去覆盖它 —— 用户明确要求"不要改歌曲原本就有的封面"。
+ * 判定很便宜：MediaStore 只查专辑封面 URI 存不存在，不解码图片；本地文件才读内嵌图。
+ * 结果记在内存里（一次扫描周期内不重复探测，也不落盘）。
+ */
+object ArtworkProbe {
+    private val withArt = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+    private val withoutArt = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+
+    fun hasOwnArtwork(context: Context, song: Song): Boolean {
+        if (withArt.contains(song.uri)) return true
+        if (withoutArt.contains(song.uri)) return false
+        val result = runCatching { probe(context, song) }.getOrDefault(false)
+        (if (result) withArt else withoutArt).add(song.uri)
+        return result
+    }
+
+    private fun probe(context: Context, song: Song): Boolean {
+        val uri = android.net.Uri.parse(song.uri)
+        if (uri.scheme == "content" && uri.authority == "media") return mediaStoreAlbumArt(context, uri)
+        // 本地/SAF 文件：看有没有内嵌封面
+        return android.media.MediaMetadataRetriever().use { retriever ->
+            retriever.setDataSource(context, uri)
+            retriever.embeddedPicture != null
+        }
+    }
+
+    /** 系统媒体库里这条音频的专辑封面是否存在（`content://media/external/audio/albumart/<albumId>`）。 */
+    private fun mediaStoreAlbumArt(context: Context, uri: android.net.Uri): Boolean {
+        val albumId = context.contentResolver
+            .query(uri, arrayOf(android.provider.MediaStore.Audio.Media.ALBUM_ID), null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else -1L }
+            ?: -1L
+        if (albumId <= 0) return false
+        val artUri = android.content.ContentUris.withAppendedId(
+            android.net.Uri.parse("content://media/external/audio/albumart"), albumId,
+        )
+        return runCatching { context.contentResolver.openAssetFileDescriptor(artUri, "r")?.use { true } ?: false }
+            .getOrDefault(false)
+    }
 }
 
 /** 刮削（或用户手动放的）歌词缓存：`filesDir/lyrics/<sha1(uri)>.lrc`。 */
