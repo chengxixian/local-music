@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -15,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -157,12 +165,15 @@ fun LibraryPage(
             it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true)
         }
     }
-    LazyColumn(
+    // 两列网格：每格是一张竖长方形卡片 —— 上半正方形封面铺满，下半放歌名与信息
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 200.dp),
+        horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             LiquidCard {
                 OutlinedTextField(
                     value = query, onValueChange = { query = it },
@@ -195,7 +206,7 @@ fun LibraryPage(
             }
         }
         if (filtered.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidEmptyState(
                     if (showFavorites) "我喜欢的音乐还是空的" else if (query.isBlank()) "曲库为空" else "没有匹配的歌曲",
                     hint = if (showFavorites) "在曲库列表或播放页点心形按钮加入" else "支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等",
@@ -203,35 +214,92 @@ fun LibraryPage(
             }
         } else {
             items(filtered, key = { it.uri }) { song ->
-                LiquidCard {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.leading)) {
-                        Artwork(song, Modifier.size(52.dp), radius = 14, requestPx = 160)
-                        Column(Modifier.weight(1f)) {
-                            Text(song.title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                color = if (song.uri == nowPlaying) scheme.primary else scheme.onSurface)
-                            Text("${song.artist} · ${song.album}", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Row(
-                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                LiquidPill(song.format.uppercase())
-                                if (song.bitDepth > 0) LiquidPill("${song.bitDepth}bit/${song.sampleRate / 1000.0}kHz")
-                                if (song.duration > 0) {
-                                    Text(formatTime(song.duration), style = MiuixTheme.textStyles.footnote1,
-                                        color = scheme.onSurfaceVariantSummary, maxLines = 1)
-                                }
-                            }
-                        }
-                        IconButton(onClick = { onToggleFavorite(song) }) {
-                            Icon(
-                                if (favorites.contains(song.uri)) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                if (favorites.contains(song.uri)) "取消喜欢" else "加入我喜欢的音乐",
-                                tint = if (favorites.contains(song.uri)) scheme.primary else scheme.onSurfaceVariantSummary,
-                            )
-                        }
-                        IconButton(onClick = { onPlay(song) }) { Icon(Icons.Rounded.PlayArrow, "播放") }
-                    }
+                LibraryGridCard(
+                    song = song,
+                    favorite = favorites.contains(song.uri),
+                    playing = song.uri == nowPlaying,
+                    onPlay = { onPlay(song) },
+                    onToggleFavorite = { onToggleFavorite(song) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 曲库网格里的一张卡片：**竖长方形**。
+ *
+ * 上半是正方形封面（`aspectRatio(1f)` 铺满卡片宽度），下半是歌名 + 艺术家 + 格式/规格。
+ * 心形与播放做成封面上的两个半透明小圆钮 —— 窄卡片里再塞一行按钮会把信息挤没，
+ * 而半透明底保证在任何封面上都看得清。
+ */
+@Composable
+private fun LibraryGridCard(
+    song: Song,
+    favorite: Boolean,
+    playing: Boolean,
+    onPlay: () -> Unit,
+    onToggleFavorite: () -> Unit,
+) {
+    val scheme = MiuixTheme.colorScheme
+    Card(
+        onClick = onPlay,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
+    ) {
+        Column {
+            // 上半：正方形封面铺满
+            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(32.dp)
+                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                        .clickable(onClick = onToggleFavorite),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        if (favorite) "取消喜欢" else "加入我喜欢的音乐",
+                        modifier = Modifier.size(17.dp),
+                        tint = if (favorite) scheme.primary else Color.White,
+                    )
+                }
+                Box(
+                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp)
+                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                        .clickable(onClick = onPlay),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.PlayArrow, "播放", modifier = Modifier.size(20.dp), tint = Color.White)
+                }
+            }
+            // 下半：歌名 + 信息
+            Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text(
+                    song.title,
+                    style = MiuixTheme.textStyles.title4,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    color = if (playing) scheme.primary else scheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    song.artist,
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LiquidPill(song.format.uppercase())
+                    Text(
+                        when {
+                            song.bitDepth > 0 -> "${song.bitDepth}bit/${song.sampleRate / 1000.0}kHz"
+                            song.duration > 0 -> formatTime(song.duration)
+                            else -> song.album
+                        },
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
