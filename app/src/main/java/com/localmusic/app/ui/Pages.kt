@@ -24,6 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -187,6 +190,12 @@ fun LibraryPage(
             }
         }
     }
+    // 高亮与回调都用 State 传给卡片：转动时只触发**绘制/图层**更新，卡片本身可以跳过重组
+    // （原来每个 tick 都让所有可见卡片重组一遍，这是转动卡的主因）
+    val highlightState = rememberUpdatedState(highlightIndex)
+    val playState = rememberUpdatedState(onPlay)
+    val queueState = rememberUpdatedState(onAddToQueue)
+    val favoriteState = rememberUpdatedState(onToggleFavorite)
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         state = gridState,
@@ -212,10 +221,11 @@ fun LibraryPage(
                     song = song,
                     favorite = favorites.contains(song.uri),
                     playing = song.uri == nowPlaying,
-                    highlighted = index == highlightIndex,
-                    onPlay = { onPlay(song) },
-                    onAddToQueue = { onAddToQueue(song) },
-                    onToggleFavorite = { onToggleFavorite(song) },
+                    index = index,
+                    highlightState = highlightState,
+                    playState = playState,
+                    queueState = queueState,
+                    favoriteState = favoriteState,
                 )
             }
         }
@@ -234,21 +244,31 @@ private fun LibraryGridCard(
     song: Song,
     favorite: Boolean,
     playing: Boolean,
-    highlighted: Boolean = false,
-    onPlay: () -> Unit,
-    onAddToQueue: () -> Unit,
-    onToggleFavorite: () -> Unit,
+    index: Int,
+    highlightState: State<Int>,
+    playState: State<(Song) -> Unit>,
+    queueState: State<(Song) -> Unit>,
+    favoriteState: State<(Song) -> Unit>,
 ) {
     val scheme = MiuixTheme.colorScheme
     Card(
-        onClick = onPlay,
-        modifier = Modifier.fillMaxWidth().graphicsLayer {
-            // 滚轮选中的那一格"略微弹出"
-            val s = if (highlighted) 1.06f else 1f
-            scaleX = s; scaleY = s
-        }.then(
-            if (highlighted) Modifier.border(2.dp, scheme.primary, RoundedCornerShape(18.dp)) else Modifier
-        ),
+        onClick = { playState.value(song) },
+        modifier = Modifier.fillMaxWidth()
+            // 高亮只在图层/绘制里读，不在组合里读：转动时不会让卡片重组，只重画
+            .graphicsLayer {
+                val s = if (highlightState.value == index) 1.055f else 1f
+                scaleX = s; scaleY = s
+            }
+            .drawWithContent {
+                drawContent()
+                if (highlightState.value == index) {
+                    drawRoundRect(
+                        color = scheme.primary,
+                        cornerRadius = CornerRadius(18.dp.toPx()),
+                        style = Stroke(width = 2.dp.toPx()),
+                    )
+                }
+            },
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
     ) {
@@ -259,7 +279,7 @@ private fun LibraryGridCard(
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(32.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
-                        .clickable(onClick = onToggleFavorite),
+                        .clickable { favoriteState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -272,7 +292,7 @@ private fun LibraryGridCard(
                 Box(
                     Modifier.align(Alignment.BottomStart).padding(6.dp).size(32.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
-                        .clickable(onClick = onAddToQueue),
+                        .clickable { queueState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.Add, "加入播放列表", modifier = Modifier.size(20.dp), tint = Color.White)
@@ -280,7 +300,7 @@ private fun LibraryGridCard(
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
-                        .clickable(onClick = onPlay),
+                        .clickable { playState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.PlayArrow, "播放", modifier = Modifier.size(20.dp), tint = Color.White)

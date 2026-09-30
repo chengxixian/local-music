@@ -302,8 +302,9 @@ private fun AppShell() {
                             targetState = page,
                             transitionSpec = {
                                 val forward = targetState.ordinal > initialState.ordinal
-                                (fadeIn(LiquidMotion.snappy()) + slideInHorizontally(LiquidMotion.gentle()) { if (forward) it / 5 else -it / 5 })
-                                    .togetherWith(fadeOut(LiquidMotion.snappy()) + slideOutHorizontally(LiquidMotion.snappy()) { if (forward) -it / 5 else it / 5 })
+                                // 用 gentle 而不是 snappy：滚轮切页时太快会显得"闪一下"（用户反馈切换太快）
+                                (fadeIn(LiquidMotion.gentle()) + slideInHorizontally(LiquidMotion.gentle()) { if (forward) it / 6 else -it / 6 })
+                                    .togetherWith(fadeOut(LiquidMotion.gentle()) + slideOutHorizontally(LiquidMotion.gentle()) { if (forward) -it / 6 else it / 6 })
                             },
                             label = "page",
                         ) { p ->

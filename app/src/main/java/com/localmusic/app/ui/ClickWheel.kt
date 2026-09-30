@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.liquidmiuix.glass.liquidGlass
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 
 /**
@@ -50,9 +56,17 @@ fun ClickWheel(
 ) {
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
-    // 一格 = 环上滚过 52dp 的弧长（半径 75dp 的轮子转一圈约 9 格）。
-    // 用弧长而不是纯角度：角度法在小轮子上太钝；弧长则和"手指在环上滚了多远"直接对应。
-    val stepPx = with(density) { 52.dp.toPx() }
+    // 手势闭包只会在首次组合时创建一次（pointerInput(Unit) 不会重建），
+    // 所以回调必须用 rememberUpdatedState 包一层，否则双击时拿到的是**第一次组合**的列表和下标
+    // —— 这正是"双击播放的不是选中的音乐"的原因。
+    val tick by rememberUpdatedState(onTick)
+    val centerTap by rememberUpdatedState(onCenterTap)
+    val centerDoubleTap by rememberUpdatedState(onCenterDoubleTap)
+    val pendingSingle = remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val scope = rememberCoroutineScope()
+    // 一格 = 环上滚过 30dp 的弧长。之前是 52dp，转起来发钝（用户反馈"触摸不灵敏"）。
+    // 每帧仍然最多响一格并清空余量，所以调小步长只会更跟手，不会回到"一划十几格"。
+    val stepPx = with(density) { 30.dp.toPx() }
 
     Box(modifier, contentAlignment = Alignment.Center) {
         // ① 玻璃环：没有任何子内容
@@ -67,7 +81,9 @@ fun ClickWheel(
         // ② 转动识别
         Box(
             Modifier.matchParentSize().pointerInput(Unit) {
-                val inner = minOf(size.width, size.height) * 0.30f
+                // 内圈半径必须**严格等于中间键的半径**（中间键是 0.46 边长 → 半径 0.23）。
+                // 之前写成 0.30，于是中间那圈 7% 的环带是死区：点上去既不转也不点。
+                val inner = minOf(size.width, size.height) * 0.23f
                 var lastHapticAt = 0L
                 awaitPointerEventScope {
                     while (true) {
@@ -97,8 +113,8 @@ fun ClickWheel(
                             lastY = change.position.y
                             // 每帧最多响一格，并且不让多余的量攒着——否则手指快划一下会连跳十几格
                             // （用户反馈"太灵敏转得太快"就是这个：硬件滚轮一帧也只会过一格）。
-                            if (accum >= 1f) { accum = 0f; onTick(1); fired = true }
-                            else if (accum <= -1f) { accum = 0f; onTick(-1); fired = true }
+                            if (accum >= 1f) { accum = 0f; tick(1); fired = true }
+                            else if (accum <= -1f) { accum = 0f; tick(-1); fired = true }
                             if (fired) {
                                 // 触感节流：每次 tick 都震会明显掉帧
                                 val now = android.os.SystemClock.uptimeMillis()
@@ -121,8 +137,19 @@ fun ClickWheel(
                 .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.34f))
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { onCenterTap() },
-                        onDoubleTap = { onCenterDoubleTap() },
+                        // 单击延迟一点点再执行：给双击留出判定窗口。
+                        // 不这样做的话，双击会被拆成两次单击 → 一次双击跳两页（用户反馈"页面切换太快"）。
+                        onTap = {
+                            pendingSingle.value?.cancel()
+                            pendingSingle.value = scope.launch {
+                                kotlinx.coroutines.delay(DOUBLE_TAP_WINDOW_MS)
+                                centerTap()
+                            }
+                        },
+                        onDoubleTap = {
+                            pendingSingle.value?.cancel()
+                            centerDoubleTap()
+                        },
                     )
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -154,3 +181,6 @@ fun ClickWheel(
 /** 手指位置相对圆心、以正右方为 0°、顺时针为正的角度。 */
 private fun angleDeg(v: Offset): Float =
     Math.toDegrees(atan2(v.y.toDouble(), v.x.toDouble())).toFloat()
+
+/** 单击要等这么久再执行，给双击留判定窗口（平台的双击超时约 300ms）。 */
+private const val DOUBLE_TAP_WINDOW_MS = 340L
