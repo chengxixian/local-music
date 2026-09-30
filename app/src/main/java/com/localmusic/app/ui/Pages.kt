@@ -2,6 +2,7 @@
 package com.localmusic.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -151,33 +154,36 @@ fun LibraryPage(
     songs: List<Song>,
     nowPlaying: String?,
     favorites: Set<String>,
-    query: String,
+    highlightIndex: Int = -1,
     favoritesOnly: Boolean = false,
+    filtering: Boolean = false,
     onToggleFavorite: (Song) -> Unit,
     onPlay: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
-    val favoriteSongs = remember(songs, favorites) { songs.filter { favorites.contains(it.uri) } }
-    val base = if (favoritesOnly) favoriteSongs else songs
-    val filtered = remember(base, query) {
-        if (query.isBlank()) base else base.filter {
-            it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true)
-        }
-    }
+    val favoriteSongs = emptyList<Song>() // 过滤已在顶层完成，这里只负责画
     // 两列网格：每格是一张竖长方形卡片 —— 上半正方形封面铺满，下半放歌名与信息
     val gridState = rememberLazyGridState()
     val gridContext = LocalContext.current
+    // 滚轮选中哪一格，就把它滚到可见位置。等 120ms 再滚：连续转动时每个 tick 都重启一次
+    // 滚动动画会明显卡（用户反馈"有点卡"就是这个），停下再滚一次就顺了。
+    LaunchedEffect(highlightIndex, songs) {
+        if (highlightIndex in songs.indices) {
+            kotlinx.coroutines.delay(120)
+            gridState.animateScrollToItem(highlightIndex)
+        }
+    }
     // 预取下一屏的封面：滚到它时只剩纹理上传，帧时间更平（见 ArtworkStore.prefetch）
-    LaunchedEffect(gridState, filtered) {
+    LaunchedEffect(gridState, songs) {
         snapshotFlow {
             val visible = gridState.layoutInfo.visibleItemsInfo
             visible.lastOrNull()?.index ?: 0
         }.collect { last ->
             val from = last + 1
-            val to = (last + 8).coerceAtMost(filtered.lastIndex)
+            val to = (last + 8).coerceAtMost(songs.lastIndex)
             if (from <= to) {
-                withContext(Dispatchers.IO) { ArtworkStore.prefetch(gridContext.applicationContext, filtered.subList(from, to + 1), 420) }
+                withContext(Dispatchers.IO) { ArtworkStore.prefetch(gridContext.applicationContext, songs.subList(from, to + 1), 420) }
             }
         }
     }
@@ -185,27 +191,28 @@ fun LibraryPage(
         columns = GridCells.Fixed(2),
         state = gridState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 200.dp),
+        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
-        if (filtered.isEmpty()) {
+        if (songs.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidEmptyState(
                     when {
                         favoritesOnly -> "「喜欢」还是空的"
-                        query.isNotBlank() -> "没有匹配的歌曲"
+                        filtering -> "没有匹配的歌曲"
                         else -> "曲库为空"
                     },
                     hint = if (favoritesOnly) "在曲库或播放页点心形按钮加入" else "支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等",
                 )
             }
         } else {
-            items(filtered, key = { it.uri }) { song ->
+            itemsIndexed(songs, key = { _, song -> song.uri }) { index, song ->
                 LibraryGridCard(
                     song = song,
                     favorite = favorites.contains(song.uri),
                     playing = song.uri == nowPlaying,
+                    highlighted = index == highlightIndex,
                     onPlay = { onPlay(song) },
                     onAddToQueue = { onAddToQueue(song) },
                     onToggleFavorite = { onToggleFavorite(song) },
@@ -227,6 +234,7 @@ private fun LibraryGridCard(
     song: Song,
     favorite: Boolean,
     playing: Boolean,
+    highlighted: Boolean = false,
     onPlay: () -> Unit,
     onAddToQueue: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -234,7 +242,13 @@ private fun LibraryGridCard(
     val scheme = MiuixTheme.colorScheme
     Card(
         onClick = onPlay,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().graphicsLayer {
+            // 滚轮选中的那一格"略微弹出"
+            val s = if (highlighted) 1.06f else 1f
+            scaleX = s; scaleY = s
+        }.then(
+            if (highlighted) Modifier.border(2.dp, scheme.primary, RoundedCornerShape(18.dp)) else Modifier
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
     ) {
