@@ -322,6 +322,7 @@ private fun AppShell() {
                                 onSeek = { player.seek(it) },
                                 onShuffle = { player.shuffle() },
                                 onRepeat = { player.repeat() },
+                                onClose = { playerOpen = false },
                                 onFavorite = {
                                     nowPlaying?.let { song ->
                                         com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
