@@ -169,11 +169,17 @@ fun LibraryPage(
     // 两列网格：每格是一张竖长方形卡片 —— 上半正方形封面铺满，下半放歌名与信息
     val gridState = rememberLazyGridState()
     val gridContext = LocalContext.current
-    // 滚轮选中哪一格，就把它滚到可见位置。等 120ms 再滚：连续转动时每个 tick 都重启一次
-    // 滚动动画会明显卡（用户反馈"有点卡"就是这个），停下再滚一次就顺了。
+    // 滚轮选中哪一格就立刻让它可见——**不播动画、不去抖**：
+    // 之前用 animateScrollToItem + 120ms 去抖，转动时列表干脆不动、停下来才补一次动画，
+    // 于是"列表跟不上滚轮"。已经可见时才做轻微动画跟随，避免边缘抖动。
     LaunchedEffect(highlightIndex, songs) {
-        if (highlightIndex in songs.indices) {
-            kotlinx.coroutines.delay(120)
+        if (highlightIndex !in songs.indices) return@LaunchedEffect
+        val visible = gridState.layoutInfo.visibleItemsInfo
+        val first = visible.firstOrNull()?.index ?: 0
+        val last = visible.lastOrNull()?.index ?: 0
+        if (highlightIndex < first || highlightIndex > last) {
+            gridState.scrollToItem(highlightIndex)
+        } else {
             gridState.animateScrollToItem(highlightIndex)
         }
     }
