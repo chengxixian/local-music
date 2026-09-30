@@ -456,8 +456,8 @@ private fun AppShell() {
                                     }
                                 },
                                 modifier = Modifier.align(Alignment.BottomEnd)
-                                    .padding(end = BarMargin + 6.dp, bottom = BarMargin + BarHeight + 88.dp)
-                                    .size(150.dp),
+                                    .padding(end = BarMargin + 6.dp, bottom = BarMargin + BarHeight + 96.dp)
+                                    .size(190.dp),
                             )
                         }
                         Column(
