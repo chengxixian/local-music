@@ -22,7 +22,6 @@ data class PlaybackUi(
     val title: String = "还没有开始播放",
     val artist: String = "从曲库选择一首音乐",
     val playing: Boolean = false,
-    val position: Long = 0,
     val duration: Long = 0,
     val shuffle: Boolean = false,
     val repeat: Int = Player.REPEAT_MODE_OFF,
@@ -34,6 +33,13 @@ class PlayerConnection(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutable = MutableStateFlow(PlaybackUi())
     val state = mutable.asStateFlow()
+
+    /** 播放进度（毫秒）。单独一条流，避免 400ms 一次的进度更新把整棵界面树拖着重组。 */
+    private val _position = MutableStateFlow(0L)
+    val position: StateFlow<Long> = _position.asStateFlow()
+
+    private var lastQueueKey: Pair<Int, Int>? = null
+    private var queueCache: List<QueueItem> = emptyList()
     private var controller: MediaController? = null
     private var closed = false
     /** 控制器还没连上时收到的播放请求先存这里，连上后立刻执行（否则冷启动头几秒的点击会被静默丢掉）。 */
@@ -55,10 +61,21 @@ class PlayerConnection(context: Context) {
     }
     private fun update() {
         val p = controller ?: return
-        mutable.value = PlaybackUi(true, p.currentMediaItem?.mediaId, p.mediaMetadata.title?.toString() ?: "还没有开始播放",
-            p.mediaMetadata.artist?.toString() ?: "从曲库选择一首音乐", p.isPlaying, p.currentPosition.coerceAtLeast(0),
+        // 播放进度单独一条流：它 400ms 变一次，但不能让它把整个 AppShell（含 374 格的曲库网格）
+        // 拖着一起重组。只有播放页/迷你条会收集它。
+        _position.value = p.currentPosition.coerceAtLeast(0)
+        // 队列只在"曲目数 / 当前曲目"变化时重建 —— 否则每 400ms 就要 new 374 个对象
+        val queueKey = p.mediaItemCount to p.currentMediaItemIndex
+        if (queueKey != lastQueueKey) {
+            lastQueueKey = queueKey
+            queueCache = buildQueue(p)
+        }
+        val next = PlaybackUi(true, p.currentMediaItem?.mediaId, p.mediaMetadata.title?.toString() ?: "还没有开始播放",
+            p.mediaMetadata.artist?.toString() ?: "从曲库选择一首音乐", p.isPlaying,
             p.duration.coerceAtLeast(0), p.shuffleModeEnabled, p.repeatMode, p.playerError?.errorCodeName,
-            queue = buildQueue(p))
+            queue = queueCache)
+        // 值没变就不发射：稳态播放时下面这些字段其实都是常量
+        if (next != mutable.value) mutable.value = next
     }
 
     /** 队列快照给播放列表面板用（上限 500，避免超大队列每 400ms 拼一次字符串）。 */

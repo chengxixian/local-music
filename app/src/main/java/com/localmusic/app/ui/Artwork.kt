@@ -43,11 +43,24 @@ import java.security.MessageDigest
  *  3. 结果按「URI + 目标尺寸」写进 `cacheDir/artwork`，滚第二遍就是纯读盘；
  *  4. 列表用小尺寸（RGB_565，省一半内存），全屏播放器才要大图 —— 两者是不同的缓存条目。
  */
-private object ArtworkStore {
-    private const val DISK_BUDGET = 48L * 1024 * 1024
+object ArtworkStore {
+    // 曲库是 374 张封面的两列网格，48MB 只装得下 ~90 张 → 来回滚就一直在"淘汰-重解码"。
+    // 缩略图本身不大（≤512px RGB_565 约 0.3~0.5MB），给到 160MB 才撑得住"滚第二遍纯读盘"。
+    private const val DISK_BUDGET = 160L * 1024 * 1024
 
-    private val memory = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+    // 内存缓存从 12MB 提到 64MB：滚过去再滚回来不该重新读盘/重上传位图（120Hz 屏上一帧只有 8.3ms）
+    private val memory = object : LruCache<String, Bitmap>(64 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+
+    /**
+     * 预取：把下一屏要显示的封面提前解到内存缓存里。
+     *
+     * 为什么有用：滚动时每张新图都要"读盘 → 解码 → 上传成纹理"，这三步的抖动正好卡在
+     * 一帧里。提前在 IO 线程把位图准备好，滚到它时只剩上传，帧时间明显平（尤其 120Hz）。
+     */
+    fun prefetch(context: Context, songs: List<Song>, requestPx: Int) {
+        for (song in songs) runCatching { load(context, song, requestPx) }
     }
 
     fun load(context: Context, song: Song, requestPx: Int): Bitmap? {

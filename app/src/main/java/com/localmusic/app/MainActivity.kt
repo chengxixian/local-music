@@ -316,6 +316,7 @@ private fun AppShell() {
                                 favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
                                 topPadding = 8.dp,
                                 bottomPadding = BarHeight + BarMargin + 12.dp,
+                                positionFlow = player.position,
                                 onToggle = { player.toggle() },
                                 onNext = { player.next() },
                                 onPrev = { player.previous() },
@@ -359,7 +360,10 @@ private fun AppShell() {
                                 Spacer(Modifier.height(12.dp))
                             }
                             Box(
-                                Modifier.fillMaxWidth().height(BarHeight).graphicsLayer {
+                                // dock 只有两栏了，不必占满整屏：收窄一点更像悬浮胶囊，
+                                // 而且玻璃要模糊的面积也小了（滚动时每帧都要重新采样）
+                                Modifier.align(Alignment.CenterHorizontally)
+                                    .fillMaxWidth(0.78f).height(BarHeight).graphicsLayer {
                                     scaleX = barScale; scaleY = barScale
                                 }
                             ) {
