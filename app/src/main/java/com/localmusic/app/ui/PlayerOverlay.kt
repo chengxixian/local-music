@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -21,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -50,6 +52,8 @@ fun GlassTopBar(
     backdrop: LayerBackdrop?,
     title: String,
     modifier: Modifier = Modifier,
+    query: String = "",
+    onQueryChange: ((String) -> Unit)? = null,
 ) {
     GlassPanel(
         backdrop = backdrop,
@@ -64,13 +68,46 @@ fun GlassTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline),
         ) {
-            Text(
-                text = title,
-                style = MiuixTheme.textStyles.title2,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // 曲库/喜欢页：顶栏直接当搜索框用（原来那张"搜索 + 我喜欢"的卡片已经去掉）
+            if (onQueryChange != null) {
+                Icon(Icons.Rounded.Search, null, tint = MiuixTheme.colorScheme.onSurfaceVariantSummary, modifier = Modifier.size(20.dp))
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    textStyle = MiuixTheme.textStyles.title4.copy(color = MiuixTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (query.isEmpty()) {
+                                Text(
+                                    "搜索标题 / 艺术家 / 专辑",
+                                    style = MiuixTheme.textStyles.title4,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    maxLines = 1,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                if (query.isNotEmpty()) {
+                    Icon(
+                        Icons.Rounded.Close, "清空搜索",
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.size(20.dp).clickable { onQueryChange("") },
+                    )
+                }
+            } else {
+                Text(
+                    text = title,
+                    style = MiuixTheme.textStyles.title2,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

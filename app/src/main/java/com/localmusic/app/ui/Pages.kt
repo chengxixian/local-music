@@ -145,26 +145,21 @@ private fun Stat(label: String, value: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 曲库：搜索 + 全量列表 + 扫描状态。 */
+/** 曲库 / 喜欢：两列封面网格。搜索在顶栏（额头）里，扫描状态与重新扫描在设置页。 */
 @Composable
 fun LibraryPage(
     songs: List<Song>,
-    status: ScanStatus,
     nowPlaying: String?,
     favorites: Set<String>,
-    showFavorites: Boolean,
-    onShowFavorites: (Boolean) -> Unit,
+    query: String,
+    favoritesOnly: Boolean = false,
     onToggleFavorite: (Song) -> Unit,
     onPlay: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit = {},
-    onScan: () -> Unit,
-    onCancel: () -> Unit,
     topPadding: Dp = LiquidSpacing.page,
 ) {
-    val scheme = MiuixTheme.colorScheme
-    var query by remember { mutableStateOf("") }
     val favoriteSongs = remember(songs, favorites) { songs.filter { favorites.contains(it.uri) } }
-    val base = if (showFavorites) favoriteSongs else songs
+    val base = if (favoritesOnly) favoriteSongs else songs
     val filtered = remember(base, query) {
         if (query.isBlank()) base else base.filter {
             it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true)
@@ -194,43 +189,15 @@ fun LibraryPage(
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            LiquidCard {
-                OutlinedTextField(
-                    value = query, onValueChange = { query = it },
-                    label = { Text("搜索标题 / 艺术家 / 专辑") },
-                    leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = !showFavorites, onClick = { onShowFavorites(false) }, label = { Text("全部 ${songs.size}") })
-                    FilterChip(
-                        selected = showFavorites,
-                        onClick = { onShowFavorites(true) },
-                        label = { Text("我喜欢的 ${favoriteSongs.size}") },
-                        leadingIcon = { Icon(Icons.Rounded.Favorite, null, Modifier.size(16.dp)) },
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
-                    if (status.running) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text(status.message, style = MiuixTheme.textStyles.footnote1, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onCancel) { Text("停止") }
-                    } else {
-                        Text(status.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onScan) { Text("重新扫描") }
-                    }
-                }
-                if (status.failures.isNotEmpty()) {
-                    LiquidStatusBanner(text = status.failures.last(), icon = Icons.Rounded.WarningAmber, color = scheme.error)
-                }
-            }
-        }
         if (filtered.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidEmptyState(
-                    if (showFavorites) "我喜欢的音乐还是空的" else if (query.isBlank()) "曲库为空" else "没有匹配的歌曲",
-                    hint = if (showFavorites) "在曲库列表或播放页点心形按钮加入" else "支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等",
+                    when {
+                        favoritesOnly -> "「喜欢」还是空的"
+                        query.isNotBlank() -> "没有匹配的歌曲"
+                        else -> "曲库为空"
+                    },
+                    hint = if (favoritesOnly) "在曲库或播放页点心形按钮加入" else "支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等",
                 )
             }
         } else {
@@ -350,6 +317,7 @@ fun SettingsPage(
     onPickTree: () -> Unit,
     onRemoveTree: (String) -> Unit,
     onScan: () -> Unit,
+    onCancel: () -> Unit = {},
     exportLabel: String? = null,
     onPickExport: () -> Unit = {},
     eq: com.localmusic.audio.playback.EqState = com.localmusic.audio.playback.EqState(),
@@ -402,16 +370,16 @@ fun SettingsPage(
                 Text("网易云 ncm 导入", style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("自动转换 ncm → FLAC", style = MiuixTheme.textStyles.title4)
-                        Text("扫描授权文件夹时自动转换，输出到应用私有 files/music/ncm，原文件保留。",
+                        Text("自动转换为 MP3 / FLAC", style = MiuixTheme.textStyles.title4)
+                        Text("扫描授权文件夹时自动转换：优先转 FLAC；转不出 FLAC 就回退成 MP3 或原样发布，不再直接失败。输出到导出文件夹（未设则落应用私有 files/music/ncm），原文件保留。",
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = autoNcm, onCheckedChange = onAutoNcm)
                 }
                 TextButton(onClick = onPickTree) { Icon(Icons.Rounded.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text("添加音乐 / ncm 文件夹") }
                 LiquidListItem(
-                    title = "FLAC 导出位置",
-                    subtitle = exportLabel?.let { "$it（导出到这里，卸载应用也不会删）" }
+                    title = "导出位置",
+                    subtitle = exportLabel?.let { "$it（转换后的 FLAC / MP3 导出到这里，卸载应用也不会删）" }
                         ?: "尚未选择 —— 目前只会暂存到应用私有目录，卸载即丢",
                     leading = Icons.Rounded.DriveFileMove,
                     onClick = onPickExport,
@@ -471,7 +439,14 @@ fun SettingsPage(
         item {
             LiquidCard {
                 Text("曲库", style = MiuixTheme.textStyles.title4)
-                LiquidListItem(title = "立即扫描", subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
+                LiquidListItem(title = "重新扫描", subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
+                if (status.running) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(status.message, style = MiuixTheme.textStyles.footnote1, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onCancel) { Text("停止扫描") }
+                    }
+                }
                 status.failures.forEach { LiquidStatusBanner(text = it, icon = Icons.Rounded.WarningAmber, color = scheme.error) }
             }
         }
