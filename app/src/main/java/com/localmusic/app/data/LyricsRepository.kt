@@ -22,6 +22,8 @@ object LyricsRepository {
     data class Lyrics(val lines: List<Line>, val source: String, val timed: Boolean)
 
     suspend fun load(context: Context, song: Song): Lyrics? = withContext(Dispatchers.IO) {
+        // 0) 自动刮削缓存的歌词（最优先：用户点了"已刮到"就该显示它）
+        LyricCache.read(context, song.uri)?.let { text -> parse(text, "在线刮削")?.let { l -> return@withContext l } }
         val resolved = resolve(context, song)
         // 1) 同目录同名 .lrc（文件路径或 SAF 兄弟文档）
         runCatching { resolved?.lrcFile?.takeIf { it.isFile && it.canRead() }?.readText(Charsets.UTF_8) }

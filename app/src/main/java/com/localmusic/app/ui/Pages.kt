@@ -152,6 +152,7 @@ fun LibraryPage(
     onShowFavorites: (Boolean) -> Unit,
     onToggleFavorite: (Song) -> Unit,
     onPlay: (Song) -> Unit,
+    onAddToQueue: (Song) -> Unit = {},
     onScan: () -> Unit,
     onCancel: () -> Unit,
     topPadding: Dp = LiquidSpacing.page,
@@ -219,6 +220,7 @@ fun LibraryPage(
                     favorite = favorites.contains(song.uri),
                     playing = song.uri == nowPlaying,
                     onPlay = { onPlay(song) },
+                    onAddToQueue = { onAddToQueue(song) },
                     onToggleFavorite = { onToggleFavorite(song) },
                 )
             }
@@ -239,6 +241,7 @@ private fun LibraryGridCard(
     favorite: Boolean,
     playing: Boolean,
     onPlay: () -> Unit,
+    onAddToQueue: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -264,6 +267,14 @@ private fun LibraryGridCard(
                         modifier = Modifier.size(17.dp),
                         tint = if (favorite) scheme.primary else Color.White,
                     )
+                }
+                Box(
+                    Modifier.align(Alignment.BottomStart).padding(6.dp).size(32.dp)
+                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                        .clickable(onClick = onAddToQueue),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Add, "加入播放列表", modifier = Modifier.size(20.dp), tint = Color.White)
                 }
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp)
@@ -323,6 +334,14 @@ fun SettingsPage(
     onPickExport: () -> Unit = {},
     eq: com.localmusic.audio.playback.EqState = com.localmusic.audio.playback.EqState(),
     onOpenEq: () -> Unit = {},
+    autoScrape: Boolean = true,
+    scrapeCover: Boolean = true,
+    scrapeLyrics: Boolean = true,
+    scrapeStatus: com.localmusic.app.data.Scraper.Status = com.localmusic.app.data.Scraper.Status(),
+    onAutoScrape: (Boolean) -> Unit = {},
+    onScrapeCover: (Boolean) -> Unit = {},
+    onScrapeLyrics: (Boolean) -> Unit = {},
+    onScrapeNow: () -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
@@ -390,6 +409,34 @@ fun SettingsPage(
                         showDivider = true,
                         trailing = { TextButton(onClick = { onRemoveTree(tree) }) { Text("移除") } },
                     )
+                }
+            }
+        }
+        item {
+            LiquidCard {
+                Text("自动刮削", style = MiuixTheme.textStyles.title4)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("扫描后自动补全", style = MiuixTheme.textStyles.title4)
+                        Text("只补缺的：已有封面/歌词的歌会跳过。来源 iTunes · Deezer（封面）、LRCLIB（歌词），结果缓存在应用目录，之后离线可用。",
+                            style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                    }
+                    Switch(checked = autoScrape, onCheckedChange = onAutoScrape)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("刮封面", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Switch(checked = scrapeCover, onCheckedChange = onScrapeCover, enabled = autoScrape)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("刮歌词", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Switch(checked = scrapeLyrics, onCheckedChange = onScrapeLyrics, enabled = autoScrape)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) "刮削中…" else "立即刮削") }
+                }
+                scrapeStatus.failures.forEach {
+                    LiquidStatusBanner(text = it, icon = Icons.Rounded.CloudOff, color = scheme.onSurfaceVariantSummary)
                 }
             }
         }
