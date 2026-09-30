@@ -70,6 +70,13 @@ private enum class Page(val title: String, val icon: ImageVector) {
     Settings("设置", Icons.Rounded.Settings),
 }
 
+/** 滚轮单击切页的顺序（按用户要求：曲库 → 设置 → 喜欢 → 曲库…）。 */
+private fun nextPage(current: Page): Page = when (current) {
+    Page.Library -> Page.Settings
+    Page.Settings -> Page.Favorites
+    Page.Favorites -> Page.Library
+}
+
 private val BarMargin = 16.dp
 private val BarHeight = 64.dp
 private val BarPressedScale = 1.04f
@@ -128,6 +135,8 @@ private fun AppShell() {
     var page by remember { mutableStateOf(Page.Library) }
     // 搜索词提到顶层：输入框在顶栏（额头）里，曲库/喜欢两页共用它
     var searchQuery by remember { mutableStateOf("") }
+    // 滚轮选中的下标（换页时归零）
+    var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var playerOpen by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
@@ -145,6 +154,19 @@ private fun AppShell() {
     val barScale by animateFloatAsState(if (barPressed) BarPressedScale else 1f, LiquidMotion.press(), label = "barScale")
 
     val nowPlaying = remember(songs, playback.id) { songs.firstOrNull { it.uri == playback.id } }
+
+    // ── 滚轮导航：曲库/喜欢用过滤后的歌曲列表，设置用下面这张动作表 ──
+    // 过滤上提到这里，是为了让"滚轮选中的下标"和页面真正显示的列表永远一致。
+    fun matches(song: com.localmusic.app.data.Song): Boolean =
+        searchQuery.isBlank() ||
+            song.title.contains(searchQuery, true) ||
+            song.artist.contains(searchQuery, true) ||
+            song.album.contains(searchQuery, true)
+
+    val libraryList = remember(songs, searchQuery) { songs.filter { matches(it) } }
+    val favoriteList = remember(songs, favorites, searchQuery) {
+        songs.filter { favorites.contains(it.uri) && matches(it) }
+    }
 
     // 自动扫描：进入应用扫一次，之后定期复查（MediaStore 变更也会触发 ContentObserver 重扫）。
     LaunchedEffect(Unit) {
@@ -238,6 +260,40 @@ private fun AppShell() {
                 // 页面内容的顶部留白 = 状态栏 + 玻璃顶栏高度。顶栏浮在内容之上，
                 // 列表滚动时会从它下面穿过去（那正是玻璃能折射到的东西）。
                 val pageTopPadding = contentPadding.calculateTopPadding() + TopBarHeight + TopBarMargin + 12.dp
+                // 滚轮在设置页能做的事，顺序就是转动顺序；标题显示在中间键下方。
+                // 放在这里是因为要用到上面定义的 SAF launcher（局部声明必须先于使用）。
+                val wheelActions: List<Pair<String, () -> Unit>> = listOf(
+                    "USB Bit-perfect" to { bitPerfect = !bitPerfect; prefs.edit().putBoolean("bitPerfect", bitPerfect).apply() },
+                    "均衡器" to { showEq = true },
+                    "自动转换为 MP3 / FLAC" to { autoNcm = !autoNcm; prefs.edit().putBoolean("autoNcm", autoNcm).apply() },
+                    "导出位置" to { pickExportFolder.launch(ExportInitialUri) },
+                    "添加音乐 / ncm 文件夹" to { pickFolder.launch(NeteaseTreeUri) },
+                    "自动刮削" to { autoScrape = !autoScrape; prefs.edit().putBoolean("autoScrape", autoScrape).apply() },
+                    "刮封面" to { scrapeCover = !scrapeCover; prefs.edit().putBoolean("scrapeCover", scrapeCover).apply() },
+                    "刮歌词" to { scrapeLyrics = !scrapeLyrics; prefs.edit().putBoolean("scrapeLyrics", scrapeLyrics).apply() },
+                    "立即刮削" to {
+                        scrapeScope.launch {
+                            com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
+                        }
+                    },
+                    "恢复歌曲自带封面" to {
+                        scrapeScope.launch {
+                            val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                com.localmusic.app.data.CoverStore.restoreOriginals(context, songs)
+                            }
+                            android.widget.Toast.makeText(context, if (n > 0) "已恢复 $n 首的自带封面" else "没有需要恢复的", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    "重新扫描" to { library.scan() },
+                )
+                val wheelList = when (page) {
+                    Page.Library -> libraryList
+                    Page.Favorites -> favoriteList
+                    Page.Settings -> emptyList()
+                }
+                val wheelCount = if (page == Page.Settings) wheelActions.size else wheelList.size
+                val wheelCaption = if (page == Page.Settings) wheelActions.getOrNull(wheelIndex)?.first
+                    else wheelList.getOrNull(wheelIndex)?.title
                 Box(Modifier.fillMaxSize()) {
                     // ── 采集层：背景 + 全部页面内容（玻璃唯一能采样到的东西）──
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
@@ -256,10 +312,11 @@ private fun AppShell() {
                                     // 播放页不在这里渲染 —— 带玻璃的界面必须待在采集层之外，
                                     // 否则玻璃会采样"正在录制自己"的层 → 渲染树自引用 → RenderThread 栈溢出闪退。
                                     Page.Library -> LibraryPage(
-                                        songs = songs, nowPlaying = playback.id,
+                                        songs = libraryList, nowPlaying = playback.id,
                                         favorites = favorites,
-                                        query = searchQuery,
+                                        highlightIndex = if (page == Page.Library) wheelIndex else -1,
                                         favoritesOnly = false,
+                                        filtering = searchQuery.isNotBlank(),
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
@@ -271,10 +328,11 @@ private fun AppShell() {
                                         topPadding = pageTopPadding,
                                     )
                                     Page.Favorites -> LibraryPage(
-                                        songs = songs, nowPlaying = playback.id,
+                                        songs = favoriteList, nowPlaying = playback.id,
                                         favorites = favorites,
-                                        query = searchQuery,
+                                        highlightIndex = if (page == Page.Favorites) wheelIndex else -1,
                                         favoritesOnly = true,
+                                        filtering = searchQuery.isNotBlank(),
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
@@ -376,6 +434,29 @@ private fun AppShell() {
                                     .padding(start = BarMargin, end = BarMargin, top = TopBarMargin)
                                     .fillMaxWidth()
                                     .height(TopBarHeight),
+                            )
+                        }
+                        // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
+                        // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
+                        if (!playerOpen) {
+                            ClickWheel(
+                                backdrop = backdrop,
+                                label = page.title,
+                                caption = wheelCaption,
+                                onTick = { dir ->
+                                    wheelIndex = (wheelIndex + dir).coerceIn(0, (wheelCount - 1).coerceAtLeast(0))
+                                },
+                                onCenterTap = { page = nextPage(page); wheelIndex = 0 },
+                                onCenterDoubleTap = {
+                                    if (page == Page.Settings) {
+                                        wheelActions.getOrNull(wheelIndex)?.second?.invoke()
+                                    } else {
+                                        wheelList.getOrNull(wheelIndex)?.let { song -> player.play(wheelList, song) }
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.BottomEnd)
+                                    .padding(end = BarMargin + 6.dp, bottom = BarMargin + BarHeight + 88.dp)
+                                    .size(150.dp),
                             )
                         }
                         Column(
