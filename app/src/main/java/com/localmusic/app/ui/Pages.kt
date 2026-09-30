@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -344,6 +345,26 @@ private fun LibraryGridCard(
     }
 }
 
+/** 滚轮选中时的"光标"：描边 + 微微弹出（和曲库卡片的选中效果一致）。 */
+private fun Modifier.wheelCursor(active: Boolean, color: Color): Modifier = this
+    .graphicsLayer {
+        val s = if (active) 1.03f else 1f
+        scaleX = s; scaleY = s
+    }
+    .then(if (active) Modifier.border(2.dp, color, RoundedCornerShape(18.dp)) else Modifier)
+
+/**
+ * 滚轮动作下标 → 设置页里第几张卡（`wheelActions` 的顺序见 MainActivity）。
+ * 只用来滚动定位，改动作顺序时这里有对应关系要一起看。
+ */
+private val SETTINGS_CARD_OF_WHEEL = mapOf(
+    0 to 0, 1 to 0,          // 音频输出卡：USB Bit-perfect / 均衡器
+    2 to 1, 3 to 1, 4 to 1,  // ncm 卡：自动转换 / 导出位置 / 添加文件夹
+    5 to 2, 6 to 2, 7 to 2, 8 to 2, 9 to 2, // 自动刮削卡：四项 + 恢复封面
+    10 to 3,                 // 滚轮玻璃颜色卡
+    11 to 4,                 // 曲库卡：重新扫描
+)
+
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
 @Composable
 fun SettingsPage(
@@ -372,17 +393,24 @@ fun SettingsPage(
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
     tintState: WheelTintState = WheelTintState(),
+    wheelIndex: Int = 0,
     onGlassTint: (WheelTintState) -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val scheme = MiuixTheme.colorScheme
+    val listState = rememberLazyListState()
+    // 滚轮转到哪一项，就把对应的卡片滚到可见位置（定位映射见 SETTINGS_CARD_OF_WHEEL）
+    LaunchedEffect(wheelIndex) {
+        SETTINGS_CARD_OF_WHEEL[wheelIndex]?.let { listState.animateScrollToItem(it) }
+    }
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 200.dp),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
         item {
-            LiquidCard {
+            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 0 || wheelIndex == 1, scheme.primary)) {
                 Text("音频输出", style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -408,7 +436,7 @@ fun SettingsPage(
             }
         }
         item {
-            LiquidCard {
+            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 2..4, scheme.primary)) {
                 Text("网易云 ncm 导入", style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -444,7 +472,7 @@ fun SettingsPage(
             }
         }
         item {
-            LiquidCard {
+            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 5..9, scheme.primary)) {
                 Text("自动刮削", style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -479,7 +507,7 @@ fun SettingsPage(
             }
         }
         item {
-            LiquidCard {
+            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 10, scheme.primary)) {
                 Text("滚轮圆环玻璃颜色", style = MiuixTheme.textStyles.title4)
                 Text("有色玻璃是「吸光」的：颜色越沉、透光率越低。只改滚轮那一圈，dock / 顶栏 / 播放控件保持无色玻璃。",
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
@@ -544,7 +572,7 @@ fun SettingsPage(
             }
         }
         item {
-            LiquidCard {
+            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 11, scheme.primary)) {
                 Text("曲库", style = MiuixTheme.textStyles.title4)
                 LiquidListItem(title = "重新扫描", subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
                 if (status.running) {
