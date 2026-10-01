@@ -128,6 +128,7 @@ private fun AppShell() {
     val favorites = remember(favoritesRevision, context) { com.localmusic.app.data.FavoritesStore.all(context) }
     val scrapeStatus by com.localmusic.app.data.Scraper.status.collectAsState()
     val scrapeScope = rememberCoroutineScope()
+    val updateState by com.localmusic.app.data.UpdateChecker.status.collectAsState()
     var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
     var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
@@ -209,6 +210,12 @@ private fun AppShell() {
             if (list.isEmpty()) continue
             com.localmusic.app.data.Scraper.scrape(context, list, scrapeCover, scrapeLyrics, limit = 40, wantNetease = neteaseSource)
         }
+    }
+
+    // 启动时查一次 GitHub Release 版本；有新版本就弹玻璃提示（失败静默，不打扰）
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(3_000)
+        com.localmusic.app.data.UpdateChecker.check(context, silent = true)
     }
 
     val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -540,6 +547,24 @@ private fun AppShell() {
                             onPick = { pickExportFolder.launch(ExportInitialUri) },
                             onDismiss = { showExportPrompt = false },
                         )
+                    }
+
+                    // 新版本提示（采集层之外的同窗口玻璃浮层）
+                    updateState.update?.let { update ->
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            com.localmusic.app.ui.UpdatePrompt(
+                                backdrop = backdrop,
+                                update = update,
+                                downloading = updateState.downloading,
+                                error = updateState.error,
+                                onUpdate = {
+                                    com.localmusic.app.data.UpdateChecker.startDownload(context, update) { apk ->
+                                        com.localmusic.app.data.UpdateChecker.install(context, apk)
+                                    }
+                                },
+                                onDismiss = { com.localmusic.app.data.UpdateChecker.dismiss() },
+                            )
+                        }
                     }
 
                     // 播放界面已经不在采集层里渲染（见上面的说明）。
