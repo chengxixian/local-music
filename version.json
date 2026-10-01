@@ -1,6 +1,6 @@
 {
-  "version": "0.3.1",
-  "notes": "启动时自动检查更新：发现新版本可直接从 GitHub 下载并安装。\n滚轮中间键改为与 dock 同款玻璃（无文字、无底色）。\nREADME 增加项目介绍。",
-  "apkUrl": "https://github.com/chengxixian/local-music/releases/download/v0.3.1/app-debug.apk",
+  "version": "0.3.2",
+  "notes": "更新下载现在显示进度：百分比 + 已下载/总大小 + 进度条。\n（v0.3.1 起：启动时自动检查更新，发现新版本可直接从 GitHub 下载并安装；滚轮中间键改为与 dock 同款玻璃。）",
+  "apkUrl": "https://github.com/chengxixian/local-music/releases/download/v0.3.2/local-music-v0.3.2-debug.apk",
   "size": 81158144
 }
