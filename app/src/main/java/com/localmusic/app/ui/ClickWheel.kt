@@ -97,8 +97,6 @@ data class WheelTintState(
 @Composable
 fun ClickWheel(
     backdrop: LayerBackdrop?,
-    label: String,
-    caption: String?,
     onTick: (Int) -> Unit,
     onCenterTap: () -> Unit,
     onCenterDoubleTap: () -> Unit,
@@ -208,16 +206,25 @@ fun ClickWheel(
                 }
             }
         )
-        // ③ 中间键：单击切页 / 双击确认
-        Column(
-            Modifier.fillMaxSize(0.46f)
-                .clip(CircleShape)
-                .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.34f))
-                .graphicsLayer {
-                    val s = if (centerPressed) 0.93f else 1f
-                    scaleX = s; scaleY = s
-                }
-                .pointerInput(Unit) {
+        // ③ 中间键：和 dock 上的按钮**同一种玻璃**——一层不含子内容的玻璃底板 + 兄弟点击层。
+        //    没有底色、也没有文字，中心与圆环因此有清晰的分界。
+        Box(
+            Modifier.fillMaxSize(0.46f).graphicsLayer {
+                val s = if (centerPressed) 0.93f else 1f
+                scaleX = s; scaleY = s
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.matchParentSize().liquidGlass(
+                    backdrop = backdrop,
+                    shape = CircleShape,
+                    refractionHeight = 10.dp,
+                    refractionAmount = 14.dp,
+                )
+            )
+            Box(
+                Modifier.matchParentSize().pointerInput(Unit) {
                     detectTapGestures(
                         onPress = {
                             centerPressed = true
@@ -225,35 +232,12 @@ fun ClickWheel(
                             tryAwaitRelease()
                             centerPressed = false
                         },
-                        // 注意：**不要再自己 delay**。提供了 onDoubleTap 之后，平台本来就会把
-                        // onTap 推迟约 300ms 等第二下；之前我又加了 340ms，单击要等 ~640ms，
-                        // 这就是"单击响应有点慢"的原因。
+                        // 不要再自己 delay：提供了 onDoubleTap 之后，平台本就会把 onTap 推迟约 300ms
                         onTap = { centerTap() },
                         onDoubleTap = { centerDoubleTap() },
                     )
-                },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                label,
-                style = MiuixTheme.textStyles.title4,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
+                }
             )
-            if (!caption.isNullOrBlank()) {
-                Text(
-                    caption,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 6.dp),
-                )
-            }
         }
     }
 }

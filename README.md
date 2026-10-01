@@ -13,6 +13,36 @@
 
 ---
 
+## 项目介绍
+
+一个**本地优先**的 Android HiFi 播放器：扫描你自己的存储、把网易云 `.ncm` 转成 FLAC/MP3、自动刮削封面与歌词，播放内核支持 float PCM 直通（bit-perfect），界面是全套液态玻璃 + 一个 iPod 式滚轮。
+
+- 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
+- 许可 **GPL-3.0**（因为播放内核移植自 GPLv3 的 AURALIS）
+
+### 功能一览
+
+| 模块 | 说明 |
+|---|---|
+| 曲库 | 两列竖卡片网格（上半正方形封面、下半歌名信息）；MediaStore + SAF 授权文件夹 + 应用私有目录，按真实路径去重 |
+| 播放 | Media3 ExoPlayer + `DefaultAudioSink(enableFloatOutput)`，`MediaSessionService`；USB DAC 在 Android 14+ 按源 PCM 规格申请 **bit-perfect**，不支持时自动回落系统混音 |
+| 播放列表 | 点行跳播、↑↓ 调序、✕ 删除；曲库卡片左下角 `+` 追加到当前队列 |
+| ncm 转换 | 输出阶梯：FLAC 校验通过→`.flac`；校验失败→仍发布并标记 `flac-unverified-raw`；MP3 载荷转 FLAC 失败→直接落原始 `.mp3`。可导出到自选文件夹（SAF），文件名取「艺术家 - 歌名」 |
+| 自动刮削 | 封面：网易云音乐 → iTunes → Deezer；歌词：网易云音乐 → LRCLIB。只补缺、分批节流；**不覆盖歌曲自带的封面**（读文件内嵌图判定），并可一键"恢复自带封面" |
+| 歌词 | 带时间戳 LRC 逐行高亮 + 自动滚动；优先刮削缓存，其次同目录 `.lrc`，最后内嵌注释 |
+| 均衡器 | 系统 audiofx（均衡 / 低音增强 / 响度增强），绑定播放会话 |
+| 滚轮 | 转环选上一项/下一项（环上弧长计步、每帧最多一格、45ms 触感节流）；**单击**中间键按 曲库→设置→喜欢 循环切页，**双击**确认（播放选中歌曲 / 执行选中设置项） |
+| 有色玻璃 | 滚轮圆环可换有色玻璃：7 个预设 + 调色盘（色相 / 饱和度 / 透光率），按真实"吸光"模型实现 |
+
+### 快速开始
+
+```bash
+gradle :app:assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
+gradle :audio:testDebugUnitTest    # ncm 解码 / 逐帧 CRC / 真实坏文件回归
+```
+
+---
+
 ## 一、需求对照
 
 | # | 需求 | 落点 |

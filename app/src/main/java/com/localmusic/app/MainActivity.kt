@@ -474,8 +474,6 @@ private fun AppShell() {
                         if (!playerOpen) {
                             ClickWheel(
                                 backdrop = backdrop,
-                                label = page.title,
-                                caption = wheelCaption,
                                 onTick = { dir ->
                                     wheelIndex = (wheelIndex + dir).coerceIn(0, (wheelCount - 1).coerceAtLeast(0))
                                 },
