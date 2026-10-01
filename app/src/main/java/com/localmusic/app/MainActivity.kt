@@ -556,6 +556,9 @@ private fun AppShell() {
                                 backdrop = backdrop,
                                 update = update,
                                 downloading = updateState.downloading,
+                                progress = updateState.progress,
+                                downloadedBytes = updateState.downloadedBytes,
+                                totalBytes = updateState.totalBytes,
                                 error = updateState.error,
                                 onUpdate = {
                                     com.localmusic.app.data.UpdateChecker.startDownload(context, update) { apk ->
