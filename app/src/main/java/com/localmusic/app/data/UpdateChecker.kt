@@ -44,6 +44,10 @@ object UpdateChecker {
         val message: String = "",
         val update: Update? = null,
         val downloading: Boolean = false,
+        /** 下载进度 0f~1f（总大小未知时按已下载字节 + 期望大小估算）。 */
+        val progress: Float = 0f,
+        val downloadedBytes: Long = 0L,
+        val totalBytes: Long = 0L,
         val error: String? = null,
     )
 
@@ -101,7 +105,7 @@ object UpdateChecker {
      * 走 DownloadManager 而不是自己写流：它有断点续传、通知栏进度，也不占我们的线程。
      */
     fun startDownload(context: Context, update: Update, onDone: (File) -> Unit) {
-        _status.value = _status.value.copy(downloading = true, error = null)
+        _status.value = _status.value.copy(downloading = true, progress = 0f, downloadedBytes = 0L, totalBytes = update.sizeBytes, error = null)
         val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "updates").apply { mkdirs() }
         val target = File(dir, "local-music-${update.tag}.apk")
         if (target.isFile && target.length() > 0) {
@@ -118,31 +122,42 @@ object UpdateChecker {
             }
             val manager = context.getSystemService(DownloadManager::class.java)
             val id = manager?.enqueue(request) ?: throw IllegalStateException("系统下载服务不可用")
-            // 轮询下载状态（简单可靠，够用）
+            // 轮询：既判断完成，也把**进度**报给界面（500ms 一次，够顺滑而且几乎不耗电）
             val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
             scope.launch {
-                repeat(600) {
-                    kotlinx.coroutines.delay(1000)
-                    val done = runCatching {
+                repeat(2400) {
+                    kotlinx.coroutines.delay(500)
+                    val snapshot = runCatching {
                         manager.query(DownloadManager.Query().setFilterById(id))?.use { c ->
-                            if (c.moveToFirst()) {
-                                val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                                when (status) {
-                                    DownloadManager.STATUS_SUCCESSFUL -> true
-                                    DownloadManager.STATUS_FAILED -> throw IllegalStateException("下载失败")
-                                    else -> false
-                                }
-                            } else false
-                        } ?: false
+                            if (!c.moveToFirst()) return@use null
+                            val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                            val done = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                            val total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                            Triple(status, done, total)
+                        }
                     }.getOrElse {
                         _status.value = _status.value.copy(downloading = false, error = it.message)
                         return@launch
-                    }
-                    if (done) {
-                        _status.value = _status.value.copy(downloading = false, message = "下载完成，正在拉起安装…")
-                        val file = File(dir, target.name)
-                        withContext(Dispatchers.Main) { onDone(file) }
-                        return@launch
+                    } ?: return@repeat
+                    val (downloadStatus, done, total) = snapshot
+                    val expected = if (total > 0) total else update.sizeBytes
+                    _status.value = _status.value.copy(
+                        downloading = downloadStatus != DownloadManager.STATUS_SUCCESSFUL &&
+                            downloadStatus != DownloadManager.STATUS_FAILED,
+                        downloadedBytes = done,
+                        totalBytes = expected,
+                        progress = if (expected > 0) (done.toFloat() / expected).coerceIn(0f, 1f) else 0f,
+                    )
+                    when (downloadStatus) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            _status.value = _status.value.copy(downloading = false, progress = 1f, message = "下载完成，正在拉起安装…")
+                            withContext(Dispatchers.Main) { onDone(File(dir, target.name)) }
+                            return@launch
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            _status.value = _status.value.copy(downloading = false, error = "下载失败（可稍后重试）")
+                            return@launch
+                        }
                     }
                 }
             }

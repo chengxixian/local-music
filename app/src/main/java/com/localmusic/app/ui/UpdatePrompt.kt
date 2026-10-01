@@ -7,6 +7,7 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +32,9 @@ fun UpdatePrompt(
     backdrop: LayerBackdrop?,
     update: UpdateChecker.Update,
     downloading: Boolean,
+    progress: Float,
+    downloadedBytes: Long,
+    totalBytes: Long,
     error: String?,
     onUpdate: () -> Unit,
     onDismiss: () -> Unit,
@@ -78,7 +82,17 @@ fun UpdatePrompt(
                 if (downloading) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(LiquidSpacing.inline))
-                    Text("正在下载…", style = MiuixTheme.textStyles.footnote1, modifier = Modifier.weight(1f))
+                    Text(
+                        buildString {
+                            append("正在下载… ")
+                            append("${(progress * 100).toInt()}%")
+                            if (totalBytes > 0) {
+                                append("（${downloadedBytes / 1024 / 1024} / ${totalBytes / 1024 / 1024} MB）")
+                            }
+                        },
+                        style = MiuixTheme.textStyles.footnote1,
+                        modifier = Modifier.weight(1f),
+                    )
                 } else {
                     TextButton(onClick = onDismiss) { Text("以后再说") }
                     Spacer(Modifier.weight(1f))
@@ -88,6 +102,13 @@ fun UpdatePrompt(
                         Text("下载并安装")
                     }
                 }
+            }
+            if (downloading) {
+                Spacer(Modifier.height(LiquidSpacing.tight))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
