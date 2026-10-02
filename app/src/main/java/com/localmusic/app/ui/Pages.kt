@@ -361,6 +361,7 @@ private val SETTINGS_CARD_OF_WHEEL = mapOf(
     0 to 0, 1 to 0,          // 音频输出卡：USB Bit-perfect / 均衡器
     2 to 1, 3 to 1, 4 to 1,  // ncm 卡：自动转换 / 导出位置 / 添加文件夹
     5 to 2, 6 to 2, 7 to 2, 8 to 2, 9 to 2, // 自动刮削卡：四项 + 恢复封面
+    12 to 2,                 // 自动刮削卡：清除刮削封面并重刮
     10 to 3,                 // 滚轮玻璃颜色卡
     11 to 4,                 // 曲库卡：重新扫描
 )
@@ -392,6 +393,7 @@ fun SettingsPage(
     onScrapeLyrics: (Boolean) -> Unit = {},
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
+    onClearScrapedCovers: () -> Unit = {},
     neteaseSource: Boolean = true,
     onNeteaseSource: (Boolean) -> Unit = {},
     tintState: WheelTintState = WheelTintState(),
@@ -510,6 +512,12 @@ fun SettingsPage(
                     subtitle = "撤掉自动刮削下载的封面，让文件内嵌/系统专辑封面重新显示（手动设过的封面保留）",
                     leading = Icons.Rounded.Restore,
                     onClick = onRestoreCovers,
+                )
+                LiquidListItem(
+                    title = "清除自动刮削的封面并重刮",
+                    subtitle = "只清自动下载的（手动设过的封面保留），清完立刻用修好的逻辑重刮一遍 —— 之前抓错的封面靠这个刷新",
+                    leading = Icons.Rounded.RestartAlt,
+                    onClick = onClearScrapedCovers,
                 )
                 scrapeStatus.failures.forEach {
                     LiquidStatusBanner(text = it, icon = Icons.Rounded.CloudOff, color = scheme.onSurfaceVariantSummary)
