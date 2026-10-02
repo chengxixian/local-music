@@ -112,6 +112,27 @@ object CoverStore {
         if (refresh) _revision.value += 1
     }
 
+    /**
+     * 清掉**自动刮削下载的封面**（`source = scraped`），用户自己设的（`source = user`）一律保留。
+     *
+     * 用途：刮削逻辑修好之后，之前抓错的封面（例如网易云的默认占位剪影）不会自己消失——
+     * 刮削只补"缺封面"的歌。清一遍再重刮，等于给整个曲库刷新一次封面。返回清掉的数量。
+     */
+    fun clearScraped(context: Context): Int {
+        val app = context.applicationContext
+        val sources = MusicDatabase(app).coverSources()
+        var cleared = 0
+        for ((uri, source) in sources) {
+            if (source == CoverSource.USER) continue
+            pathFor(app, uri)?.delete()
+            MusicDatabase(app).setCover(uri, null)
+            synchronized(lock) { cache = cache?.minus(uri) }
+            cleared++
+        }
+        if (cleared > 0) _revision.value += 1
+        return cleared
+    }
+
     fun clear(context: Context, songUri: String) {
         val app = context.applicationContext
         pathFor(app, songUri)?.delete()

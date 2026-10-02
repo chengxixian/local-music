@@ -325,6 +325,15 @@ private fun AppShell() {
                         val next = if (tintState.index < 0) 0 else (tintState.index + 1) % com.localmusic.app.ui.WheelGlassTints.size
                         saveTint(tintState.copy(index = next))
                     },
+                    "清除刮削封面并重刮" to {
+                        scrapeScope.launch {
+                            val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                com.localmusic.app.data.CoverStore.clearScraped(context)
+                            }
+                            android.widget.Toast.makeText(context, "已清除 $n 张自动刮削的封面，正在重刮…", android.widget.Toast.LENGTH_SHORT).show()
+                            com.localmusic.app.data.Scraper.scrape(context, songs, true, false, limit = 400, wantNetease = neteaseSource)
+                        }
+                    },
                     "重新扫描" to { library.scan() },
                 )
                 val wheelList = when (page) {
@@ -401,6 +410,19 @@ private fun AppShell() {
                                         onScrapeNow = {
                                             scrapeScope.launch {
                                                 com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
+                                            }
+                                        },
+                                        onClearScrapedCovers = {
+                                            scrapeScope.launch {
+                                                val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                    com.localmusic.app.data.CoverStore.clearScraped(context)
+                                                }
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "已清除 $n 张自动刮削的封面，正在用修好的逻辑重刮…",
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                                com.localmusic.app.data.Scraper.scrape(context, songs, true, false, limit = 400, wantNetease = neteaseSource)
                                             }
                                         },
                                         neteaseSource = neteaseSource,
