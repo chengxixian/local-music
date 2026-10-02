@@ -218,6 +218,13 @@ private fun AppShell() {
         com.localmusic.app.data.UpdateChecker.check(context, silent = true)
     }
 
+    // 网易云源自检：结果只写 logcat（标签 LMNetease）。手机 shell 没有网络出口，
+    // 所以"能不能用"只能靠应用自己跑一遍来看。
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(5_000)
+        runCatching { com.localmusic.app.data.Scraper.neteaseProbe() }
+    }
+
     val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->

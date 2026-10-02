@@ -123,30 +123,115 @@ object Scraper {
     internal data class NeteaseSong(val id: Long, val name: String, val artist: String, val cover: String?)
 
     internal fun neteaseSearch(title: String, artist: String): NeteaseSong? {
-        val keyword = if (artist.isBlank() || artist.startsWith("未知")) title else "$artist $title"
-        val url = "https://music.163.com/api/search/get?s=${encode(keyword)}&type=1&offset=0&limit=5"
+        // 本机标题常是「歌手 - 歌名」这种形式，拆开能显著减少"翻唱/同名"误配
+        val split = title.split(" - ", limit = 2)
+        val titleHint = if (split.size == 2) split[1].trim() else title.trim()
+        val artistHint = (if (split.size == 2) split[0].trim() else artist)
+            .takeIf { it.isNotBlank() && !it.startsWith("未知") }.orEmpty()
+        val keyword = listOf(artistHint, titleHint).filter { it.isNotBlank() }.joinToString(" ").ifBlank { title }
+        val url = "https://music.163.com/api/search/get?s=${encode(keyword)}&type=1&offset=0&limit=10"
         val body = get(url, neteaseHeaders) ?: return null
         val songs = JSONObject(body).optJSONObject("result")?.optJSONArray("songs") ?: return null
+        var loose: NeteaseSong? = null
         for (i in 0 until songs.length()) {
             val song = songs.optJSONObject(i) ?: continue
-            if (!titleMatches(title, song.optString("name"))) continue
+            val name = song.optString("name")
+            if (!titleMatches(titleHint, name)) continue
             val artists = song.optJSONArray("artists")?.let { array ->
                 (0 until array.length())
-                    .mapNotNull { array.optJSONObject(it)?.optString("name")?.takeIf { name -> name.isNotBlank() } }
+                    .mapNotNull { array.optJSONObject(it)?.optString("name")?.takeIf { n -> n.isNotBlank() } }
                     .joinToString("/")
             }.orEmpty()
-            val cover = song.optJSONObject("album")?.optString("picUrl")?.takeIf { it.isNotBlank() }
-            return NeteaseSong(song.optLong("id"), song.optString("name"), artists, cover)
+            val candidate = NeteaseSong(song.optLong("id"), name, artists, null)
+            // 歌手也对得上 → 直接用；只有歌名对上 → 先记着，没有更好的才用它
+            if (artistHint.isNotBlank() && artists.contains(artistHint, ignoreCase = true)) return candidate
+            if (loose == null) loose = candidate
         }
-        return null
+        return loose
     }
 
     /** 网易云的图片 URL 支持 `?param=600y600` 指定尺寸。 */
     internal fun neteaseCover(song: NeteaseSong): ByteArray? {
-        val url = song.cover ?: return null
+        // 搜索结果里的 cover 通常为空（响应里没有 picUrl），回落问 detail 接口
+        val url = song.cover ?: neteaseCoverById(song.id) ?: return null
         val sized = if (url.contains("?")) "$url&param=600y600" else "$url?param=600y600"
         return fetchImage(sized) ?: fetchImage(url)
     }
+
+    /**
+     * 网易云**自检**：把网页与接口的真实响应写进 logcat（标签 `LMNetease`）。
+     *
+     * 为什么要这个：`adb shell` 里 DNS 解析不了、TCP 也出不去（实测 ping 通但 curl 全 000），
+     * 所以"网易云能不能用"只能在**应用自己的网络出口**上验证。跑一次就能看清：
+     * 移动版搜索页是否服务端渲染、能不能抽出 `/song?id=`、歌曲页里有没有 `og:image` 与歌词。
+     */
+    suspend fun neteaseProbe(sample: String = "晴天 周杰伦") = withContext(Dispatchers.IO) {
+        val keyword = encode(sample)
+        val searchUrl = "https://music.163.com/search/m/?s=$keyword&type=1"
+        // 用 probeGet：把"HTTP 状态码 / 异常类型"也打出来，才能分清是"连不上"还是"被拒"。
+        val searchResult = probeGet(searchUrl, neteaseHeaders)
+        android.util.Log.i("LMNetease", "search(html) $searchResult")
+        // 网页搜索会是 302（要 cookie），所以直接以 API 搜索为准；这里把三件事都验一遍
+        val apiResult = probeGet("https://music.163.com/api/search/get?s=$keyword&type=1&limit=2", neteaseHeaders)
+        android.util.Log.i("LMNetease", "apiSearch ${apiResult.summary}")
+        val search = apiResult.body ?: return@withContext
+        // 用真实搜索结果走一遍完整链路（含默认占位图过滤），另附一首固定歌曲做对照
+        android.util.Log.i("LMNetease", "probe title=卢广仲 - 我爱你 match=${neteaseSearch("卢广仲 - 我爱你", "未知艺术家")}")
+        android.util.Log.i("LMNetease", "probe albumCover(186016)=${neteaseCoverById(186016)}")
+        android.util.Log.i("LMNetease", "lyricApi " + probeGet("https://music.163.com/api/song/lyric?id=186016&lv=-1&kv=-1&tv=-1", neteaseHeaders))
+    }
+
+    private data class Probe(val summary: String, val body: String?)
+
+    /** 自检专用：返回状态码/异常摘要 + 响应体（正常时）。 */
+    private fun probeGet(url: String, headers: Map<String, String>? = null): Probe {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", UA)
+                setRequestProperty("Accept", "*/*")
+                headers?.forEach { (key, value) -> setRequestProperty(key, value) }
+            }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.use { it.readBytes().toString(Charsets.UTF_8) }
+            Probe(
+                summary = "code=$code bytes=${text?.length ?: 0} url=$url head=${text?.take(90)?.replace('\n', ' ')}",
+                body = if (code in 200..299) text else null,
+            )
+        } catch (e: Exception) {
+            Probe("FAIL ${e.javaClass.simpleName}: ${e.message} url=$url", null)
+        } finally {
+            runCatching { connection?.disconnect() }
+        }
+    }
+
+    /**
+     * 网易云的**默认占位图**（歌手无头像时那张"举麦克风剪影"）。抓到它就等于没抓到封面，
+     * 必须当成 null 让它回落到 iTunes/Deezer，否则曲库里会全是这张剪影。
+     */
+    private val neteasePlaceholders = listOf("6y-UleORITEDbvrOLV0Q8A==", "5639395138885805", "109951163277456216")
+
+    private fun usableCover(url: String?): String? =
+        url?.takeIf { it.isNotBlank() && neteasePlaceholders.none { p -> it.contains(p) } }
+
+    /**
+     * 取**专辑封面**：必须显式取 `songs[0].album.picUrl`。
+     *
+     * 之前用正则抓"第一个 picUrl"，结果抓到了 **artist 的 picUrl**（默认剪影）——用户看到的
+     * "歌手举麦克风"就是这么来的。
+     */
+    internal fun neteaseCoverById(id: Long): String? = try {
+        val body = get("https://music.163.com/api/song/detail?ids=%5B$id%5D", neteaseHeaders) ?: return null
+        val songs = JSONObject(body).optJSONArray("songs") ?: return null
+        if (songs.length() == 0) return null
+        val album = songs.getJSONObject(0).optJSONObject("album")
+        usableCover(album?.optString("picUrl"))
+    } catch (_: Exception) { null }
 
     /** 取带时间戳的歌词（`lrc.lyric`）。 */
     internal fun neteaseLyrics(id: Long): String? = try {
