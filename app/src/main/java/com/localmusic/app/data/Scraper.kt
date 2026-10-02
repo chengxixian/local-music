@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
 import android.content.Context
@@ -66,6 +66,36 @@ object Scraper {
         try {
             // 先把"之前刮削盖住的、其实自带封面"的歌恢复原样（自动纠错，不用用户手动点）
             val restored = runCatching { CoverStore.restoreOriginals(context, songs) }.getOrDefault(0)
+
+            // ── 阶段一：需要封面的歌，先逐首搜索拿 songId（每首之间留间隔），再**合批**取专辑图 ──
+            // 分开做是为了把"搜索/详情/歌词"三连发的密度打散，避开网易云的限流。
+            val coverUrlById = mutableMapOf<Long, String>()
+            val songIdOf = mutableMapOf<String, Long>()
+            if (wantCover && wantNetease) {
+                val targets = songs.filter { song ->
+                    CoverStore.pathFor(context, song.uri) == null && !ArtworkProbe.hasOwnArtwork(context, song)
+                }.take(limit)
+                var index = 0
+                while (index < targets.size) {
+                    currentCoroutineContext().ensureActive()
+                    val chunk = targets.subList(index, minOf(index + 8, targets.size))
+                    val ids = mutableListOf<Long>()
+                    for (song in chunk) {
+                        _status.value = Status(true, "搜索中：${song.title}", covers, lyrics, tried, failures.takeLast(3))
+                        val hit = runCatching { neteaseSearch(song.title, song.artist) }.getOrNull()
+                        if (hit != null) {
+                            songIdOf[song.uri] = hit.id
+                            ids += hit.id
+                        }
+                        delay(600)   // 搜索之间的间隔（原来三连发就是这个导致的限流）
+                    }
+                    if (ids.isNotEmpty()) {
+                        coverUrlById.putAll(runCatching { neteaseCoversByIds(ids) }.getOrDefault(emptyMap()))
+                    }
+                    index += 8
+                }
+            }
+
             for (song in songs) {
                 currentCoroutineContext().ensureActive()
                 if (tried >= limit) break
@@ -78,7 +108,12 @@ object Scraper {
                 // 网易云一首只搜一次，封面和歌词共用这个结果
                 val netease = if (wantNetease) runCatching { neteaseSearch(song.title, song.artist) }.getOrNull() else null
                 if (needCover) {
-                    val fromNetease = netease?.let { hit -> runCatching { neteaseCover(hit) }.getOrNull() }
+                    // 封面优先用阶段一合批拿到的地址（1 个请求 8 张），没有才回落 iTunes/Deezer
+                    val batched = coverUrlById[songIdOf[song.uri]]
+                    val fromNetease = batched?.let { url ->
+                        val sized = if (url.contains("?")) "$url&param=600y600" else "$url?param=600y600"
+                        runCatching { fetchImage(sized) ?: fetchImage(url) }.getOrNull()
+                    }
                     val bytes = fromNetease ?: runCatching { findCover(song.title, song.artist) }.getOrNull()
                     if (bytes != null && CoverStore.setFromBytes(context, song.uri, bytes, refresh = false)) {
                         covers++
@@ -144,6 +179,56 @@ object Scraper {
     )
 
     internal data class NeteaseSong(val id: Long, val name: String, val artist: String, val cover: String?)
+
+    /**
+     * **合批取专辑图**：v3 接口一次能传多个 id，8 首只发 1 个请求。
+     *
+     * 为什么要合批：网易云对同一 IP 的请求密度很敏感，逐首「搜索 + 详情 + 歌词」三连发会被
+     * 直接拒（`操作频繁，请稍候再试`；实测一批 35 首失败里 34 首卡在这一步）。
+     * 合批把详情请求量降到 1/8，再配合请求间隔，才躲得开限流。
+     */
+    internal fun neteaseCoversByIds(ids: List<Long>): Map<Long, String> {
+        if (ids.isEmpty()) return emptyMap()
+        var diagLogged = false
+        val out = mutableMapOf<Long, String>()
+        for (chunk in ids.distinct().chunked(8)) {
+            val json = chunk.joinToString(",", "[", "]") { "{\"id\":$it}" }
+            val payload = java.net.URLEncoder.encode(json, "UTF-8")
+            val url = "https://music.163.com/api/v3/song/detail?c=$payload"
+            var ok = false
+            var throttled = false
+            repeat(2) { attempt ->
+                if (ok) return@repeat
+                val body = runCatching { get(url, neteaseHeaders) }.getOrNull()
+                if (body != null && !body.contains("操作频繁")) {
+                    if (!diagLogged) { diagLogged = true; android.util.Log.i("LMScrape", "v3 head=${body.take(600).replace('\n', ' ')}") }
+                    ok = true
+                    runCatching {
+                        val songs = JSONObject(body).optJSONArray("songs") ?: return@runCatching
+                        for (i in 0 until songs.length()) {
+                            val song = songs.optJSONObject(i) ?: continue
+                            val id = song.optLong("id")
+                            // ⚠️ v3 接口的字段名是简写：`al` = album、`ar` = artists、`dt` = duration。
+                            // 旧接口用的是 `album`——换了接口却沿用旧字段名，就会永远解析到 null
+                            //（这就是"请求成功、got=0"的原因）。这里两个都兼容。
+                            val album = song.optJSONObject("al") ?: song.optJSONObject("album")
+                            val pic = usableCover(album?.optString("picUrl"))
+                            if (id > 0 && pic != null) out[id] = pic
+                        }
+                    }
+                } else if (attempt == 0) {
+                    throttled = true
+                    Thread.sleep(1500)   // 被限流：退避后重试一次
+                }
+            }
+            android.util.Log.i("LMScrape", "batchDetail ids=${chunk.size} ok=$ok throttled=$throttled got=${chunk.count { out.containsKey(it) }}")
+            Thread.sleep(400)   // 块与块之间也留缝
+        }
+        return out
+    }
+
+    /** 单首取图：走合批接口，便于自检/兜底调用。 */
+    internal fun neteaseCoverById(id: Long): String? = neteaseCoversByIds(listOf(id))[id]
 
     internal fun neteaseSearch(title: String, artist: String): NeteaseSong? {
         // 本机标题常是「歌手 - 歌名」这种形式，拆开能显著减少"翻唱/同名"误配
@@ -246,23 +331,8 @@ object Scraper {
      * 取**专辑封面**：必须显式取 `songs[0].album.picUrl`。
      *
      * 之前用正则抓"第一个 picUrl"，结果抓到了 **artist 的 picUrl**（默认剪影）——用户看到的
-     * "歌手举麦克风"就是这么来的。
+     * "歌手举麦克风"就是这么来的。现在统一走上面的合批实现（见 neteaseCoversByIds）。
      */
-    internal fun neteaseCoverById(id: Long): String? {
-        val payload = java.net.URLEncoder.encode("[{\"id\":$id}]", "UTF-8")
-        val url = "https://music.163.com/api/v3/song/detail?c=$payload"
-        repeat(2) { attempt ->
-            val body = runCatching { get(url, neteaseHeaders) }.getOrNull()
-            if (body != null && !body.contains("操作频繁")) {
-                val songs = runCatching { JSONObject(body).optJSONArray("songs") }.getOrNull() ?: return null
-                if (songs.length() == 0) return null
-                return runCatching { usableCover(songs.getJSONObject(0).optJSONObject("album")?.optString("picUrl")) }.getOrNull()
-            }
-            // 被限流（"操作频繁，请稍候再试"）：退避一下再来一次，第二次还不行就放弃
-            if (attempt == 0) Thread.sleep(1500)
-        }
-        return null
-    }
 
     /** 取带时间戳的歌词（`lrc.lyric`）。 */
     internal fun neteaseLyrics(id: Long): String? = try {
