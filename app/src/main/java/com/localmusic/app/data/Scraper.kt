@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
 import android.content.Context
@@ -60,6 +60,7 @@ object Scraper {
         var tried = 0
         var neteaseCovers = 0
         var neteaseLyrics = 0
+        var coverDiagDone = false
         val failures = mutableListOf<String>()
         _status.value = Status(true, "开始刮削…")
         try {
@@ -86,8 +87,30 @@ object Scraper {
                         if (covers % 6 == 0) CoverStore.refresh()
                     } else {
                         failures += "${song.title}：没找到封面"
+                        // 逐首诊断：到底断在哪一步（搜不到 / detail 没图 / 图被当占位图拦下 / 兜底也miss）
+                        val detailPic = netease?.let { runCatching { neteaseCoverById(it.id) }.getOrNull() }
+                        // 头一次 miss 时做一次接口对照：旧 detail 接口 vs v3 接口，看是"没图"还是"被限流"
+                        if (netease != null && !coverDiagDone) {
+                            coverDiagDone = true
+                            val old = probeGet("https://music.163.com/api/song/detail?ids=%5B${netease.id}%5D", neteaseHeaders)
+                            val v3 = probeGet(
+                                "https://music.163.com/api/v3/song/detail?c=%5B%7B%22id%22%3A${netease.id}%7D%5D",
+                                neteaseHeaders,
+                            )
+                            android.util.Log.i("LMScrape", "diag id=${netease.id}")
+                            android.util.Log.i("LMScrape", "diag old ${old.summary}")
+                            android.util.Log.i("LMScrape", "diag old hasPicUrl=${old.body?.contains("\"picUrl\":\"http")}")
+                            android.util.Log.i("LMScrape", "diag v3 ${v3.summary}")
+                            android.util.Log.i("LMScrape", "diag v3 hasPicUrl=${v3.body?.contains("\"picUrl\":\"http")}")
+                        }
+                        android.util.Log.i(
+                            "LMScrape",
+                            "cover miss '${song.title}' | netease=" + (netease?.let { "id=${it.id} name='${it.name}' artist='${it.artist}'" } ?: "搜不到") +
+                                " | albumPic=" + (detailPic ?: "无（或被当占位图拦下）") +
+                                " | fallback=" + (if (bytes != null) "有图但落盘失败" else "iTunes/Deezer 也没有"),
+                        )
                     }
-                    delay(180)
+                    delay(800)
                 }
                 if (needLyrics) {
                     val fromNetease = netease?.let { hit -> runCatching { neteaseLyrics(hit.id) }.getOrNull() }
@@ -98,7 +121,7 @@ object Scraper {
                     } else {
                         failures += "${song.title}：没找到歌词"
                     }
-                    delay(180)
+                    delay(800)
                 }
             }
             if (covers % 6 != 0) CoverStore.refresh()
@@ -225,13 +248,21 @@ object Scraper {
      * 之前用正则抓"第一个 picUrl"，结果抓到了 **artist 的 picUrl**（默认剪影）——用户看到的
      * "歌手举麦克风"就是这么来的。
      */
-    internal fun neteaseCoverById(id: Long): String? = try {
-        val body = get("https://music.163.com/api/song/detail?ids=%5B$id%5D", neteaseHeaders) ?: return null
-        val songs = JSONObject(body).optJSONArray("songs") ?: return null
-        if (songs.length() == 0) return null
-        val album = songs.getJSONObject(0).optJSONObject("album")
-        usableCover(album?.optString("picUrl"))
-    } catch (_: Exception) { null }
+    internal fun neteaseCoverById(id: Long): String? {
+        val payload = java.net.URLEncoder.encode("[{\"id\":$id}]", "UTF-8")
+        val url = "https://music.163.com/api/v3/song/detail?c=$payload"
+        repeat(2) { attempt ->
+            val body = runCatching { get(url, neteaseHeaders) }.getOrNull()
+            if (body != null && !body.contains("操作频繁")) {
+                val songs = runCatching { JSONObject(body).optJSONArray("songs") }.getOrNull() ?: return null
+                if (songs.length() == 0) return null
+                return runCatching { usableCover(songs.getJSONObject(0).optJSONObject("album")?.optString("picUrl")) }.getOrNull()
+            }
+            // 被限流（"操作频繁，请稍候再试"）：退避一下再来一次，第二次还不行就放弃
+            if (attempt == 0) Thread.sleep(1500)
+        }
+        return null
+    }
 
     /** 取带时间戳的歌词（`lrc.lyric`）。 */
     internal fun neteaseLyrics(id: Long): String? = try {
