@@ -207,6 +207,46 @@ private fun AppShell() {
     // "加入乐单"面板正在为哪首歌打开；以及"换乐单封面"正在等哪张图
     var pickerSong by remember { mutableStateOf<com.localmusic.app.data.Song?>(null) }
     var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
+
+    var playerOpen by remember { mutableStateOf(false) }
+
+    /**
+     * 统一的"播这首歌"入口。
+     *
+     * DSD（.dsf/.dff）Media3 解不了，所以先把 1bit 码流抽成 176.4kHz/24bit PCM WAV（结果缓存），
+     * 再把转好的那份交给播放链 —— 这样它也能继续走 USB bit-perfect。
+     */
+    val uiScope = rememberCoroutineScope()
+    val playSong: (List<com.localmusic.app.data.Song>, com.localmusic.app.data.Song) -> Unit = { list, song ->
+        if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
+            player.play(list, song)
+            playerOpen = true
+        } else {
+            android.widget.Toast.makeText(context, "DSD：正在抽取为 PCM（首次较慢，之后走缓存）…", android.widget.Toast.LENGTH_SHORT).show()
+            uiScope.launch {
+                val playable: java.io.File? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        val uri = android.net.Uri.parse(song.uri)
+                        val name = song.title.ifBlank { "dsd" }.take(40) +
+                            if (song.uri.lowercase().endsWith(".dff")) ".dff" else ".dsf"
+                        val src = com.localmusic.app.data.Dsd.copyToLocal(context, uri, name) ?: return@runCatching null
+                        val info = com.localmusic.app.data.Dsd.probe(src) ?: return@runCatching null
+                        val out = com.localmusic.app.data.Dsd.cacheFile(context, src)
+                        if (out.isFile && out.length() > 0L) out
+                        else if (com.localmusic.app.data.Dsd.convertToWav(src, out, info)) out
+                        else null
+                    }.getOrNull()
+                }
+                if (playable == null) {
+                    android.widget.Toast.makeText(context, "DSD 转换失败：文件可能损坏或格式不支持", android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    val converted = song.copy(uri = android.net.Uri.fromFile(playable).toString())
+                    player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
+                    playerOpen = true
+                }
+            }
+        }
+    }
     // "问名字"对话框：必须画在**浮层**（滚轮在浮层、页面在采集层，画在页面里会被滚轮盖住按钮）
     var naming by remember { mutableStateOf<NamingRequest?>(null) }
     var showPlaylistMenu by remember { mutableStateOf(false) }
@@ -248,7 +288,6 @@ private fun AppShell() {
     // 滚轮选中的下标（换页时归零）
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
-    var playerOpen by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
     var bitPerfect by remember { mutableStateOf(prefs.getBoolean("bitPerfect", false)) }
@@ -491,7 +530,7 @@ private fun AppShell() {
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
-                                        onPlay = { song -> player.play(songs, song); playerOpen = true },
+                                        onPlay = { song -> playSong(songs, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
@@ -508,7 +547,7 @@ private fun AppShell() {
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
-                                        onPlay = { song -> player.play(songs, song); playerOpen = true },
+                                        onPlay = { song -> playSong(songs, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
@@ -537,7 +576,7 @@ private fun AppShell() {
                                                 onToggleFavorite = { song ->
                                                     com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                                 },
-                                                onPlay = { song -> player.play(playlistSongs, song); playerOpen = true },
+                                                onPlay = { song -> playSong(playlistSongs, song) },
                                                 onAddToQueue = { song ->
                                                     player.appendToQueue(listOf(song))
                                                     android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
@@ -759,7 +798,7 @@ private fun AppShell() {
                                     if (page == Page.Settings) {
                                         wheelActions.getOrNull(wheelIndex)?.second?.invoke()
                                     } else {
-                                        wheelList.getOrNull(wheelIndex)?.let { song -> player.play(wheelList, song) }
+                                        wheelList.getOrNull(wheelIndex)?.let { song -> playSong(wheelList, song) }
                                     }
                                 },
                                 modifier = Modifier.align(Alignment.BottomEnd)

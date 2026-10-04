@@ -13,9 +13,24 @@ import java.io.File
 import java.util.Locale
 
 object MetadataReader {
-    val extensions = setOf("mp3", "aac", "m4a", "mp4", "flac", "wav", "ogg", "opus", "amr", "3gp")
+    val extensions = setOf("mp3", "aac", "m4a", "mp4", "flac", "wav", "ogg", "opus", "amr", "3gp", "dsf", "dff")
     fun read(context: Context, base: Song, physicalFile: File? = null): Song {
         var result = base
+        // DSD：Media3 / jaudiotagger 都读不了，规格只能自己从文件头拿
+        // （这一点与上游 AURALIS 的 "DSD/DXD tagging" 同一层，但我们还多了解码）
+        if (Dsd.isDsd(base.uri)) {
+            val info = physicalFile?.takeIf { it.canRead() }?.let { Dsd.probe(it) }
+                ?: runCatching { Dsd.probeUri(context, Uri.parse(base.uri)) }.getOrNull()
+            if (info != null) {
+                return result.copy(
+                    format = info.name,              // DSD64 / DSD128 / DSD256
+                    sampleRate = info.sampleRate,    // 2822400 / 5644800 / 11289600
+                    bitDepth = 1,
+                    channels = info.channels,
+                    duration = info.durationMs,
+                )
+            }
+        }
         if (physicalFile?.canRead() == true) {
             try {
                 val a = AudioFileIO.read(physicalFile)
