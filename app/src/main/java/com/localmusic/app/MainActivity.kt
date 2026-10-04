@@ -455,6 +455,12 @@ private fun AppShell() {
                             }
                         }
 
+                        // 播放页的背景：当前封面放大 + 高斯模糊（画在**采集层之内**，
+                        // 这样播放页的玻璃折射到的就是这张封面，而不是背后的曲库页）
+                        if (playerOpen) {
+                            PlayerBackdrop(song = nowPlaying, modifier = Modifier.matchParentSize())
+                        }
+
                         // 注意：这里**不压暗背景**。用户要的是"周围亮、玻璃暗"——
                         // 压暗画在玻璃自己的 surfaceTint 上（见 ui/Glass.kt 的 DarkGlassTint），
                         // 背景保持原亮度，玻璃采样到的也就还是亮的页面，折射依然成立。
