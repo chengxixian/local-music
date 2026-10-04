@@ -1,16 +1,37 @@
-# local music
+<p align="center">
+  <img src="docs/banner.png" width="100%" alt="local music — 本地优先的 Android HiFi 播放器">
+</p>
+
+<h1 align="center">local music</h1>
 
 <p align="center">
-  <img src="docs/app-icon.png" width="132" alt="local music 图标（点阵 Lm + 红点）">
+  <b>本地优先</b> · 点阵 Lm 图标 · 全套液态玻璃 · bit-perfect 直通
 </p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/chengxixian/local-music?color=blue" alt="License"></a>
+  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/github/v/release/chengxixian/local-music?label=release" alt="Release"></a>
+  <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android">
+  <img src="https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Compose-Jetpack-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose">
+  <img src="https://img.shields.io/badge/Media3-1.10.0-F4A261" alt="Media3">
+  <img src="https://img.shields.io/badge/DSD-DSF%20%2F%20DFF-9C27B0" alt="DSD">
+  <img src="https://img.shields.io/badge/DXD-24bit%2F352.8kHz-2E7D32" alt="DXD">
+  <img src="https://img.shields.io/badge/USB-bit--perfect-000000" alt="bit-perfect">
+</p>
+
+> 扫描你自己的存储、把网易云 `.ncm` 转成 FLAC/MP3、自动刮削封面与歌词；播放内核支持 float PCM
+> 直通（bit-perfect），界面是全套液态玻璃 + 一个 iPod 式滚轮。
 
 安卓本地 HiFi 音乐播放器。**播放内核移植自 [Rueded/AURALIS](https://github.com/Rueded/AURALIS)**，
 **前端使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)**，
 **ncm 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)**。
 
-![曲库：卡片上直接标出格式与规格（FLAC 24bit/96kHz）](docs/screenshots/library-hires.png)
-![播放页：整页封面模糊背景 + 规格行](docs/screenshots/player-glass.png)
-![乐单](docs/screenshots/playlists.png)
+### 截图
+
+| 曲库（卡片直接标出真实规格） | 播放页（封面模糊背景 + 规格行） | 乐单（两列卡片） |
+|---|---|---|
+| ![曲库](docs/screenshots/library-hires.png) | ![播放页](docs/screenshots/player-glass.png) | ![乐单](docs/screenshots/playlists.png) |
 
 > 工程位置（开发机）：`D:\dsh work region\local-music`
 > 前端库引用的是工作区里已 clone 的 `liquid-miuix-repo/library`（`projectDir` 直接指过去，没有复制代码）；
