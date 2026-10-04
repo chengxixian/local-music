@@ -181,4 +181,9 @@
     <string name="wheel_tint">Wheel glass colour</string>
     <string name="wheel_clear_scraped">Clear scraped covers and re-scrape</string>
     <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
+    <string name="update_note_outdated">The installed version is no longer the latest.</string>
+    <string name="update_note_size">The package is about %1$s MB.</string>
+    <string name="update_note_install">Tap Download and install: the APK is fetched from GitHub and handed to the system installer.</string>
+    <string name="update_downloading">Downloading…</string>
+    <string name="update_progress_mb">(%1$s / %2$s MB)</string>
 </resources>

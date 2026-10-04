@@ -58,9 +58,9 @@ fun UpdatePrompt(
             Spacer(Modifier.height(LiquidSpacing.tight))
             Text(
                 buildString {
-                    append("当前版本已不是最新。")
-                    if (update.sizeBytes > 0) append("安装包约 ${update.sizeBytes / 1024 / 1024} MB。")
-                    append("点击「下载并安装」会从 GitHub 拉取 APK，然后交给系统安装器。")
+                    append(stringResource(R.string.update_note_outdated))
+                    if (update.sizeBytes > 0) append(stringResource(R.string.update_note_size, update.sizeBytes / 1024 / 1024))
+                    append(stringResource(R.string.update_note_install))
                 },
                 style = MiuixTheme.textStyles.body2,
                 color = scheme.onSurfaceVariantSummary,
@@ -86,10 +86,10 @@ fun UpdatePrompt(
                     Spacer(Modifier.width(LiquidSpacing.inline))
                     Text(
                         buildString {
-                            append("正在下载… ")
+                            append(stringResource(R.string.update_downloading) + " ")
                             append("${(progress * 100).toInt()}%")
                             if (totalBytes > 0) {
-                                append("（${downloadedBytes / 1024 / 1024} / ${totalBytes / 1024 / 1024} MB）")
+                                append(stringResource(R.string.update_progress_mb, downloadedBytes / 1024 / 1024, totalBytes / 1024 / 1024))
                             }
                         },
                         style = MiuixTheme.textStyles.footnote1,
