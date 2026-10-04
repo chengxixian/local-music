@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 取自用户提供的图标源图四角底色（design/ic_launcher_background.txt） -->
-    <color name="ic_launcher_background">#001830</color>
+    <!-- Nothing 风格点阵图标：纯黑底 + 白色点阵（前景 PNG 由 scripts/make-dotmatrix-icon.py 生成） -->
+    <color name="ic_launcher_background">#000000</color>
 </resources>
