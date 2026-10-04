@@ -744,8 +744,8 @@ fun PlaylistHeader(
     onRename: (String) -> Unit,
     onChangeCover: () -> Unit,
     onDelete: () -> Unit,
+    onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
-    var renaming by remember { mutableStateOf(false) }
     LiquidCard {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
             if (playlist.cover != null) {
@@ -759,21 +759,13 @@ fun PlaylistHeader(
             }
         }
         Spacer(Modifier.height(6.dp))
-        LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = { renaming = true }, showDivider = true)
+        LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = { onAskName("重命名乐单", playlist.name) { onRename(it) } }, showDivider = true)
         LiquidListItem(title = "更换乐单封面", leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
         LiquidListItem(
             title = "删除乐单",
             subtitle = "只删乐单，不动歌曲文件",
             leading = Icons.Rounded.DeleteOutline,
             onClick = onDelete,
-        )
-    }
-    if (renaming) {
-        NameDialog(
-            title = "重命名乐单",
-            initial = playlist.name,
-            onDismiss = { renaming = false },
-            onConfirm = { name -> renaming = false; onRename(name) },
         )
     }
 }
@@ -806,9 +798,8 @@ fun PlaylistPage(
     topPadding: Dp = LiquidSpacing.page,
     onCreate: (String) -> Unit,
     onOpen: (Playlist) -> Unit,
+    onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
-    var naming by remember { mutableStateOf(false) }
-    var draft by remember { mutableStateOf("") }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
@@ -819,7 +810,7 @@ fun PlaylistPage(
                 title = "新建乐单",
                 subtitle = "给乐单起个名字，之后可以改",
                 leading = Icons.Rounded.Add,
-                onClick = { draft = ""; naming = true },
+                onClick = { onAskName("新建乐单", "") { name -> onCreate(name) } },
             )
         }
         if (playlists.isEmpty()) {
@@ -854,19 +845,15 @@ fun PlaylistPage(
             }
         }
     }
-    if (naming) {
-        NameDialog(
-            title = "新建乐单",
-            initial = draft,
-            onDismiss = { naming = false },
-            onConfirm = { name -> naming = false; onCreate(name) },
-        )
-    }
 }
 
-/** 改名 / 新建通用的小输入框（玻璃卡片里放一个 BasicTextField）。 */
+/**
+ * 改名 / 新建通用的小输入框（玻璃版，画在浮层里，见 MainActivity 的 NameDialogGlass）。
+ * 这里只负责"问名字"这件事，对话框本体在浮层渲染 —— 页面在采集层内，滚轮会盖在它上面。
+ */
 @Composable
 internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    // 兜底实现：万一有人直接调用，仍然能工作（不带玻璃）
     var text by remember { mutableStateOf(initial) }
     Box(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
@@ -889,8 +876,6 @@ internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, o
             )
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                // 必须显式给颜色：本 App 用的是 MiuixTheme，没有套 M3 的 MaterialTheme，
-                // TextButton 会拿到 M3 默认色（深色玻璃卡上等于隐形）。
                 TextButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
@@ -916,8 +901,8 @@ fun AddToPlaylistSheet(
     onToggle: (Long, Boolean) -> Unit,
     onCreate: (String) -> Unit,
     onDismiss: () -> Unit,
+    onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
-    var naming by remember { mutableStateOf(false) }
     Box(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
@@ -935,7 +920,7 @@ fun AddToPlaylistSheet(
             LiquidListItem(
                 title = "新建乐单并加入",
                 leading = Icons.Rounded.Add,
-                onClick = { naming = true },
+                onClick = { onAskName("新建乐单", "") { name -> onCreate(name) } },
             )
             playlists.forEach { playlist ->
                 val checked = playlist.id in memberOf
@@ -954,14 +939,6 @@ fun AddToPlaylistSheet(
                 ) { Text("完成") }
             }
         }
-    }
-    if (naming) {
-        NameDialog(
-            title = "新建乐单",
-            initial = "",
-            onDismiss = { naming = false },
-            onConfirm = { name -> naming = false; onCreate(name) },
-        )
     }
 }
 

@@ -21,7 +21,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material3.Text
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
@@ -65,8 +68,76 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Page(val title: String, val icon: ImageVector) {
-    Library("曲库", Icons.Rounded.LibraryMusic),
+/** 「问名字」请求：标题 + 初始值 + 确认回调。放进 state，由**浮层**渲染对话框。 */
+private data class NamingRequest(val title: String, val initial: String, val onConfirm: (String) -> Unit)
+
+/**
+ * 问名字对话框（玻璃版）。
+ *
+ * 两个要点：
+ *  1. 必须画在浮层：页面在采集层内，而滚轮/顶栏在浮层 —— 画在页面里会被滚轮盖住"确定/取消"。
+ *  2. 玻璃与内容必须是兄弟（玻璃 Box 里不能有子内容），否则就是自引用 backdrop。
+ */
+@Composable
+private fun NameDialogGlass(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    title: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var text by remember(initial) { mutableStateOf(initial) }
+    val scheme = MiuixTheme.colorScheme
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.fillMaxWidth(0.86f)) {
+            Box(
+                Modifier.matchParentSize().liquidGlass(
+                    backdrop = backdrop,
+                    shape = RoundedCornerShape(24.dp),
+                )
+            )
+            Column(Modifier.padding(20.dp)) {
+                Text(title, style = MiuixTheme.textStyles.title3)
+                Spacer(Modifier.height(12.dp))
+                // 输入框本身也做成液态玻璃
+                Box(Modifier.fillMaxWidth()) {
+                    Box(
+                        Modifier.matchParentSize().liquidGlass(
+                            backdrop = backdrop,
+                            shape = RoundedCornerShape(14.dp),
+                        )
+                    )
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        textStyle = MiuixTheme.textStyles.body1.copy(color = scheme.onSurface),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(scheme.primary),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onDismiss,
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = scheme.onSurfaceVariantSummary,
+                        ),
+                    ) { Text("取消") }
+                    androidx.compose.material3.TextButton(
+                        onClick = { onConfirm(text) },
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = scheme.primary),
+                    ) { Text("确定") }
+                }
+            }
+        }
+    }
+}
+
+private enum class Page(val title: String, val icon: ImageVector) {    Library("曲库", Icons.Rounded.LibraryMusic),
     Playlists("乐单", Icons.Rounded.QueueMusic),
     Favorites("喜欢", Icons.Rounded.Favorite),
     Settings("设置", Icons.Rounded.Settings),
@@ -136,6 +207,11 @@ private fun AppShell() {
     // "加入乐单"面板正在为哪首歌打开；以及"换乐单封面"正在等哪张图
     var pickerSong by remember { mutableStateOf<com.localmusic.app.data.Song?>(null) }
     var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
+    // "问名字"对话框：必须画在**浮层**（滚轮在浮层、页面在采集层，画在页面里会被滚轮盖住按钮）
+    var naming by remember { mutableStateOf<NamingRequest?>(null) }
+    val askName: (String, String, (String) -> Unit) -> Unit = { title, initial, confirm ->
+        naming = NamingRequest(title, initial, confirm)
+    }
     val scrapeStatus by com.localmusic.app.data.Scraper.status.collectAsState()
     val scrapeScope = rememberCoroutineScope()
     val updateState by com.localmusic.app.data.UpdateChecker.status.collectAsState()
@@ -439,6 +515,7 @@ private fun AppShell() {
                                                 topPadding = pageTopPadding,
                                                 onCreate = { name -> com.localmusic.app.data.PlaylistStore.create(context, name) },
                                                 onOpen = { openPlaylist = it },
+                                                onAskName = askName,
                                             )
                                         } else {
                                             LibraryPage(
@@ -468,6 +545,7 @@ private fun AppShell() {
                                                             com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
                                                             openPlaylist = null
                                                         },
+                                                        onAskName = askName,
                                                     )
                                                 },
                                                 topPadding = pageTopPadding,
@@ -590,6 +668,16 @@ private fun AppShell() {
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
                         }
+                        // 问名字（新建 / 重命名乐单）：在浮层里，滚轮之上
+                        naming?.let { req ->
+                            NameDialogGlass(
+                                backdrop = backdrop,
+                                title = req.title,
+                                initial = req.initial,
+                                onDismiss = { naming = null },
+                                onConfirm = { name -> req.onConfirm(name); naming = null },
+                            )
+                        }
                         // 「加入乐单」面板（和喜欢一样：点一下即加/去，不需要确认）
                         pickerSong?.let { song ->
                             val memberOf = remember(song.uri, playlistsRevision, context) {
@@ -607,6 +695,7 @@ private fun AppShell() {
                                     if (id > 0) com.localmusic.app.data.PlaylistStore.setSong(context, id, song.uri, true)
                                 },
                                 onDismiss = { pickerSong = null },
+                                onAskName = askName,
                             )
                         }
                         if (!playerOpen && !showAbout) {
@@ -624,7 +713,7 @@ private fun AppShell() {
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen && !showAbout) {
+                        if (!playerOpen && !showAbout && naming == null) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->
