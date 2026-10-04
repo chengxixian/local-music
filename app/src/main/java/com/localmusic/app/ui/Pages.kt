@@ -763,32 +763,59 @@ fun PlaylistHeader(
     backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
     playlist: Playlist,
     modifier: Modifier = Modifier,
-    onRename: (String) -> Unit,
-    onChangeCover: () -> Unit,
-    onDelete: () -> Unit,
-    onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
+    onMenu: () -> Unit,
 ) {
-    GlassCard(backdrop = backdrop, modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
+    GlassCard(backdrop = backdrop, modifier = modifier, contentPadding = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (playlist.cover != null) {
-                FileImage(path = playlist.cover, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)))
+                FileImage(path = playlist.cover, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)))
             } else {
-                DotMatrixMark(Modifier.size(56.dp, 56.dp), cell = 4.6.dp)
+                DotMatrixMark(Modifier.size(44.dp, 44.dp), cell = 3.6.dp)
             }
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(playlist.name, style = MiuixTheme.textStyles.title3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${playlist.count} 首", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
+            // 重命名 / 换封面 / 删除 收进这一个按钮里（原来是三行列表，太占地方）
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onMenu),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = "乐单设置", tint = MiuixTheme.colorScheme.onSurface)
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = { onAskName("重命名乐单", playlist.name) { onRename(it) } }, showDivider = true)
-        LiquidListItem(title = "更换乐单封面", leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
-        LiquidListItem(
-            title = "删除乐单",
-            subtitle = "只删乐单，不动歌曲文件",
-            leading = Icons.Rounded.DeleteOutline,
-            onClick = onDelete,
-        )
+    }
+}
+
+/** 乐单操作面板（重命名 / 换封面 / 删除）。 */
+@Composable
+fun PlaylistActionsSheet(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    playlist: Playlist,
+    onRename: () -> Unit,
+    onChangeCover: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.82f)) {
+            Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = onRename, showDivider = true)
+            LiquidListItem(title = "更换乐单封面", leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
+            LiquidListItem(title = "删除乐单", subtitle = "只删乐单，不动歌曲文件", leading = Icons.Rounded.DeleteOutline, onClick = onDelete)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
+                ) { Text("取消") }
+            }
+        }
     }
 }
 
@@ -817,17 +844,20 @@ internal fun FileImage(path: String?, modifier: Modifier = Modifier, contentScal
 @Composable
 fun PlaylistPage(
     playlists: List<Playlist>,
+    firstSongs: Map<Long, Song> = emptyMap(),
     topPadding: Dp = LiquidSpacing.page,
     onCreate: (String) -> Unit,
     onOpen: (Playlist) -> Unit,
     onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
+        horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             LiquidListItem(
                 title = "新建乐单",
                 subtitle = "给乐单起个名字，之后可以改",
@@ -836,7 +866,7 @@ fun PlaylistPage(
             )
         }
         if (playlists.isEmpty()) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidCard {
                     Text("还没有乐单", style = MiuixTheme.textStyles.title4)
                     Text(
@@ -847,23 +877,44 @@ fun PlaylistPage(
                 }
             }
         }
+        // 与曲库同款：两列竖卡片（上半正方形封面、下半名称与曲目数）
         items(playlists, key = { it.id }) { playlist ->
-            LiquidCard(Modifier.clickable { onOpen(playlist) }) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
-                    if (playlist.cover != null) {
-                        FileImage(
-                            path = playlist.cover,
-                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
-                        )
-                    } else {
-                        DotMatrixMark(Modifier.size(64.dp, 64.dp), cell = 5.2.dp)
+            PlaylistGridCard(playlist = playlist, firstSong = firstSongs[playlist.id], onClick = { onOpen(playlist) })
+        }
+    }
+}
+
+/**
+ * 乐单卡片（和曲库的乐曲卡片同款竖长方形）。
+ *
+ * 封面优先级：**用户自选的封面** > **乐单里第一首歌的封面** > 点阵标记兜底。
+ */
+@Composable
+private fun PlaylistGridCard(playlist: Playlist, firstSong: Song?, onClick: () -> Unit) {
+    val scheme = MiuixTheme.colorScheme
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
+    ) {
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                when {
+                    playlist.cover != null -> FileImage(path = playlist.cover, modifier = Modifier.matchParentSize())
+                    firstSong != null -> Artwork(firstSong, Modifier.matchParentSize(), radius = 0, requestPx = 420)
+                    else -> Box(Modifier.matchParentSize().background(scheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                        DotMatrixMark(Modifier.size(120.dp, 78.dp), cell = 9.6.dp)
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${playlist.count} 首", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    }
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.graphicsLayer { rotationZ = -90f })
                 }
+            }
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "${playlist.count} 首",
+                    style = MiuixTheme.textStyles.body2,
+                    color = scheme.onSurfaceVariantSummary,
+                )
             }
         }
     }

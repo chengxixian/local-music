@@ -209,6 +209,7 @@ private fun AppShell() {
     var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
     // "问名字"对话框：必须画在**浮层**（滚轮在浮层、页面在采集层，画在页面里会被滚轮盖住按钮）
     var naming by remember { mutableStateOf<NamingRequest?>(null) }
+    var showPlaylistMenu by remember { mutableStateOf(false) }
     val askName: (String, String, (String) -> Unit) -> Unit = { title, initial, confirm ->
         naming = NamingRequest(title, initial, confirm)
     }
@@ -452,7 +453,15 @@ private fun AppShell() {
                     Page.Favorites -> favoriteList
                     Page.Settings -> emptyList()
                 }
-                val wheelCount = if (page == Page.Settings) wheelActions.size else wheelList.size
+                // 每个乐单的第一首歌（没设自定义封面时，卡片/工具栏就用它的封面）
+    val playlistFirstSongs = remember(playlists, songs) {
+        val byUri = songs.associateBy { it.uri }
+        playlists.associate { pl ->
+            pl.id to com.localmusic.app.data.PlaylistStore.songIds(context, pl.id).firstNotNullOfOrNull { byUri[it] }
+        }
+    }
+
+    val wheelCount = if (page == Page.Settings) wheelActions.size else wheelList.size
                 val wheelCaption = if (page == Page.Settings) wheelActions.getOrNull(wheelIndex)?.first
                     else wheelList.getOrNull(wheelIndex)?.title
                 Box(Modifier.fillMaxSize()) {
@@ -512,6 +521,7 @@ private fun AppShell() {
                                         if (opened == null) {
                                             PlaylistPage(
                                                 playlists = playlists,
+                                                firstSongs = playlistFirstSongs.filterValues { it != null }.mapValues { it.value!! },
                                                 topPadding = pageTopPadding,
                                                 onCreate = { name -> com.localmusic.app.data.PlaylistStore.create(context, name) },
                                                 onOpen = { openPlaylist = it },
@@ -659,17 +669,32 @@ private fun AppShell() {
                                         .align(Alignment.TopCenter)
                                         .padding(start = 16.dp, end = 16.dp, top = 80.dp)
                                         .fillMaxWidth(),
-                                    onRename = { name -> com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name) },
-                                    onChangeCover = {
-                                        playlistCoverTarget = opened.id
-                                        playlistCoverPicker.launch(arrayOf("image/*"))
-                                    },
-                                    onDelete = {
-                                        com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
-                                        openPlaylist = null
-                                    },
-                                    onAskName = askName,
+                                    onMenu = { showPlaylistMenu = true },
                                 )
+                                // 重命名 / 换封面 / 删除：收在一个按钮弹出的面板里
+                                if (showPlaylistMenu) {
+                                    PlaylistActionsSheet(
+                                        backdrop = backdrop,
+                                        playlist = opened,
+                                        onRename = {
+                                            showPlaylistMenu = false
+                                            askName("重命名乐单", opened.name) { name ->
+                                                com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name)
+                                            }
+                                        },
+                                        onChangeCover = {
+                                            showPlaylistMenu = false
+                                            playlistCoverTarget = opened.id
+                                            playlistCoverPicker.launch(arrayOf("image/*"))
+                                        },
+                                        onDelete = {
+                                            showPlaylistMenu = false
+                                            com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
+                                            openPlaylist = null
+                                        },
+                                        onDismiss = { showPlaylistMenu = false },
+                                    )
+                                }
                             }
                         }
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
