@@ -559,31 +559,35 @@ private fun AppShell() {
                                 )
                                 Spacer(Modifier.height(12.dp))
                             }
-                            Box(
-                                // dock 只有两栏了，不必占满整屏：收窄一点更像悬浮胶囊，
-                                // 而且玻璃要模糊的面积也小了（滚动时每帧都要重新采样）
-                                Modifier.align(Alignment.CenterHorizontally)
-                                    .fillMaxWidth(0.78f).height(BarHeight).graphicsLayer {
-                                    scaleX = barScale; scaleY = barScale
-                                }
-                            ) {
-                                // ① 玻璃底板：不含任何子内容。全 app 用同一档玻璃（库默认填充），不额外压暗。
+                            // 关于页是独立一页：下面不挂 dock（导航栏）。
+                            // 迷你播放条留着 —— 它算播放控制，不算导航。
+                            if (!showAbout) {
                                 Box(
-                                    Modifier.matchParentSize().liquidGlass(
-                                        backdrop = backdrop,
-                                        shape = RoundedCornerShape(50),
+                                    // dock 只有两栏了，不必占满整屏：收窄一点更像悬浮胶囊，
+                                    // 而且玻璃要模糊的面积也小了（滚动时每帧都要重新采样）
+                                    Modifier.align(Alignment.CenterHorizontally)
+                                        .fillMaxWidth(0.78f).height(BarHeight).graphicsLayer {
+                                        scaleX = barScale; scaleY = barScale
+                                    }
+                                ) {
+                                    // ① 玻璃底板：不含任何子内容。全 app 用同一档玻璃（库默认填充），不额外压暗。
+                                    Box(
+                                        Modifier.matchParentSize().liquidGlass(
+                                            backdrop = backdrop,
+                                            shape = RoundedCornerShape(50),
+                                        )
                                     )
-                                )
-                                // ② 内容层：与玻璃是兄弟
-                                GlassNavBarContent(
-                                    items = Page.entries.map { it.icon to it.title },
-                                    selectedIndex = Page.entries.indexOf(page),
-                                    onSelect = { page = Page.entries[it]; playerOpen = false },
-                                    modifier = Modifier.matchParentSize(),
-                                    backdrop = backdrop,
-                                    contentHeight = BarHeight,
-                                    onBarPressedChange = { barPressed = it },
-                                )
+                                    // ② 内容层：与玻璃是兄弟
+                                    GlassNavBarContent(
+                                        items = Page.entries.map { it.icon to it.title },
+                                        selectedIndex = Page.entries.indexOf(page),
+                                        onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false },
+                                        modifier = Modifier.matchParentSize(),
+                                        backdrop = backdrop,
+                                        contentHeight = BarHeight,
+                                        onBarPressedChange = { barPressed = it },
+                                    )
+                                }
                             }
                         }
                     }

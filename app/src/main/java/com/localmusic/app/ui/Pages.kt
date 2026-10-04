@@ -731,7 +731,8 @@ fun AboutPage(onBack: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
+            // 底部留白只给迷你播放条（关于页没有 dock 了，原来按 dock 高度留 120dp 会空一大截）
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
