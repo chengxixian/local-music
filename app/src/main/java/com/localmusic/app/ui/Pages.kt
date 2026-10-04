@@ -684,8 +684,9 @@ fun SettingsPage(
                     AboutAction(Icons.Rounded.SystemUpdate, "检查更新", scheme.onSurface) {
                         scope.launch { com.localmusic.app.data.UpdateChecker.check(ctx, silent = false) }
                     }
-                    AboutAction(Icons.Rounded.LibraryMusic, "项目说明", scheme.onSurface) { openUrl(ctx, "$REPO_URL#readme") }
-                    AboutAction(Icons.Rounded.Favorite, "捐赠", scheme.onSurface) { showDonate = !showDonate }
+                    AboutAction(Icons.Rounded.Description, "项目说明", scheme.onSurface) { openUrl(ctx, "$REPO_URL#readme") }
+                    // 捐赠别用爱心：爱心在本 App 里已经是「喜欢」的意思，会混淆
+                    AboutAction(Icons.Rounded.VolunteerActivism, "捐赠", scheme.onSurface) { showDonate = !showDonate }
                 }
                 if (showDonate) {
                     Spacer(Modifier.height(10.dp))
@@ -714,7 +715,7 @@ fun SettingsPage(
                 LiquidListItem(
                     title = "液态玻璃前端",
                     subtitle = "chengxixian/liquid-miuix · Compose 玻璃折射",
-                    leading = Icons.Rounded.LibraryMusic,
+                    leading = Icons.Rounded.Layers,
                     onClick = { openUrl(ctx, LIQUID_URL) },
                     showDivider = true,
                 )
@@ -736,7 +737,7 @@ fun SettingsPage(
                 LiquidListItem(
                     title = "版本发布与更新日志",
                     subtitle = "所有版本、APK 与说明",
-                    leading = Icons.Rounded.SystemUpdate,
+                    leading = Icons.Rounded.NewReleases,
                     onClick = { openUrl(ctx, "$REPO_URL/releases") },
                 )
                 // ── 分组：法律信息 ──
@@ -744,7 +745,7 @@ fun SettingsPage(
                 LiquidListItem(
                     title = "GNU GPL v3.0",
                     subtitle = "本项目以 GPLv3 开源；上游内核同为 GPLv3",
-                    leading = Icons.Rounded.Restore,
+                    leading = Icons.Rounded.Gavel,
                     onClick = { openUrl(ctx, "$REPO_URL/blob/main/LICENSE") },
                 )
             }
