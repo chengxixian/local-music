@@ -41,8 +41,10 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
                 // ⚠️ 必须和播放页走同一个来源：ArtworkStore 只读系统缩略图/内嵌标签，
                 // **不读刮削下来的封面**（ncm 转换来的文件几乎没有系统缩略图），
                 // 所以只调 ArtworkStore 会拿到 null → 上一层就等于没画。
-                val bmp = CoverStore.decode(context.applicationContext, s.uri, requestPx = 192)
-                    ?: ArtworkStore.load(context.applicationContext, s, requestPx = 192)
+                // 位图要够大：只有 192px 的话，放大到 1080 宽本身就糊，再叠模糊就成色块了。
+                // 取 384px 才留得住封面细节，"降低模糊程度"时才有东西可看。
+                val bmp = CoverStore.decode(context.applicationContext, s.uri, requestPx = 384)
+                    ?: ArtworkStore.load(context.applicationContext, s, requestPx = 384)
                 bmp?.let { bmp ->
                     // 取平均色当作兜底底色：模糊图的边缘一定是半透明的，
                     // 不铺一层不透明的底，下面就一定会漏出曲库页（上一版就是这样露的）。
@@ -81,10 +83,10 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        scaleX = 1.4f
-                        scaleY = 1.4f
+                        scaleX = 1.3f
+                        scaleY = 1.3f
                     }
-                    .blur(radius = 48.dp, edgeTreatment = BlurredEdgeTreatment.Rectangle),
+                    .blur(radius = 20.dp, edgeTreatment = BlurredEdgeTreatment.Rectangle),
             )
         } else {
             // 封面还没加载出来时也要不透明，不能漏出曲库页
