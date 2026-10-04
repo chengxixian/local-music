@@ -1076,7 +1076,7 @@ fun AboutPage(
                         Text(stringResource(R.string.about_title), style = MiuixTheme.textStyles.title3)
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        DotMatrixMark(Modifier.size(168.dp, 108.dp), cell = 13.4.dp)
+                        DotMatrixMark(Modifier.size(168.dp, 108.dp).clickable { onPlayAnimation() }, cell = 13.4.dp)
                         Spacer(Modifier.height(2.dp))
                         Text("local music", style = MiuixTheme.textStyles.title3)
                         Text(
@@ -1087,8 +1087,7 @@ fun AboutPage(
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        AboutAction(Icons.Rounded.PlayArrow, stringResource(R.string.about_play_animation), scheme.onSurface) { onPlayAnimation() }
-                                                AboutAction(Icons.Rounded.Code, stringResource(R.string.about_action_source), scheme.onSurface) { openUrl(context, REPO_URL) }
+                                                                        AboutAction(Icons.Rounded.Code, stringResource(R.string.about_action_source), scheme.onSurface) { openUrl(context, REPO_URL) }
                         AboutAction(Icons.Rounded.SystemUpdate, stringResource(R.string.about_action_update), scheme.onSurface) {
                             scope.launch { com.localmusic.app.data.UpdateChecker.check(context, silent = false) }
                         }

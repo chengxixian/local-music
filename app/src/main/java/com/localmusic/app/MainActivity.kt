@@ -769,15 +769,15 @@ private fun AppShell() {
                                 onDismiss = { showLanguage = false },
                             )
                         }
+                        }                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
+                        if (showAbout) {
+                            AboutPage(onBack = { showAbout = false }, onPlayAnimation = { showIntro = true })
+                        }
                         // 点阵动画（从关于页触发；点任意位置跳过）
                         if (showIntro) {
                             Box(Modifier.fillMaxSize().clickable { showIntro = false }) {
                                 com.localmusic.app.ui.IntroOverlay(onFinished = { showIntro = false })
                             }
-                        }                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
-                        if (showAbout) {
-                            AboutPage(onBack = { showAbout = false }, onPlayAnimation = { showIntro = true })
-                        }
                         // 问名字（新建 / 重命名乐单）：在浮层里，滚轮之上
                         naming?.let { req ->
                             NameDialogGlass(
