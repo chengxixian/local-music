@@ -27,9 +27,9 @@
 | 无损 / 高解析 PCM | **FLAC、WAV、ALAC(m4a)** | 曲库识别并展示真实规格，实测 **24bit/96kHz**（截图里的徽章就是曲库自己读出来的） |
 | 高采样率 PCM | **最高 384kHz / 32bit** | 含 **DXD（24bit/352.8kHz）**——它本质是 PCM，走 FLAC/WAV 通道即可播放 |
 | 有损 | MP3、AAC(m4a)、OGG、Opus | 常规播放 |
-| **DSD** | `.dsf` / `.dff` | ❌ **本移植版尚未接入**：扫描阶段不收这两种扩展名，曲库不会出现 DSD 文件。注意上游 [AURALIS](https://github.com/Rueded/AURALIS) 的 "DSD/DXD" 指的是**规格解析/标签层面**（自己读文件头，如实显示真实采样率与位深，绕过 Android 把高采样率误报成 48kHz）；它同样基于 Media3，**仓库里没有 DSD 解码器**，所以"DSD 播放"在解码层面并没有实现 |
+| **DSD** | `.dsf` / `.dff` | ✅ **支持播放（转码为 PCM）**：自己解析 DSF/DFF 文件头（DSD64/128/256、位率、声道、时长），用两级 4:1 箱式平均（16 点三角窗）抽成 **176.4kHz/24bit PCM** 再送播放链，结果缓存（首次转码，之后直读）；转好的 PCM 能继续走 USB bit-perfect 直通。**不是**原生 DSD / DoP 直通 —— Android 公开 API 没有等时 USB 音频，做不到 |
 
-> 关于 bit-perfect：Android 14+ 才会用 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)` 申请直通；更低版本或设备不支持时自动回落系统混音（能听，但不再"位完美"）。USB DAC 直通我在真机上**没有 DAC 可测**，这条只有实现、没有实测证据。
+> 关于 bit-perfect：**输出优先指定给 USB DAC**（`setPreferredAudioDevice`），并在 Android 14+ 按源规格申请 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)`；直通时绕开系统混音，均衡器自动旁路。更低版本或设备不支持时回落系统混音（能听，但不再"位完美"）。**蓝牙链路本身有损并会重采样，高解析必须走 USB。** USB DAC 直通我在真机上**没有 DAC 可测**，这条只有实现、没有实测证据。
 
 
 - 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
