@@ -304,6 +304,7 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var showAbout by remember { mutableStateOf(false) }
+    var introDone by remember { mutableStateOf(com.localmusic.app.ui.IntroState.played) }
     var showLanguage by remember { mutableStateOf(false) }
     // 设置页的滚动位置：放在 AnimatedContent 之外，切语言重建 Activity 后不会弹回顶部
     val settingsListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -768,7 +769,14 @@ private fun AppShell() {
                                 onDismiss = { showLanguage = false },
                             )
                         }
-                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
+                        if (!introDone) {
+                            com.localmusic.app.ui.IntroOverlay(
+                                onFinished = {
+                                    com.localmusic.app.ui.IntroState.played = true
+                                    introDone = true
+                                },
+                            )
+                        }                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
                         }
