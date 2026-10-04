@@ -167,4 +167,14 @@
     <string name="scan_stop">停止扫描</string>
     <string name="settings_lang_tap"> · 点击切换</string>
     <string name="about_tagline_versioned">v%1$s · 本地优先的 HiFi 播放器</string>
+    <string name="wheel_tint_default">默认</string>
+    <string name="wheel_tint_red">红</string>
+    <string name="wheel_tint_orange">橙</string>
+    <string name="wheel_tint_yellow">黄</string>
+    <string name="wheel_tint_green">绿</string>
+    <string name="wheel_tint_cyan">青</string>
+    <string name="wheel_tint_blue">蓝</string>
+    <string name="wheel_tint_purple">紫</string>
+    <string name="wheel_tint_custom">自定义</string>
+    <string name="set_tint_detail">（色相 %1$d° · 饱和 %2$d%% · 透光 %3$d%%）</string>
 </resources>

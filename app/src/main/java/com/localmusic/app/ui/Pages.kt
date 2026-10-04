@@ -631,7 +631,7 @@ fun SettingsPage(
                                     .clickable { onGlassTint(tintState.copy(index = index)) }
                             )
                             Spacer(Modifier.height(4.dp))
-                            Text(tint.name, style = MiuixTheme.textStyles.footnote1,
+                            Text(stringResource(tint.nameRes), style = MiuixTheme.textStyles.footnote1,
                                 color = if (index == tintState.index) scheme.primary else scheme.onSurfaceVariantSummary)
                         }
                     }
@@ -667,7 +667,7 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
                     Box(Modifier.size(28.dp).clip(CircleShape).background(tintState.color))
                     Text(
-                        "当前：${tintState.label}${if (tintState.index < 0) "（色相 ${tintState.hue.toInt()}° · 饱和 ${(tintState.sat * 100).toInt()}% · 透光 ${(tintState.level * 100).toInt()}%）" else ""}",
+                        stringResource(R.string.set_tint_current, stringResource(tintState.labelRes)) + if (tintState.index < 0) stringResource(R.string.set_tint_detail, tintState.hue.toInt(), (tintState.sat * 100).toInt(), (tintState.level * 100).toInt()) else "",
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
                     )
                 }

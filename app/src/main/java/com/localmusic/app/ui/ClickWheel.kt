@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import com.localmusic.app.R
 import android.os.VibrationEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -56,7 +57,7 @@ import kotlin.math.atan2
  *  - `level`：透光率 0.15(最暗) ~ 1.0(最亮)。越暗 → RGB 越接近黑、且填色 alpha 越大，
  *    于是整体越暗、颜色越沉 —— 这才是玻璃吸光的样子。
  */
-data class WheelTint(val name: String, val hue: Float?, val level: Float, val sat: Float = 0.62f) {
+data class WheelTint(@androidx.annotation.StringRes val nameRes: Int, val hue: Float?, val level: Float, val sat: Float = 0.62f) {
     val color: Color
         get() {
             val h = hue ?: return com.liquidmiuix.glass.GlassSurfaceTint
@@ -69,14 +70,14 @@ data class WheelTint(val name: String, val hue: Float?, val level: Float, val sa
 
 /** 预设：默认无色 + 7 个色相，透光率统一偏低（0.55）——比之前那种"亮色贴纸"沉得多。 */
 val WheelGlassTints: List<WheelTint> = listOf(
-    WheelTint("默认", null, 1f),
-    WheelTint("红", 0f, 0.55f),
-    WheelTint("橙", 28f, 0.55f),
-    WheelTint("黄", 52f, 0.55f),
-    WheelTint("绿", 135f, 0.55f),
-    WheelTint("青", 185f, 0.55f),
-    WheelTint("蓝", 215f, 0.55f),
-    WheelTint("紫", 280f, 0.55f),
+    WheelTint(R.string.wheel_tint_default, null, 1f),
+    WheelTint(R.string.wheel_tint_red, 0f, 0.55f),
+    WheelTint(R.string.wheel_tint_orange, 28f, 0.55f),
+    WheelTint(R.string.wheel_tint_yellow, 52f, 0.55f),
+    WheelTint(R.string.wheel_tint_green, 135f, 0.55f),
+    WheelTint(R.string.wheel_tint_cyan, 185f, 0.55f),
+    WheelTint(R.string.wheel_tint_blue, 215f, 0.55f),
+    WheelTint(R.string.wheel_tint_purple, 280f, 0.55f),
 )
 
 /** 滚轮玻璃颜色的完整状态：预设下标（-1 = 自定义）+ 自定义的色相/透光率/饱和度。 */
@@ -88,10 +89,10 @@ data class WheelTintState(
 ) {
     val color: Color
         get() = if (index in WheelGlassTints.indices) WheelGlassTints[index].color
-        else WheelTint("自定义", hue, level, sat).color
+        else WheelTint(R.string.wheel_tint_custom, hue, level, sat).color
 
-    val label: String
-        get() = if (index in WheelGlassTints.indices) WheelGlassTints[index].name else "自定义"
+    @get:androidx.annotation.StringRes val labelRes: Int
+        get() = if (index in WheelGlassTints.indices) WheelGlassTints[index].nameRes else R.string.wheel_tint_custom
 }
 
 @Composable

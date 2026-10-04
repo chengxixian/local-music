@@ -162,4 +162,14 @@
     <string name="scan_stop">Stop scanning</string>
     <string name="settings_lang_tap"> · tap to switch</string>
     <string name="about_tagline_versioned">v%1$s · local-first HiFi player</string>
+    <string name="wheel_tint_default">Default</string>
+    <string name="wheel_tint_red">Red</string>
+    <string name="wheel_tint_orange">Orange</string>
+    <string name="wheel_tint_yellow">Yellow</string>
+    <string name="wheel_tint_green">Green</string>
+    <string name="wheel_tint_cyan">Cyan</string>
+    <string name="wheel_tint_blue">Blue</string>
+    <string name="wheel_tint_purple">Purple</string>
+    <string name="wheel_tint_custom">Custom</string>
+    <string name="set_tint_detail">(hue %1$d° · saturation %2$d%% · transmission %3$d%%)</string>
 </resources>
