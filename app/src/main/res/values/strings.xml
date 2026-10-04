@@ -73,4 +73,24 @@
     <string name="empty_library">Library is empty</string>
     <string name="empty_favorites_hint">Tap the heart on a song card or in the player to add it</string>
     <string name="empty_library_hint">Supports mp3 / aac(m4a) / flac / wav / ogg / opus and more</string>
+    <string name="player_error">Playback error: %1$s</string>
+    <string name="queue_title">Queue · %1$d tracks</string>
+    <string name="player_search_hint">Search title / artist / album</string>
+    <string name="player_clear_search">Clear search</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_play">Play</string>
+    <string name="player_queue">Queue</string>
+    <string name="player_pick_cover">Choose cover</string>
+    <string name="player_shuffle">Shuffle</string>
+    <string name="player_prev">Previous track</string>
+    <string name="player_next">Next track</string>
+    <string name="player_unfavorite">Remove from favorites</string>
+    <string name="player_favorite">Add to favorites</string>
+    <string name="player_repeat">Repeat</string>
+    <string name="queue_empty">The queue is empty</string>
+    <string name="queue_empty_hint">Tap ▶ on a library card to start playing, or + to append it to the queue.</string>
+    <string name="queue_collapse">Collapse queue</string>
+    <string name="queue_move_up">Move up</string>
+    <string name="queue_move_down">Move down</string>
+    <string name="queue_remove">Remove from queue</string>
 </resources>

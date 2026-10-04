@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import androidx.compose.animation.core.Animatable
@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.localmusic.app.R
 import com.localmusic.app.PlaybackUi
 import com.localmusic.app.data.LyricsRepository
 import com.localmusic.app.data.Song
@@ -82,7 +84,7 @@ fun GlassTopBar(
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (query.isEmpty()) {
                                 Text(
-                                    "搜索标题 / 艺术家 / 专辑",
+                                    stringResource(R.string.player_search_hint),
                                     style = MiuixTheme.textStyles.title4,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     maxLines = 1,
@@ -94,7 +96,7 @@ fun GlassTopBar(
                 )
                 if (query.isNotEmpty()) {
                     Icon(
-                        Icons.Rounded.Close, "清空搜索",
+                        Icons.Rounded.Close, stringResource(R.string.player_clear_search),
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.size(20.dp).clickable { onQueryChange("") },
                     )
@@ -134,7 +136,7 @@ fun MiniPlayerBar(
                 Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             IconButton(onClick = onToggle) {
-                Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (player.playing) "暂停" else "播放")
+                Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play))
             }
         }
     }
@@ -230,11 +232,11 @@ fun PlayerPage(
                 GlassIconButton(
                     backdrop,
                     if (middle == Middle.Queue) Icons.Rounded.QueueMusic else Icons.Rounded.PlaylistPlay,
-                    "播放列表",
+                    stringResource(R.string.player_queue),
                     onClick = { middle = if (middle == Middle.Queue) Middle.Cover else Middle.Queue },
                 )
                 Spacer(Modifier.width(LiquidSpacing.inline))
-                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, "选择封面", onChangeCover)
+                GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, stringResource(R.string.player_pick_cover), onChangeCover)
                 Spacer(Modifier.width(LiquidSpacing.inline))
                 GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq)
             }
@@ -310,32 +312,32 @@ fun PlayerPage(
                     Spacer(Modifier.height(LiquidSpacing.tight))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onShuffle) {
-                            Icon(Icons.Rounded.Shuffle, "随机", tint = if (player.shuffle) scheme.primary else scheme.onSurfaceVariantSummary)
+                            Icon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) scheme.primary else scheme.onSurfaceVariantSummary)
                         }
-                        IconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, "上一首") }
+                        IconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_prev)) }
                         FilledIconButton(onClick = onToggle, modifier = Modifier.size(56.dp)) {
                             Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                if (player.playing) "暂停" else "播放", modifier = Modifier.size(30.dp))
+                                if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play), modifier = Modifier.size(30.dp))
                         }
-                        IconButton(onClick = onNext) { Icon(Icons.Rounded.SkipNext, "下一首") }
+                        IconButton(onClick = onNext) { Icon(Icons.Rounded.SkipNext, stringResource(R.string.player_next)) }
                         IconButton(onClick = onFavorite) {
                             Icon(
                                 if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                if (favorite) "取消喜欢" else "加入我喜欢的音乐",
+                                if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
                                 tint = if (favorite) scheme.primary else scheme.onSurfaceVariantSummary,
                             )
                         }
                         IconButton(onClick = onRepeat) {
                             Icon(
                                 if (player.repeat == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
-                                "循环",
+                                stringResource(R.string.player_repeat),
                                 tint = if (player.repeat != androidx.media3.common.Player.REPEAT_MODE_OFF) scheme.primary else scheme.onSurfaceVariantSummary,
                             )
                         }
                     }
                     player.error?.let {
                         Spacer(Modifier.height(LiquidSpacing.tight))
-                        Text("播放错误：$it", style = MiuixTheme.textStyles.footnote1, color = scheme.error)
+                        Text(stringResource(R.string.player_error, it), style = MiuixTheme.textStyles.footnote1, color = scheme.error)
                     }
                 }
             }
@@ -362,10 +364,10 @@ private fun QueuePane(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("播放列表是空的", style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
+            Text(stringResource(R.string.queue_empty), style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
             Spacer(Modifier.height(LiquidSpacing.inline))
             Text(
-                "去曲库点卡片右下角的 ▶ 开始播放，或点封面左下角的 + 追加到当前列表。",
+                stringResource(R.string.queue_empty_hint),
                 style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, textAlign = TextAlign.Center,
             )
         }
@@ -373,8 +375,8 @@ private fun QueuePane(
     }
     Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.item, vertical = LiquidSpacing.item)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("播放列表 · ${queue.size} 首", style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "收起列表") }
+            Text(stringResource(R.string.queue_title, queue.size), style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
+            IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.queue_collapse)) }
         }
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             itemsIndexed(queue, key = { _, item -> item.index }) { _, item ->
@@ -398,14 +400,14 @@ private fun QueuePane(
                     }
                     IconButton(onClick = { onMove(item.index, item.index - 1) }, enabled = item.index > 0,
                         modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.ArrowUpward, "上移", modifier = Modifier.size(17.dp))
+                        Icon(Icons.Rounded.ArrowUpward, stringResource(R.string.queue_move_up), modifier = Modifier.size(17.dp))
                     }
                     IconButton(onClick = { onMove(item.index, item.index + 1) }, enabled = item.index < queue.lastIndex,
                         modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.ArrowDownward, "下移", modifier = Modifier.size(17.dp))
+                        Icon(Icons.Rounded.ArrowDownward, stringResource(R.string.queue_move_down), modifier = Modifier.size(17.dp))
                     }
                     IconButton(onClick = { onRemove(item.index) }, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.Close, "从列表移除", modifier = Modifier.size(17.dp))
+                        Icon(Icons.Rounded.Close, stringResource(R.string.queue_remove), modifier = Modifier.size(17.dp))
                     }
                 }
             }

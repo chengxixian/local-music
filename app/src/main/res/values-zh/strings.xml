@@ -78,4 +78,24 @@
     <string name="empty_library">曲库为空</string>
     <string name="empty_favorites_hint">在曲库或播放页点心形按钮加入</string>
     <string name="empty_library_hint">支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等</string>
+    <string name="player_error">播放错误：%1$s</string>
+    <string name="queue_title">播放列表 · %1$d 首</string>
+    <string name="player_search_hint">搜索标题 / 艺术家 / 专辑</string>
+    <string name="player_clear_search">清空搜索</string>
+    <string name="player_pause">暂停</string>
+    <string name="player_play">播放</string>
+    <string name="player_queue">播放列表</string>
+    <string name="player_pick_cover">选择封面</string>
+    <string name="player_shuffle">随机</string>
+    <string name="player_prev">上一首</string>
+    <string name="player_next">下一首</string>
+    <string name="player_unfavorite">取消喜欢</string>
+    <string name="player_favorite">加入我喜欢的音乐</string>
+    <string name="player_repeat">循环</string>
+    <string name="queue_empty">播放列表是空的</string>
+    <string name="queue_empty_hint">去曲库点卡片右下角的 ▶ 开始播放，或点封面左下角的 + 追加到当前列表。</string>
+    <string name="queue_collapse">收起列表</string>
+    <string name="queue_move_up">上移</string>
+    <string name="queue_move_down">下移</string>
+    <string name="queue_remove">从列表移除</string>
 </resources>
