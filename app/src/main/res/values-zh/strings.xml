@@ -182,4 +182,8 @@
     <string name="toast_nothing_restore2">没有需要恢复的（这些歌没有自带封面）</string>
     <string name="eq_note_unavailable">均衡器依赖系统 audiofx 效果器；本机没有可用实现时这里只做说明，不会假装有调节能力。</string>
     <string name="eq_note_bands">频段数量由设备决定（多数 5 段）；调节立即生效并保存，重启后自动恢复。</string>
+    <string name="wheel_export">导出位置</string>
+    <string name="wheel_tint">滚轮玻璃颜色</string>
+    <string name="wheel_clear_scraped">清除刮削封面并重刮</string>
+    <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
 </resources>

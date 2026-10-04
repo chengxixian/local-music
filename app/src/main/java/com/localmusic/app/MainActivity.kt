@@ -467,22 +467,22 @@ private fun AppShell() {
                 val pageTopPadding = contentPadding.calculateTopPadding() + TopBarHeight + TopBarMargin + 12.dp
                 // 滚轮在设置页能做的事，顺序就是转动顺序；标题显示在中间键下方。
                 // 放在这里是因为要用到上面定义的 SAF launcher（局部声明必须先于使用）。
-                val wheelActions: List<Pair<String, () -> Unit>> = listOf(
-                    "USB Bit-perfect" to { bitPerfect = !bitPerfect; prefs.edit().putBoolean("bitPerfect", bitPerfect).apply() },
-                    "均衡器" to { showEq = true },
-                    "自动转换为 MP3 / FLAC" to { autoNcm = !autoNcm; prefs.edit().putBoolean("autoNcm", autoNcm).apply() },
-                    "导出位置" to { pickExportFolder.launch(ExportInitialUri) },
-                    "添加音乐 / ncm 文件夹" to { pickFolder.launch(NeteaseTreeUri) },
-                    "自动刮削" to { autoScrape = !autoScrape; prefs.edit().putBoolean("autoScrape", autoScrape).apply() },
-                    "刮封面" to { scrapeCover = !scrapeCover; prefs.edit().putBoolean("scrapeCover", scrapeCover).apply() },
-                    "刮歌词" to { scrapeLyrics = !scrapeLyrics; prefs.edit().putBoolean("scrapeLyrics", scrapeLyrics).apply() },
-                    "立即刮削" to {
+                val wheelActions: List<Pair<Int, () -> Unit>> = listOf(
+                    R.string.wheel_usb_bitperfect to { bitPerfect = !bitPerfect; prefs.edit().putBoolean("bitPerfect", bitPerfect).apply() },
+                    R.string.settings_equalizer to { showEq = true },
+                    R.string.settings_auto_convert2 to { autoNcm = !autoNcm; prefs.edit().putBoolean("autoNcm", autoNcm).apply() },
+                    R.string.wheel_export to { pickExportFolder.launch(ExportInitialUri) },
+                    R.string.set_add_folder to { pickFolder.launch(NeteaseTreeUri) },
+                    R.string.settings_scrape to { autoScrape = !autoScrape; prefs.edit().putBoolean("autoScrape", autoScrape).apply() },
+                    R.string.settings_scrape_cover to { scrapeCover = !scrapeCover; prefs.edit().putBoolean("scrapeCover", scrapeCover).apply() },
+                    R.string.settings_scrape_lyrics to { scrapeLyrics = !scrapeLyrics; prefs.edit().putBoolean("scrapeLyrics", scrapeLyrics).apply() },
+                    R.string.settings_scrape_now to {
                         scrapeScope.launch {
                             com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400, wantNetease = neteaseSource)
                         }
                     },
-                    "网易云音乐源" to { neteaseSource = !neteaseSource; prefs.edit().putBoolean("neteaseSource", neteaseSource).apply() },
-                    "恢复歌曲自带封面" to {
+                    R.string.settings_netease to { neteaseSource = !neteaseSource; prefs.edit().putBoolean("neteaseSource", neteaseSource).apply() },
+                    R.string.settings_restore_covers to {
                         scrapeScope.launch {
                             val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 com.localmusic.app.data.CoverStore.restoreOriginals(context, songs)
@@ -490,11 +490,11 @@ private fun AppShell() {
                             android.widget.Toast.makeText(context, if (n > 0) context.getString(R.string.toast_restored_covers, n) else context.getString(R.string.toast_nothing_restore), android.widget.Toast.LENGTH_SHORT).show()
                         }
                     },
-                    "滚轮玻璃颜色" to {
+                    R.string.wheel_tint to {
                         val next = if (tintState.index < 0) 0 else (tintState.index + 1) % com.localmusic.app.ui.WheelGlassTints.size
                         saveTint(tintState.copy(index = next))
                     },
-                    "清除刮削封面并重刮" to {
+                    R.string.wheel_clear_scraped to {
                         scrapeScope.launch {
                             val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 com.localmusic.app.data.CoverStore.clearScraped(context)
@@ -503,7 +503,7 @@ private fun AppShell() {
                             com.localmusic.app.data.Scraper.scrape(context, songs, true, false, limit = 400, wantNetease = neteaseSource)
                         }
                     },
-                    "重新扫描" to { library.scan() },
+                    R.string.settings_rescan to { library.scan() },
                 )
                 val wheelList = when (page) {
                     Page.Library -> libraryList
@@ -520,7 +520,7 @@ private fun AppShell() {
     }
 
     val wheelCount = if (page == Page.Settings) wheelActions.size else wheelList.size
-                val wheelCaption = if (page == Page.Settings) wheelActions.getOrNull(wheelIndex)?.first
+                val wheelCaption = if (page == Page.Settings) wheelActions.getOrNull(wheelIndex)?.first?.let { stringResource(it) }
                     else wheelList.getOrNull(wheelIndex)?.title
                 Box(Modifier.fillMaxSize()) {
                     // ── 采集层：背景 + 全部页面内容（玻璃唯一能采样到的东西）──

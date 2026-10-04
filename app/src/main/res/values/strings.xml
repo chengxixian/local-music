@@ -177,4 +177,8 @@
     <string name="toast_nothing_restore2">Nothing to restore (these tracks have no embedded artwork)</string>
     <string name="eq_note_unavailable">The equalizer relies on the system audiofx effects; if this device has no implementation, this panel only explains that instead of pretending to have controls.</string>
     <string name="eq_note_bands">The number of bands is decided by the device (usually 5). Changes apply immediately and are restored after a restart.</string>
+    <string name="wheel_export">Export folder</string>
+    <string name="wheel_tint">Wheel glass colour</string>
+    <string name="wheel_clear_scraped">Clear scraped covers and re-scrape</string>
+    <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
 </resources>
