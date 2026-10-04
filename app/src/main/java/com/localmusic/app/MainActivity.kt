@@ -463,6 +463,13 @@ private fun AppShell() {
                             PlayerBackdrop(song = nowPlaying, modifier = Modifier.matchParentSize())
                         }
 
+                        // 关于页：它是**独立一页**，不是浮在设置页上的弹层。
+                        // 所以这里把设置内容整页盖掉（重画一次 App 背景），
+                        // 玻璃卡片就浮在这页自己的背景上，背后不会透出设置列表。
+                        if (showAbout) {
+                            AppBackground()
+                        }
+
                         // 注意：这里**不压暗背景**。用户要的是"周围亮、玻璃暗"——
                         // 压暗画在玻璃自己的 surfaceTint 上（见 ui/Glass.kt 的 DarkGlassTint），
                         // 背景保持原亮度，玻璃采样到的也就还是亮的页面，折射依然成立。

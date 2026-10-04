@@ -415,9 +415,9 @@ internal fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accen
 internal val DOT_MARK_ROWS = listOf(
     "X..........",
     "X..........",
-    "X..........",
     "X....X.X.X.",
     "X....XXXXX.",
+    "X....X.X.X.",
     "X....X.X.X.",
     "XXXXX.X.X.X",
 )
