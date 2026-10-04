@@ -705,12 +705,7 @@ fun SettingsPage(
                     title = "语言 / Language",
                     subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + stringResource(R.string.settings_lang_tap),
                     leading = Icons.Rounded.Settings,
-                    onClick = {
-                        val opts = com.localmusic.app.data.LanguagePref.options
-                        val idx = opts.indexOfFirst { it.first == com.localmusic.app.data.LanguagePref.currentTag(langCtx) }
-                        val next = opts[(idx + 1).mod(opts.size)]
-                        com.localmusic.app.data.LanguagePref.set(langCtx, next.first)
-                    },
+                    onClick = onOpenLanguage,
                 )
             }
         }
