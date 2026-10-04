@@ -309,7 +309,7 @@ private fun LibraryGridCard(
                         .clickable { playlistState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.QueueMusic, "加入乐单", tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.QueueMusic, stringResource(R.string.pl_add_title), tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(32.dp)
@@ -503,7 +503,7 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("USB Bit-perfect", style = MiuixTheme.textStyles.title4)
-                        Text("Android 14+ 且外接 USB DAC 时，按源 PCM 规格申请直通；不支持时自动回落到系统混音。",
+                        Text(stringResource(R.string.set_usb_note),
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = bitPerfect, onCheckedChange = onBitPerfect)
@@ -529,24 +529,24 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_auto_convert2), style = MiuixTheme.textStyles.title4)
-                        Text("扫描授权文件夹时自动转换：优先转 FLAC；转不出 FLAC 就回退成 MP3 或原样发布，不再直接失败。输出到导出文件夹（未设则落应用私有 files/music/ncm），原文件保留。",
+                        Text(stringResource(R.string.set_ncm_auto_long),
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = autoNcm, onCheckedChange = onAutoNcm)
                 }
-                TextButton(onClick = onPickTree) { Icon(Icons.Rounded.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text("添加音乐 / ncm 文件夹") }
+                TextButton(onClick = onPickTree) { Icon(Icons.Rounded.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.set_add_folder)) }
                 LiquidListItem(
                     title = stringResource(R.string.settings_export_dir),
-                    subtitle = exportLabel?.let { "$it（转换后的 FLAC / MP3 导出到这里，卸载应用也不会删）" }
+                    subtitle = exportLabel?.let { stringResource(R.string.set_export_at, it) }
                         ?: stringResource(R.string.settings_export_none),
                     leading = Icons.Rounded.DriveFileMove,
                     onClick = onPickExport,
                     showDivider = true,
                 )
                 if (trees.isEmpty()) {
-                    Text("未授权任何文件夹。网易云下载的 ncm 就在 /storage/emulated/0/download/netease/cloudmusic/Music，" +
-                        "点上面的按钮会直接打开这个目录；若在 Android/data/com.netease.cloudmusic 里，那部分受系统保护，任何第三方应用都读不到。" +
-                        "注意 Download 根目录本身被系统禁止授权，只能授权它的子目录。",
+                    Text(stringResource(R.string.set_no_tree_a) +
+                        stringResource(R.string.set_no_tree_b) +
+                        stringResource(R.string.set_no_tree_c),
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 } else trees.forEach { tree ->
                     LiquidListItem(
@@ -565,7 +565,7 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_scrape_auto), style = MiuixTheme.textStyles.title4)
-                        Text("只补缺的：已有封面/歌词的歌会跳过。来源 iTunes · Deezer（封面）、LRCLIB（歌词），结果缓存在应用目录，之后离线可用。",
+                        Text(stringResource(R.string.set_scrape_note),
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = autoScrape, onCheckedChange = onAutoScrape)
@@ -581,7 +581,7 @@ fun SettingsPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_netease), style = MiuixTheme.textStyles.title4)
-                        Text("优先用网易云音乐搜索封面与歌词（非官方接口，不需要账号；可能被限流或随时失效，失败会自动回落到 iTunes / Deezer / LRCLIB）。",
+                        Text(stringResource(R.string.set_netease_note),
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = neteaseSource, onCheckedChange = onNeteaseSource)
@@ -593,13 +593,13 @@ fun SettingsPage(
                 // 之前刮削把歌曲自带的封面盖掉过？这里一键把原封面放回来（用户自己设的封面不动）
                 LiquidListItem(
                     title = stringResource(R.string.settings_restore_covers),
-                    subtitle = "撤掉自动刮削下载的封面，让文件内嵌/系统专辑封面重新显示（手动设过的封面保留）",
+                    subtitle = stringResource(R.string.set_restore_covers_sub),
                     leading = Icons.Rounded.Restore,
                     onClick = onRestoreCovers,
                 )
                 LiquidListItem(
                     title = stringResource(R.string.settings_clear_scraped),
-                    subtitle = "只清自动下载的（手动设过的封面保留），清完立刻用修好的逻辑重刮一遍 —— 之前抓错的封面靠这个刷新",
+                    subtitle = stringResource(R.string.set_clear_scraped_sub),
                     leading = Icons.Rounded.RestartAlt,
                     onClick = onClearScrapedCovers,
                 )
@@ -611,7 +611,7 @@ fun SettingsPage(
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 10, scheme.primary)) {
                 Text(stringResource(R.string.settings_wheel_tint), style = MiuixTheme.textStyles.title4)
-                Text("有色玻璃是「吸光」的：颜色越沉、透光率越低。只改滚轮那一圈，dock / 顶栏 / 播放控件保持无色玻璃。",
+                Text(stringResource(R.string.set_tint_note),
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -791,7 +791,7 @@ fun PlaylistHeader(
                 Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.ArrowBack, contentDescription = "返回乐单列表", tint = MiuixTheme.colorScheme.onSurface)
+                Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.pl_back), tint = MiuixTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.width(6.dp))
             if (playlist.cover != null) {
@@ -802,14 +802,14 @@ fun PlaylistHeader(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${playlist.count} 首", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(stringResource(R.string.pl_count, playlist.count), style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
             // 重命名 / 换封面 / 删除 收进这一个按钮里（原来是三行列表，太占地方）
             Box(
                 Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onMenu),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "乐单设置", tint = MiuixTheme.colorScheme.onSurface)
+                Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.pl_settings), tint = MiuixTheme.colorScheme.onSurface)
             }
         }
     }
@@ -832,15 +832,15 @@ fun PlaylistActionsSheet(
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.82f)) {
             Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
-            LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = onRename, showDivider = true)
-            LiquidListItem(title = "更换乐单封面", leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
-            LiquidListItem(title = "删除乐单", subtitle = "只删乐单，不动歌曲文件", leading = Icons.Rounded.DeleteOutline, onClick = onDelete)
+            LiquidListItem(title = stringResource(R.string.pl_rename), leading = Icons.Rounded.CreateNewFolder, onClick = onRename, showDivider = true)
+            LiquidListItem(title = stringResource(R.string.pl_change_cover), leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
+            LiquidListItem(title = stringResource(R.string.pl_delete), subtitle = stringResource(R.string.pl_delete_sub), leading = Icons.Rounded.DeleteOutline, onClick = onDelete)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.pl_cancel)) }
             }
         }
     }
@@ -886,18 +886,20 @@ fun PlaylistPage(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             LiquidListItem(
-                title = "新建乐单",
-                subtitle = "给乐单起个名字，之后可以改",
+                title = stringResource(R.string.pl_new),
+                subtitle = stringResource(R.string.pl_new_sub),
                 leading = Icons.Rounded.Add,
-                onClick = { onAskName("新建乐单", "") { name -> onCreate(name) } },
+                // onClick 是普通 lambda，不能在里面调 stringResource，先在外面取好
+                val plNewLabel = stringResource(R.string.pl_new)
+                onClick = { onAskName(plNewLabel, "") { name -> onCreate(name) } },
             )
         }
         if (playlists.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidCard {
-                    Text("还没有乐单", style = MiuixTheme.textStyles.title4)
+                    Text(stringResource(R.string.pl_empty), style = MiuixTheme.textStyles.title4)
                     Text(
-                        "点上面的「新建乐单」，或者在曲库卡片左上角把歌加进来。",
+                        stringResource(R.string.pl_empty_hint),
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
@@ -938,7 +940,7 @@ private fun PlaylistGridCard(playlist: Playlist, firstSong: Song?, onClick: () -
             Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${playlist.count} 首",
+                    stringResource(R.string.pl_count, playlist.count),
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onSurfaceVariantSummary,
                 )
@@ -979,11 +981,11 @@ internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, o
                 TextButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.pl_cancel)) }
                 TextButton(
                     onClick = { onConfirm(text) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.primary),
-                ) { Text("确定") }
+                ) { Text(stringResource(R.string.pl_confirm)) }
             }
         }
     }
@@ -1009,7 +1011,7 @@ fun AddToPlaylistSheet(
         contentAlignment = Alignment.Center,
     ) {
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.88f)) {
-            Text("加入乐单", style = MiuixTheme.textStyles.title4)
+            Text(stringResource(R.string.pl_add_title), style = MiuixTheme.textStyles.title4)
             Text(
                 song.title,
                 style = MiuixTheme.textStyles.body2,
@@ -1019,15 +1021,17 @@ fun AddToPlaylistSheet(
             )
             Spacer(Modifier.height(8.dp))
             LiquidListItem(
-                title = "新建乐单并加入",
+                title = stringResource(R.string.pl_add_new),
                 leading = Icons.Rounded.Add,
-                onClick = { onAskName("新建乐单", "") { name -> onCreate(name) } },
+                // onClick 是普通 lambda，不能在里面调 stringResource，先在外面取好
+                val plNewLabel = stringResource(R.string.pl_new)
+                onClick = { onAskName(plNewLabel, "") { name -> onCreate(name) } },
             )
             playlists.forEach { playlist ->
                 val checked = playlist.id in memberOf
                 LiquidListItem(
                     title = playlist.name,
-                    subtitle = "${playlist.count} 首",
+                    subtitle = stringResource(R.string.pl_count, playlist.count),
                     leading = if (checked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     onClick = { onToggle(playlist.id, !checked) },
                 )
@@ -1037,7 +1041,7 @@ fun AddToPlaylistSheet(
                 TextButton(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.primary),
-                ) { Text("完成") }
+                ) { Text(stringResource(R.string.pl_done)) }
             }
         }
     }
@@ -1070,7 +1074,7 @@ fun AboutPage(onBack: () -> Unit) {
             item {
                 LiquidCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "返回") }
+                        IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.pl_back_about)) }
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.about_title), style = MiuixTheme.textStyles.title3)
                     }
