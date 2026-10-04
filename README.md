@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <b>中文</b>（本文件） · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/chengxixian/local-music?color=blue" alt="License"></a>
   <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/github/v/release/chengxixian/local-music?label=release" alt="Release"></a>
   <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android">
