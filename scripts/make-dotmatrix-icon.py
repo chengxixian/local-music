@@ -93,6 +93,56 @@ os.makedirs(os.path.dirname(OUT_FG), exist_ok=True)
 fg.save(OUT_FG, "PNG", optimize=True)
 print("wrote", OUT_FG, os.path.getsize(OUT_FG), "bytes")
 
+# ── 原始（非自适应）图标：带红点的版本，放进 mipmap-<dpi>/ 作为 <26 的兜底 ──
+# 注意：本项目 minSdk=33，自适应图标从 API 26 起就是强制的，所以这些 PNG **在当前 minSdk 下
+# 永远不会被系统选中**；保持它们在仓库里是为了架构正确（将来若降 minSdk 就自动生效）。
+LEGACY = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+
+
+def render(canvas, with_accent):
+    rows, cols = ROWS, COLS
+    cell_px = canvas * 0.48 / cols
+    dot_px, dim_px = cell_px * 0.43, cell_px * 0.30
+    w, h = cell_px * cols, cell_px * rows
+    ox, oy = (canvas - w) / 2, (canvas - h) / 2
+    im = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 255))   # 原始图标自带背景色
+    dr = ImageDraw.Draw(im)
+
+    def blip(cx, cy, size, color):
+        dr.rounded_rectangle((cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2),
+                             radius=size * 0.34, fill=color)
+
+    accent_cell = None
+    if with_accent:
+        for y in range(rows):
+            for x in range(cols - 1, -1, -1):
+                if grid[y][x] == "X":
+                    accent_cell = (y, x)
+                    break
+            if accent_cell:
+                break
+    for y in range(rows):
+        for x in range(cols):
+            cx, cy = ox + (x + 0.5) * cell_px, oy + (y + 0.5) * cell_px
+            if grid[y][x] == "X":
+                blip(cx, cy, dot_px, RED if (y, x) == accent_cell else WHITE)
+            else:
+                blip(cx, cy, dim_px, GRID_DIM)
+    return im
+
+
+for dpi, size in LEGACY.items():
+    d = os.path.join(ROOT, "app", "src", "main", "res", f"mipmap-{dpi}")
+    os.makedirs(d, exist_ok=True)
+    square = render(size, with_accent=True)          # 原始：带红点
+    square.convert("RGB").save(os.path.join(d, "ic_launcher.png"), "PNG", optimize=True)
+    round_im = square.copy()
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, size - 1, size - 1), fill=255)
+    round_im.putalpha(mask)
+    round_im.save(os.path.join(d, "ic_launcher_round.png"), "PNG", optimize=True)
+print("wrote legacy mipmaps（带红点）:", ", ".join(f"{k}={v}px" for k, v in LEGACY.items()))
+
 with open(os.path.join(ROOT, "design", "ic_launcher_background.txt"), "w") as f:
     f.write("#000000\n")
 
