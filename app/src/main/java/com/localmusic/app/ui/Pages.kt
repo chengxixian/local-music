@@ -415,8 +415,10 @@ internal fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accen
                 val cx = ox + (x + 0.5f) * c
                 val cy = oy + (y + 0.5f) * c
                 val lit = ch == 'X'
-                // 红点：m 右上角那颗
-                val isAccent = accent && lit && y == 1 && x == rows.first().length - 1
+                // 红点：m 右上角那颗竖的顶端（第 2 行、最右列）。
+                // ⚠️ 不能写成第 1 行 —— 那行只有 L 的竖（第 0 列），条件永远不成立，
+                // 红点就一直画不出来（这是真实存在过的 bug）。
+                val isAccent = accent && lit && y == 2 && x == rows.first().length - 1
                 val color = when {
                     isAccent -> Color(0xFFD71921)
                     lit -> onSurface
