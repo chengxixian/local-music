@@ -1,4 +1,4 @@
-// local music —— 工程结构
+﻿// local music —— 工程结构
 //
 // 三个模块：
 //   :app          前端（liquid-miuix：Monet 取色主页 + 液态玻璃播放控件/dock）
@@ -36,4 +36,4 @@ include(":audio")
 
 // chengxixian/liquid-miuix 的 library 模块
 include(":liquid-miuix")
-project(":liquid-miuix").projectDir = file("../liquid-miuix-repo/library")
+project(":liquid-miuix").projectDir = file("third_party/liquid-miuix")
