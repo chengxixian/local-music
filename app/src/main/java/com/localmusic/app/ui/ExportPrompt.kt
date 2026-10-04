@@ -54,10 +54,7 @@ fun ExportFolderPrompt(
                 Text(stringResource(R.string.export_pick_title), style = MiuixTheme.textStyles.title2, color = scheme.onSurface, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(LiquidSpacing.inline))
                 Text(
-                    "网易云下载的 ncm 会转成 FLAC。请新建一个文件夹给它存放：\n" +
-                        "· 文件留在你自己的文件夹里，用文件管理器就能看到\n" +
-                        "· 卸载本应用不会删掉它们\n" +
-                        "· 不选的话，只会暂存到应用私有目录（卸载即丢）",
+                    stringResource(R.string.export_pick_body),
                     style = MiuixTheme.textStyles.body2,
                     color = scheme.onSurfaceVariantSummary,
                     textAlign = TextAlign.Start,

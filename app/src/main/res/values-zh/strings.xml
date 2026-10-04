@@ -140,4 +140,10 @@
     <string name="pl_add_new">新建乐单并加入</string>
     <string name="pl_done">完成</string>
     <string name="pl_back_about">返回</string>
+    <string name="toast_added_queue">已加入播放列表：%1$s</string>
+    <string name="toast_cleared_scraped">已清除 %1$d 张自动刮削的封面，正在重刮…</string>
+    <string name="toast_cleared_scraped2">已清除 %1$d 张自动刮削的封面，正在用修好的逻辑重刮…</string>
+    <string name="toast_dsd_converting">DSD：正在抽取为 PCM（首次较慢，之后走缓存）…</string>
+    <string name="toast_dsd_failed">DSD 转换失败：文件可能损坏或格式不支持</string>
+    <string name="export_pick_body">网易云下载的 ncm 会转成 FLAC。请新建一个文件夹给它存放：\n· 文件留在你自己的文件夹里，用文件管理器就能看到\n· 卸载本应用不会删掉它们\n· 不选的话，只会暂存到应用私有目录（卸载即丢）</string>
 </resources>

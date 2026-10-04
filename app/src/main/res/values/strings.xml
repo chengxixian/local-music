@@ -135,4 +135,10 @@
     <string name="pl_add_new">New playlist and add</string>
     <string name="pl_done">Done</string>
     <string name="pl_back_about">Back</string>
+    <string name="toast_added_queue">Added to the queue: %1$s</string>
+    <string name="toast_cleared_scraped">Cleared %1$d scraped covers, re-scraping…</string>
+    <string name="toast_cleared_scraped2">Cleared %1$d scraped covers, re-scraping with the fixed logic…</string>
+    <string name="toast_dsd_converting">DSD: extracting to PCM (slow the first time, then cached)…</string>
+    <string name="toast_dsd_failed">DSD conversion failed: the file may be corrupt or unsupported</string>
+    <string name="export_pick_body">NetEase ncm files are converted to FLAC. Please create a folder to store them:\n· The files stay in your own folder and are visible in any file manager\n· Uninstalling this app will not delete them\n· If you skip this, they are only kept in app-private storage and lost on uninstall</string>
 </resources>

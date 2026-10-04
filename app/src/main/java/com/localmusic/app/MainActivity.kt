@@ -1,6 +1,7 @@
 ﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app
 
+import com.localmusic.app.R
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -227,7 +228,7 @@ private fun AppShell() {
             player.play(list, song)
             playerOpen = true
         } else {
-            android.widget.Toast.makeText(context, "DSD：正在抽取为 PCM（首次较慢，之后走缓存）…", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_converting), android.widget.Toast.LENGTH_SHORT).show()
             uiScope.launch {
                 val playable: java.io.File? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     runCatching {
@@ -243,7 +244,7 @@ private fun AppShell() {
                     }.getOrNull()
                 }
                 if (playable == null) {
-                    android.widget.Toast.makeText(context, "DSD 转换失败：文件可能损坏或格式不支持", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_failed), android.widget.Toast.LENGTH_LONG).show()
                 } else {
                     // 规格必须换成"转码后的 PCM"：Song 的 sampleRate/bitDepth 会进 MediaItem extras，
                     // 而 USB 直通（AudioMixerAttributes）正是按它去申请源规格的。
@@ -498,7 +499,7 @@ private fun AppShell() {
                             val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 com.localmusic.app.data.CoverStore.clearScraped(context)
                             }
-                            android.widget.Toast.makeText(context, "已清除 $n 张自动刮削的封面，正在重刮…", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, context.getString(R.string.toast_cleared_scraped, n), android.widget.Toast.LENGTH_SHORT).show()
                             com.localmusic.app.data.Scraper.scrape(context, songs, true, false, limit = 400, wantNetease = neteaseSource)
                         }
                     },
@@ -551,7 +552,7 @@ private fun AppShell() {
                                         onPlay = { song -> playSong(songs, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
-                                            android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                            android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
                                         },
                                         onAddToPlaylist = { song -> pickerSong = song },
                                         topPadding = pageTopPadding,
@@ -568,7 +569,7 @@ private fun AppShell() {
                                         onPlay = { song -> playSong(songs, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
-                                            android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                            android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
                                         },
                                         onAddToPlaylist = { song -> pickerSong = song },
                                         topPadding = pageTopPadding,
@@ -597,7 +598,7 @@ private fun AppShell() {
                                                 onPlay = { song -> playSong(playlistSongs, song) },
                                                 onAddToQueue = { song ->
                                                     player.appendToQueue(listOf(song))
-                                                    android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
                                                 },
                                                 onAddToPlaylist = { song -> pickerSong = song },
                                                 topPadding = pageTopPadding + 300.dp,
@@ -630,7 +631,7 @@ private fun AppShell() {
                                                 }
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    "已清除 $n 张自动刮削的封面，正在用修好的逻辑重刮…",
+                                                    context.getString(R.string.toast_cleared_scraped2, n),
                                                     android.widget.Toast.LENGTH_LONG,
                                                 ).show()
                                                 com.localmusic.app.data.Scraper.scrape(context, songs, true, false, limit = 400, wantNetease = neteaseSource)
