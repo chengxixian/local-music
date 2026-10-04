@@ -1,5 +1,9 @@
 # local music
 
+<p align="center">
+  <img src="docs/app-icon.png" width="132" alt="local music 图标（点阵 Lm + 红点）">
+</p>
+
 安卓本地 HiFi 音乐播放器。**播放内核移植自 [Rueded/AURALIS](https://github.com/Rueded/AURALIS)**，
 **前端使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)**，
 **ncm 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)**。
