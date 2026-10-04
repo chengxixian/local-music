@@ -3,15 +3,19 @@
 """
 local music 宣传动画渲染脚本（独立于 Android 工程）。
 
-不依赖 App、不用录屏：直接用 Pillow 复刻同一条时间轴，逐帧画点阵，再交给 ffmpeg 编码。
+不依赖 App、不用录屏：用 Pillow 按时间轴逐帧画点阵，交给 ffmpeg 编码。
 
-时间轴（总长 4.2s）：
-    0.00-0.05  全黑
-    0.05-0.32  底色点阵自中心向外的涟漪淡入（灰）
-    0.28-0.46  Lm 形状的点亮成白
-    0.46-0.56  m 右上角的点（图标里的红点）闪一圈红光后定格为红
-    0.56-0.82  L 与 m 左右拉开到 "local music" 的位置，其余字母用同一套点阵补全
-    0.82-1.00  成形落位（轻微上移）
+时间轴（总长 6.5s，放慢版）：
+    0.00-0.04  全黑
+    0.04-0.30  灰点阵自【红点位置】向外涟漪状淡入
+    0.30-0.50  Lm 形状的点亮成白（带放大回弹）
+    0.50-0.64  m 右上角的点（即图标里的红点）闪一圈红光
+    0.64-0.90  L 与 m 左右拉开；其余字母按【字序从左到右】逐字补全
+    0.90-1.00  稳定成形（**不再有位移**，只是红点涟漪继续）
+
+要点：
+    · 灰点阵**全程保留**，不淡出；从红点位置持续放出一圈圈涟漪直到结尾
+    · 结尾没有上下位移（用户明确：成形后再降一下很奇怪）
 
 用法：
     python render_promo.py --out out.mp4 --width 1920 --height 1080 --fps 30
@@ -26,7 +30,7 @@ import tempfile
 
 from PIL import Image, ImageDraw, ImageFilter
 
-# 与 App 内 INTRO_PATTERN / GLYPHS 完全一致
+# 与 App 内 INTRO_PATTERN / GLYPHS 同源
 MARK = [
     "X..........",
     "X..........",
@@ -51,17 +55,22 @@ GLYPHS = {
 
 GLYPH_W, GAP, SPACE_W, TOTAL_ROWS = 5, 1, 3, 7
 TEXT = "local music"
-DURATION = 4.2
+DURATION = 6.5
 
-WHITE = (255, 255, 255)
-GRAY = (138, 138, 138)
-RED = (255, 59, 48)
+# 阶段分界（按比例放慢并留出更多过渡）
+T_GRID_IN = (0.04, 0.30)
+T_LIGHT = (0.28, 0.50)
+T_FLASH = (0.50, 0.64)
+T_MORPH = (0.64, 0.90)
+RIPPLE_PERIOD = 1.6      # 涟漪一个周期的秒数（持续发出）
+RIPPLE_WAVELEN = 3.2     # 波长（格）
 
 
 def text_dots():
-    out = set()
+    """返回 {点: 字序} —— 字序用于"从左到右逐字补全"。"""
+    out = {}
     cursor = 0
-    for ch in TEXT:
+    for gi, ch in enumerate(TEXT):
         g = GLYPHS.get(ch)
         if g is None:
             continue
@@ -69,7 +78,7 @@ def text_dots():
         for r, row in enumerate(g):
             for c, v in enumerate(row):
                 if v == 'X':
-                    out.add((cursor + c, top + r))
+                    out[(cursor + c, top + r)] = gi
         cursor += (SPACE_W if ch == ' ' else GLYPH_W) + GAP
     return out
 
@@ -106,16 +115,20 @@ def smoothstep(a):
     return a * a * (3 - 2 * a)
 
 
+def ease_out(a):
+    return 1 - (1 - a) ** 3
+
+
 def render(out_path, width, height, fps):
-    targets = text_dots()
+    targets = text_dots()          # (col,row) -> glyph index
     moves = mark_moves()
     cols, rows = len(MARK[0]), len(MARK)
     max_col = max(c for c, _ in targets) + 1
+    max_glyph = max(targets.values())
 
-    mid_x, mid_y = (cols - 1) / 2.0, (rows - 1) / 2.0
-    max_d = max(math.hypot(mid_x, mid_y), 1e-6)
-    text_mid_x = (max_col - 1) / 2.0
-    text_max_d = max(math.hypot(text_mid_x, 3.0), 1e-6)
+    # 涟漪原点 = 红点所在格（第 2 行最后一列）
+    src_x, src_y = cols - 1, 2
+    max_d = max(math.hypot(x - src_x, y - src_y) for x in range(max_col) for y in range(rows))
 
     total_frames = int(DURATION * fps)
     tmpdir = tempfile.mkdtemp(prefix="lmpromo-")
@@ -123,18 +136,21 @@ def render(out_path, width, height, fps):
 
     for fi in range(total_frames):
         v = fi / float(total_frames - 1)
-        morph = clamp01((v - 0.56) / 0.26)
+        t = v * DURATION
+
+        grid_a = clamp01((v - T_GRID_IN[0]) / max(T_GRID_IN[1] - T_GRID_IN[0], 1e-6))
+        light = clamp01((v - T_LIGHT[0]) / max(T_LIGHT[1] - T_LIGHT[0], 1e-6))
+        flash = clamp01((v - T_FLASH[0]) / 0.06)
+        settled = clamp01((v - T_FLASH[1]) / 0.05)
+        morph = clamp01((v - T_MORPH[0]) / max(T_MORPH[1] - T_MORPH[0], 1e-6))
         ease = smoothstep(morph)
-        settle = clamp01((v - 0.82) / 0.18)
-        flash = clamp01((v - 0.46) / 0.06)
-        settled = clamp01((v - 0.52) / 0.05)
         pulse = max(0.0, math.sin(flash * math.pi))
-        lift = (1.0 - settle) * (height * 0.024)
 
         active_cols = cols + (max_col - cols) * ease
         cell = min(width / (active_cols + 3.0), height / 6.5)
+        # 画布中心不变；**没有**结尾位移
         ox = (width - active_cols * cell) / 2.0
-        oy = (height - rows * cell) / 2.0 - lift
+        oy = (height - rows * cell) / 2.0
         dot_r = cell * 0.15
 
         def px(c, r):
@@ -145,57 +161,68 @@ def render(out_path, width, height, fps):
         d = ImageDraw.Draw(img)
         g = ImageDraw.Draw(glow)
 
-        def circle(draw, color, radius, center):
-            x, y = center
+        def circle(draw, xy, radius, color):
+            x, y = xy
             draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=color)
 
-        # ① 底色点阵：中心向外的涟漪
-        grid_fade = 1.0 - ease
+        # ① 常驻灰点阵：从红点位置一圈圈持续发出的涟漪
         for y in range(rows):
             for x in range(cols):
-                rr = min(math.hypot(x - mid_x, y - mid_y) / max_d, 1.0)
-                a = clamp01((v - 0.05 - rr * 0.20) / 0.09) * grid_fade
-                if a > 0.01:
-                    circle(d, (int(GRAY[0]), int(GRAY[1]), int(GRAY[2])), dot_r,
-                           px(x, y)) if False else None
-                    # 用带 alpha 的颜色混合到黑底上
-                    shade = int(255 * a * 0.5)
-                    circle(d, (shade, shade, shade), dot_r, px(x, y))
+                dist = math.hypot(x - src_x, y - src_y)
+                front = clamp01((v - T_GRID_IN[0] - (dist / max(max_d, 1e-6)) * 0.18) / 0.10)
+                if front <= 0.01:
+                    continue
+                # 持续涟漪：亮暗随"到红点的距离 + 时间"波动（向外传播）
+                wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dist / RIPPLE_WAVELEN))
+                base = 0.16 + 0.30 * wave
+                # 迁移后点阵略暗，让白色字形更突出
+                base *= 1.0 - 0.35 * ease
+                shade = int(255 * clamp01(front * base))
+                circle(d, px(x, y), dot_r, (shade, shade, shade))
 
-        # ② Lm 的点
+        # ② Lm 的点变白（带放大回弹）
         for y in range(rows):
             for x in range(cols):
                 if MARK[y][x] != 'X':
                     continue
-                rr = min(math.hypot(x - mid_x, y - mid_y) / max_d, 1.0)
-                a = clamp01((v - 0.28 - rr * 0.14) / 0.09)
+                dist = math.hypot(x - src_x, y - src_y)
+                a = clamp01((v - T_LIGHT[0] - (dist / max(max_d, 1e-6)) * 0.10) / 0.10)
                 if a <= 0.01:
                     continue
                 tx, ty = moves.get((x, y), (x, y))
-                cx = x + (tx - x) * ease
-                cy = y + (ty - y) * ease
+                # 位移用 ease-out，落点更稳
+                cx = x + (tx - x) * ease_out(ease)
+                cy = y + (ty - y) * ease_out(ease)
+                grow = 1.0 + 0.35 * (1.0 - a)
                 if y == 2 and x == cols - 1:
                     if flash > 0 or settled > 0:
-                        alpha = int(255 * (0.35 + 0.65 * max(pulse, settled)))
-                        circle(g, (RED[0], RED[1], RED[2], int(90 * pulse)),
-                               dot_r * (2.6 + 2.4 * pulse), px(cx, cy))
-                        circle(d, (RED[0], RED[1], RED[2]), dot_r * (1 + 0.6 * pulse), px(cx, cy))
+                        circle(g, px(cx, cy), dot_r * (3.0 + 2.6 * pulse),
+                               (255, 59, 48, int(110 * pulse)))
+                        circle(d, px(cx, cy), dot_r * (1.0 + 0.7 * pulse), (255, 59, 48))
+                    else:
+                        shade = int(255 * a)
+                        circle(d, px(cx, cy), dot_r * grow, (shade, shade, shade))
                 else:
                     shade = int(255 * a)
-                    circle(d, (shade, shade, shade), dot_r, px(cx, cy))
+                    circle(d, px(cx, cy), dot_r * grow, (shade, shade, shade))
 
-        # ③ 补全的字母
-        for (tc, tr) in targets:
-            if (tc, tr) in set(moves.values()):
+        # ③ 其余字母：按字序从左到右逐字补全（更多过渡）
+        for (tc, tr), gi in targets.items():
+            if (tc, tr) in moves.values():
                 continue
-            rr = min(math.hypot(tc - text_mid_x, tr - 3.0) / text_max_d, 1.0)
-            a = clamp01((v - 0.60 - rr * 0.16) / 0.10)
+            gi_norm = gi / max(max_glyph, 1)
+            a = clamp01((v - (T_MORPH[0] + 0.06) - gi_norm * 0.14) / 0.12)
             if a > 0.01:
                 shade = int(255 * a)
-                circle(d, (shade, shade, shade), dot_r, px(tc, tr))
+                circle(d, px(tc, tr), dot_r * (0.6 + 0.4 * a), (shade, shade, shade))
 
-        # 红光晕（模糊后叠加）
-        glow = glow.filter(ImageFilter.GaussianBlur(radius=max(2.0, cell * 0.35)))
+        # 红点持续微光（涟漪源头）
+        if settled > 0:
+            breathe = 0.5 + 0.5 * math.sin(2 * math.pi * t / RIPPLE_PERIOD)
+            circle(g, px(*moves.get((cols - 1, 2), (cols - 1, 2))), dot_r * (2.2 + 0.8 * breathe),
+                   (255, 59, 48, int(60 * breathe)))
+
+        glow = glow.filter(ImageFilter.GaussianBlur(radius=max(2.0, cell * 0.4)))
         img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
         img.save(os.path.join(tmpdir, "f%04d.png" % fi), compress_level=1)
 
