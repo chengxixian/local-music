@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ 的"应用语言"清单：系统设置 → 应用 → local music → 语言。
+  也可以用 adb 指定：cmd locale set-app-locales com.localmusic.app locales en
+  （注意 XML 注释里不能出现两个连续的减号，所以上面那条命令略去了参数前的前缀符号）
+  新增语言时在这里补一条（BCP 47 标签）。
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="zh-CN" />
+    <locale android:name="en" />
+</locale-config>

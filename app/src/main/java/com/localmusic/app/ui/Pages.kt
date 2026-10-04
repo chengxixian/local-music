@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import androidx.compose.foundation.Image
@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -1056,7 +1057,7 @@ fun AboutPage(onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "返回") }
                         Spacer(Modifier.width(4.dp))
-                        Text("关于", style = MiuixTheme.textStyles.title3)
+                        Text(stringResource(R.string.about_title), style = MiuixTheme.textStyles.title3)
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         DotMatrixMark(Modifier.size(168.dp, 108.dp), cell = 13.4.dp)
@@ -1070,11 +1071,11 @@ fun AboutPage(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        AboutAction(Icons.Rounded.Code, "源码", scheme.onSurface) { openUrl(context, REPO_URL) }
-                        AboutAction(Icons.Rounded.SystemUpdate, "检查更新", scheme.onSurface) {
+                        AboutAction(Icons.Rounded.Code, stringResource(R.string.about_action_source), scheme.onSurface) { openUrl(context, REPO_URL) }
+                        AboutAction(Icons.Rounded.SystemUpdate, stringResource(R.string.about_action_update), scheme.onSurface) {
                             scope.launch { com.localmusic.app.data.UpdateChecker.check(context, silent = false) }
                         }
-                        AboutAction(Icons.Rounded.Description, "项目说明", scheme.onSurface) { openUrl(context, "$REPO_URL#readme") }
+                        AboutAction(Icons.Rounded.Description, stringResource(R.string.about_action_readme), scheme.onSurface) { openUrl(context, "$REPO_URL#readme") }
                         // 捐赠用「手托爱心」，不用爱心本身（爱心在本 App 里是「喜欢」的意思）
                         AboutAction(Icons.Rounded.VolunteerActivism, "捐赠", scheme.onSurface) { showDonate = true }
                     }
@@ -1082,24 +1083,24 @@ fun AboutPage(onBack: () -> Unit) {
             }
             item {
                 LiquidCard {
-                    Text("产品", style = MiuixTheme.textStyles.title4)
+                    Text(stringResource(R.string.about_group_product), style = MiuixTheme.textStyles.title4)
                     LiquidListItem(
-                        title = "播放内核 AURALIS",
-                        subtitle = "Rueded/AURALIS · GPLv3 · 位完美输出、USB 直通",
+                        title = stringResource(R.string.about_kernel_title),
+                        subtitle = stringResource(R.string.about_kernel_subtitle),
                         leading = Icons.Rounded.GraphicEq,
                         onClick = { openUrl(context, AURALIS_URL) },
                         showDivider = true,
                     )
                     LiquidListItem(
-                        title = "液态玻璃前端",
-                        subtitle = "chengxixian/liquid-miuix · Compose 玻璃折射",
+                        title = stringResource(R.string.about_ui_title),
+                        subtitle = stringResource(R.string.about_ui_subtitle),
                         leading = Icons.Rounded.Layers,
                         onClick = { openUrl(context, LIQUID_URL) },
                         showDivider = true,
                     )
                     LiquidListItem(
-                        title = "ncm 解码",
-                        subtitle = "taurusxin/ncmdump · .ncm 转 FLAC",
+                        title = stringResource(R.string.about_ncm_title),
+                        subtitle = stringResource(R.string.about_ncm_subtitle),
                         leading = Icons.Rounded.CloudDownload,
                         onClick = { openUrl(context, NCM_URL) },
                     )
@@ -1107,17 +1108,17 @@ fun AboutPage(onBack: () -> Unit) {
             }
             item {
                 LiquidCard {
-                    Text("社区", style = MiuixTheme.textStyles.title4)
+                    Text(stringResource(R.string.about_group_community), style = MiuixTheme.textStyles.title4)
                     LiquidListItem(
-                        title = "GitHub 仓库",
+                        title = stringResource(R.string.about_repo_title),
                         subtitle = "chengxixian/local-music",
                         leading = Icons.Rounded.Code,
                         onClick = { openUrl(context, REPO_URL) },
                         showDivider = true,
                     )
                     LiquidListItem(
-                        title = "版本发布与更新日志",
-                        subtitle = "所有版本、APK 与说明",
+                        title = stringResource(R.string.about_releases_title),
+                        subtitle = stringResource(R.string.about_releases_subtitle),
                         leading = Icons.Rounded.NewReleases,
                         onClick = { openUrl(context, "$REPO_URL/releases") },
                     )
@@ -1125,10 +1126,10 @@ fun AboutPage(onBack: () -> Unit) {
             }
             item {
                 LiquidCard {
-                    Text("法律信息", style = MiuixTheme.textStyles.title4)
+                    Text(stringResource(R.string.about_group_legal), style = MiuixTheme.textStyles.title4)
                     LiquidListItem(
-                        title = "GNU GPL v3.0",
-                        subtitle = "本项目以 GPLv3 开源；上游内核同为 GPLv3",
+                        title = stringResource(R.string.about_license_title),
+                        subtitle = stringResource(R.string.about_license_subtitle),
                         leading = Icons.Rounded.Gavel,
                         onClick = { openUrl(context, "$REPO_URL/blob/main/LICENSE") },
                     )
@@ -1147,19 +1148,19 @@ fun AboutPage(onBack: () -> Unit) {
             ) {
                 LiquidCard {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("捐赠支持", style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.donate_title), style = MiuixTheme.textStyles.title4)
                         Spacer(Modifier.height(6.dp))
-                        Text("支付宝扫码，感谢支持", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Text(stringResource(R.string.donate_subtitle), style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(10.dp))
                         Image(
                             painter = painterResource(R.drawable.donate_alipay),
-                            contentDescription = "支付宝捐赠二维码",
+                            contentDescription = stringResource(R.string.donate_qr_desc),
                             modifier = Modifier.fillMaxWidth(0.72f).clip(RoundedCornerShape(14.dp)),
                         )
                         Spacer(Modifier.height(6.dp))
-                        Text("打开支付宝「扫一扫」", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Text(stringResource(R.string.donate_hint), style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                         Spacer(Modifier.height(10.dp))
-                        TextButton(onClick = { showDonate = false }) { Text("关闭") }
+                        TextButton(onClick = { showDonate = false }) { Text(stringResource(R.string.donate_close)) }
                     }
                 }
             }

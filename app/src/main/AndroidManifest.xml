@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- 自动刮削（iTunes/Deezer 取封面、LRCLIB 取歌词）需要联网 -->
@@ -13,6 +13,7 @@
     <!-- 从 GitHub 拉新版本 APK 后拉起系统安装器 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application android:name=".LocalMusicApplication" android:label="local music"
+        android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false"
         android:supportsRtl="true" android:theme="@style/Theme.LocalMusic">
         <activity android:name=".MainActivity" android:exported="true">
