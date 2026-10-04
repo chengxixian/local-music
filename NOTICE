@@ -1,0 +1,78 @@
+local music — NOTICE
+====================
+
+版权所有 © 2026 chengxixian
+Copyright © 2026 chengxixian. All rights reserved.
+
+本文件说明本仓库的**授权范围**：哪些部分按 GPL-3.0 开源，哪些部分属于**保留所有权利**的
+品牌标识。简而言之：**代码欢迎 fork 与再分发；图标、横幅、截图等标识请不要照用。**
+
+
+1. 代码：GPL-3.0
+-----------------
+
+本仓库中除第 2 条列出的品牌标识之外的全部源代码（Kotlin / Gradle / 脚本等），
+均以 **GNU General Public License v3.0**（见 `LICENSE`）授权，可自由使用、修改、再分发，
+但需遵守 GPL-3.0 的条款（保留版权声明、衍生作品同样以 GPL-3.0 发布等）。
+
+
+2. 品牌标识：保留所有权利
+-------------------------
+
+以下内容是本项目**自主设计的标识**，**不属于上述 GPL 授权范围**，未经书面许可不得使用：
+
+- `app/src/main/res/mipmap-*/ic_launcher.png`、`ic_launcher_round.png`
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`、`ic_launcher_round.xml`
+- `app/src/main/res/drawable-nodpi/ic_launcher_foreground.png`
+- `docs/banner.png`、`docs/app-icon.png`
+- `docs/screenshots/` 下的全部截图
+- 应用内的点阵 `Lm` 标记（`Pages.kt` 中 `DotMatrixMark` 所绘制的图形）；
+  生成该图形的脚本 `scripts/make-dotmatrix-icon.py` 本身属于"代码"（按 GPL-3.0），
+  但它**产出的图形**属于品牌标识（保留所有权利）
+
+具体地说：
+
+- 可以：fork 本仓库、改代码、自己发行；把本项目作为依赖或参考
+- 可以：在文章、评测、教程里**引用**这些图标与截图（注明来源即可）
+- 不可以：把同款或高度近似的图标/横幅用作**你自研 App 的图标**、产品或服务的标识
+- 不可以：以本项目图标/横幅暗示你的产品**由本项目作者背书**或与之存在关联
+
+
+3. 名称与商标
+-------------
+
+本项目名称 "local music" 与上述图形标识**目前未申请商标注册**。本文件中的"保留所有权利"
+是基于著作权的主张，不构成商标注册。若将来申请商标，本文件会同步更新。
+
+
+4. 上游与第三方
+---------------
+
+本项目建立在以下上游之上，感谢作者，并遵守其各自许可：
+
+- 播放内核移植自 **Rueded/AURALIS**（GPL-3.0）
+- 液态玻璃前端使用 **chengxixian/liquid-miuix**
+- `.ncm` 解码移植自 **taurusxin/ncmdump**
+- 依赖库：Media3 (Apache-2.0)、jaudiotagger、Miuix (Apache-2.0) 等，见 `app/build.gradle.kts`
+
+`.ncm` 转换与在线刮削功能仅用于**你自己合法拥有的本地音乐**；请遵守相关服务条款与当地法律。
+
+
+5. 联系
+-------
+
+认为本仓库内容侵犯了你的权利，请通过 GitHub Issues 联系（https://github.com/chengxixian/local-music/issues），
+我们会尽快核实处理。
+
+
+----------------------------------------------------------------------
+
+English summary
+---------------
+
+The source code in this repository is licensed under GNU GPL-3.0, EXCEPT the brand
+assets listed in section 2 (app launcher icons, in-app dot-matrix "Lm" mark, banner,
+and screenshots), which are original designs of this project and are
+**All Rights Reserved**. You are welcome to fork and redistribute the code, but please
+do not reuse the icons/banner as the identity of your own application or imply
+endorsement. The project name and marks are not registered trademarks as of this notice.

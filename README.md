@@ -59,7 +59,7 @@
 
 - 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
 - 许可 **GPL-3.0**（因为播放内核移植自 GPLv3 的 AURALIS）
-- **品牌标识保留所有权利**：`docs/` 下的图标与横幅、`app/src/main/res/` 里的应用图标（`mipmap-*`、`drawable-nodpi/ic_launcher_foreground.png`）是本项目**自主设计的标识**，**不属于 GPL 授权范围**。欢迎 fork 代码，但请不要使用同款图标与横幅。© 2026 chengxixian
+- **品牌标识保留所有权利**：`docs/` 下的图标与横幅、`app/src/main/res/` 里的应用图标（`mipmap-*`、`drawable-nodpi/ic_launcher_foreground.png`）与应用内的点阵 `Lm` 标记是本项目**自主设计的标识**，**不属于 GPL 授权范围**。欢迎 fork 代码，但请不要使用同款图标与横幅。详见 [**NOTICE**](NOTICE)。© 2026 chengxixian
 
 ### 功能一览
 
