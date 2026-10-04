@@ -120,7 +120,7 @@ fun HomePage(
                 }
                 // 我喜欢的音乐：这里给入口，收藏动作在曲库列表和播放页的心形按钮上
                 LiquidListItem(
-                    title = "我喜欢的音乐",
+                    title = stringResource(R.string.settings_favorites),
                     subtitle = if (favoriteCount > 0) "$favoriteCount 首 · 点这里查看" else "还没有收藏 —— 在曲库或播放页点心形按钮加入",
                     leading = Icons.Rounded.Favorite,
                     onClick = onOpenFavorites,
@@ -510,7 +510,7 @@ fun SettingsPage(
                 LiquidStatusBanner(text = diagnostics, icon = Icons.Rounded.Headphones, color = scheme.primary)
                 // 均衡器入口：面板本身是液态玻璃浮层（见 EqualizerSheet），这里只做入口与状态摘要
                 LiquidListItem(
-                    title = "均衡器",
+                    title = stringResource(R.string.settings_equalizer),
                     subtitle = when {
                         !eq.available -> eq.message.ifBlank { "本机不可用" }
                         eq.bypassed -> "USB 直通中 · 当前不生效"
@@ -535,7 +535,7 @@ fun SettingsPage(
                 }
                 TextButton(onClick = onPickTree) { Icon(Icons.Rounded.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text("添加音乐 / ncm 文件夹") }
                 LiquidListItem(
-                    title = "导出位置",
+                    title = stringResource(R.string.settings_export_dir),
                     subtitle = exportLabel?.let { "$it（转换后的 FLAC / MP3 导出到这里，卸载应用也不会删）" }
                         ?: "尚未选择 —— 目前只会暂存到应用私有目录，卸载即丢",
                     leading = Icons.Rounded.DriveFileMove,
@@ -560,7 +560,7 @@ fun SettingsPage(
         }
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 5..9, scheme.primary)) {
-                Text("自动刮削", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_scrape), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("扫描后自动补全", style = MiuixTheme.textStyles.title4)
@@ -570,16 +570,16 @@ fun SettingsPage(
                     Switch(checked = autoScrape, onCheckedChange = onAutoScrape)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("刮封面", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_scrape_cover), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Switch(checked = scrapeCover, onCheckedChange = onScrapeCover, enabled = autoScrape)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("刮歌词", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_scrape_lyrics), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Switch(checked = scrapeLyrics, onCheckedChange = onScrapeLyrics, enabled = autoScrape)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("网易云音乐源", style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.settings_netease), style = MiuixTheme.textStyles.title4)
                         Text("优先用网易云音乐搜索封面与歌词（非官方接口，不需要账号；可能被限流或随时失效，失败会自动回落到 iTunes / Deezer / LRCLIB）。",
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
@@ -587,17 +587,17 @@ fun SettingsPage(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) "刮削中…" else "立即刮削") }
+                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) "刮削中…" else stringResource(R.string.settings_scrape_now)) }
                 }
                 // 之前刮削把歌曲自带的封面盖掉过？这里一键把原封面放回来（用户自己设的封面不动）
                 LiquidListItem(
-                    title = "恢复歌曲自带封面",
+                    title = stringResource(R.string.settings_restore_covers),
                     subtitle = "撤掉自动刮削下载的封面，让文件内嵌/系统专辑封面重新显示（手动设过的封面保留）",
                     leading = Icons.Rounded.Restore,
                     onClick = onRestoreCovers,
                 )
                 LiquidListItem(
-                    title = "清除自动刮削的封面并重刮",
+                    title = stringResource(R.string.settings_clear_scraped),
                     subtitle = "只清自动下载的（手动设过的封面保留），清完立刻用修好的逻辑重刮一遍 —— 之前抓错的封面靠这个刷新",
                     leading = Icons.Rounded.RestartAlt,
                     onClick = onClearScrapedCovers,
@@ -675,7 +675,7 @@ fun SettingsPage(
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 11, scheme.primary)) {
                 Text("曲库", style = MiuixTheme.textStyles.title4)
-                LiquidListItem(title = "重新扫描", subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
+                LiquidListItem(title = stringResource(R.string.settings_rescan), subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
                 if (status.running) {
                     Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

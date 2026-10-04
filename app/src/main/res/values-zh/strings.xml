@@ -43,4 +43,19 @@
     <string name="nav_library">曲库</string>
     <string name="nav_playlists">乐单</string>
     <string name="nav_favorites">喜欢</string>
-    <string name="nav_settings">设置</string></resources>
+    <string name="nav_settings">设置</string>    <string name="settings_rescan">重新扫描</string>
+    <string name="settings_scrape">自动刮削</string>
+    <string name="settings_scrape_cover">刮封面</string>
+    <string name="settings_scrape_lyrics">刮歌词</string>
+    <string name="settings_netease">网易云音乐源</string>
+    <string name="settings_restore_covers">恢复歌曲自带封面</string>
+    <string name="settings_clear_scraped">清除自动刮削的封面并重刮</string>
+    <string name="settings_scrape_now">立即刮削</string>
+    <string name="settings_equalizer">均衡器</string>
+    <string name="settings_usb_passthrough">USB 直通</string>
+    <string name="settings_favorites">我喜欢的音乐</string>
+    <string name="settings_export_dir">导出位置</string>
+    <string name="settings_add_folder">添加文件夹</string>
+    <string name="settings_auto_convert">自动转换</string>
+    <string name="settings_rescan_library">重新扫描曲库</string>
+</resources>
