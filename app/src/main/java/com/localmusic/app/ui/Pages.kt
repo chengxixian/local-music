@@ -366,6 +366,53 @@ private val SETTINGS_CARD_OF_WHEEL = mapOf(
     11 to 4,                 // 曲库卡：重新扫描
 )
 
+/**
+ * App 内的点阵 "Lm" 标记（和图标同一套字形）。
+ *
+ * 为什么红点在这里、不在自适应图标里：自适应图标只有 background / foreground 两层，
+ * 塞不进"额外一层"红点；而且贴近圆角遮罩的角上会被裁掉。所以图标保持纯白点阵，
+ * 红点作为**品牌标记**画在 App 内（设置页「关于」卡）。
+ */
+@Composable
+private fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accent: Boolean = true) {
+    val onSurface = MiuixTheme.colorScheme.onSurface
+    val rows = DOT_MARK_ROWS
+    androidx.compose.foundation.Canvas(modifier) {
+        val c = cell.toPx()
+        val w = c * rows.first().length
+        val h = c * rows.size
+        val ox = (size.width - w) / 2f
+        val oy = (size.height - h) / 2f
+        rows.forEachIndexed { y, row ->
+            row.forEachIndexed { x, ch ->
+                val cx = ox + (x + 0.5f) * c
+                val cy = oy + (y + 0.5f) * c
+                val lit = ch == 'X'
+                // 红点：m 右上角那颗
+                val isAccent = accent && lit && y == 1 && x == rows.first().length - 1
+                val color = when {
+                    isAccent -> Color(0xFFD71921)
+                    lit -> onSurface
+                    else -> onSurface.copy(alpha = 0.12f)
+                }
+                val radius = if (lit) c * 0.215f else c * 0.15f
+                drawCircle(color = color, radius = radius, center = androidx.compose.ui.geometry.Offset(cx, cy))
+            }
+        }
+    }
+}
+
+/** 图标用的点阵字形（方案 A：7 格大写 L + 5 格小写 m，底部对齐）。 */
+private val DOT_MARK_ROWS = listOf(
+    "X..........",
+    "X....X.X.X.",
+    "X....XXXXX.",
+    "X....X.X.X.",
+    "X....X.X.X.",
+    "X..........",
+    "XXXXX......",
+)
+
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
 @Composable
 fun SettingsPage(
@@ -606,7 +653,11 @@ fun SettingsPage(
         item {
             LiquidCard {
                 Text("关于", style = MiuixTheme.textStyles.title4)
-                Text("local music", style = MiuixTheme.textStyles.title4)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
+                    // 品牌标记：点阵 Lm + 一颗 Nothing 红（图标里不放红点，只有背景/前景两层）
+                    DotMatrixMark(Modifier.size(52.dp, 34.dp), cell = 4.6.dp)
+                    Text("local music", style = MiuixTheme.textStyles.title4)
+                }
                 Text("播放内核移植自 Rueded/AURALIS（GPLv3），前端使用 chengxixian/liquid-miuix，ncm 解码移植自 taurusxin/ncmdump。",
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
             }
