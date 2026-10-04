@@ -114,6 +114,7 @@ class PlaybackService : MediaSessionService() {
         val usb = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
         } ?: run { status("等待连接兼容 USB DAC · 当前使用系统输出"); return }
+        appendDsdCapability(usb)
         val format = player.audioFormat
         val extras = player.currentMediaItem?.mediaMetadata?.extras
         val rate = format?.sampleRate?.takeIf { it > 0 } ?: extras?.getInt("sampleRate", 0) ?: 0
@@ -143,8 +144,44 @@ class PlaybackService : MediaSessionService() {
             status("USB 请求不可用：${e.message}；系统输出")
         }
     }
-    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
-        if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
+    /**
+     * DSD 直通能力探测（**只查、只上报，不改播放路径**）。
+     *
+     * 依据：`AudioFormat.ENCODING_DSD` 自 API 34 起存在，配合 `MIXER_BEHAVIOR_BIT_PERFECT`
+     * 可以请求"不经混音、不经转码"地把 DSD 交给 USB DAC。能不能成取决于**厂商 USB HAL
+     * 是否上报该组合** —— 所以这里只报告查到什么，绝不把"查到了"说成"已经在直通"。
+     */
+    private fun appendDsdCapability(usb: AudioDeviceInfo) {
+        if (Build.VERSION.SDK_INT < 34) return
+        val line = try {
+            val attrs = manager.getSupportedMixerAttributes(usb)
+            val dsd = attrs.firstOrNull {
+                it.mixerBehavior == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT &&
+                    it.format.encoding == AudioFormat.ENCODING_DSD
+            }
+            if (dsd != null) {
+                val rate = dsd.format.sampleRate
+                val tag = when (rate) {
+                    2_822_400 -> "DSD64"
+                    5_644_800 -> "DSD128"
+                    11_289_600 -> "DSD256"
+                    else -> "DSD"
+                }
+                "DAC 上报 DSD 直通（$tag · ${rate / 1000.0} kHz · bit-perfect）· 可请求"
+            } else if (attrs.any { it.format.encoding == AudioFormat.ENCODING_DSD }) {
+                "DAC 支持 DSD 编码，但没有 bit-perfect 组合 · DSD 仍转码为 PCM"
+            } else {
+                "DAC 未上报 DSD 直通 · DSD 转码为 PCM 176.4kHz"
+            }
+        } catch (e: Exception) {
+            "DSD 能力查询失败：${e.message}"
+        }
+        PlaybackDiagnostics.mutable.value = PlaybackDiagnostics.mutable.value + "\n" + line
+        // 也写一份到 logcat（标签 LMDsd）：用户插上 DAC 后，我这边 `adb logcat -s LMDsd` 就能读到结论
+        android.util.Log.i("LMDsd", line)
+    }
+
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {        if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
     }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
