@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 // MediaStore + cached true audio specifications adapted from Rueded/AURALIS.
 package com.localmusic.app.data
 
+import com.localmusic.app.R
 import android.Manifest
 import android.content.ContentUris
 import android.content.Context
@@ -71,7 +72,7 @@ class LibraryRepository(private val context: Context) {
     }
     fun cancel() { scanJob?.cancel() }
     private suspend fun doScan() {
-        _status.value = ScanStatus(true, "正在扫描本地音乐…")
+        _status.value = ScanStatus(true, context.getString(R.string.scan_running))
         val warnings = mutableListOf<String>()
         var imported = 0
         try {

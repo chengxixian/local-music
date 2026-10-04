@@ -186,4 +186,17 @@
     <string name="update_note_install">Tap Download and install: the APK is fetched from GitHub and handed to the system installer.</string>
     <string name="update_downloading">Downloading…</string>
     <string name="update_progress_mb">(%1$s / %2$s MB)</string>
+    <string name="scrape_starting">Starting to scrape…</string>
+    <string name="scrape_searching">Searching: %1$s</string>
+    <string name="scrape_working">Scraping: %1$s</string>
+    <string name="scrape_no_cover">%1$s: no cover found</string>
+    <string name="scan_running">Scanning local music…</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_net_fail">Cannot reach GitHub (network or proxy issue)</string>
+    <string name="update_found_long">New version %1$s available (current %2$s)</string>
+    <string name="update_up_to_date">Already up to date (%1$s)</string>
+    <string name="update_check_failed">Update check failed: %1$s</string>
+    <string name="update_downloading_new">Downloading the new version…</string>
+    <string name="update_download_service_unavailable">System download service unavailable</string>
+    <string name="update_download_done">Download finished, launching the installer…</string>
 </resources>

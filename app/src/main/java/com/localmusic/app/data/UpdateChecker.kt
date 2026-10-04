@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
+import com.localmusic.app.R
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
@@ -79,9 +80,9 @@ object UpdateChecker {
 
     suspend fun check(context: Context, silent: Boolean = false) = withContext(Dispatchers.IO) {
         if (_status.value.checking) return@withContext
-        _status.value = _status.value.copy(checking = true, message = "正在检查更新…", error = null)
+        _status.value = _status.value.copy(checking = true, message = context.getString(R.string.update_checking), error = null)
         try {
-            val body = get(MANIFEST_URL) ?: throw IllegalStateException("无法访问 GitHub（网络或代理问题）")
+            val body = get(MANIFEST_URL) ?: throw IllegalStateException(context.getString(R.string.update_net_fail))
             val json = JSONObject(body)
             val remote = json.optString("version")
             val apkUrl = json.optString("apkUrl")
@@ -92,11 +93,11 @@ object UpdateChecker {
             } else null
             _status.value = Status(
                 checking = false,
-                message = if (update != null) "发现新版本 ${update.tag}（当前 $local）" else "已是最新版本 $local",
+                message = if (update != null) context.getString(R.string.update_found_long, update.tag, local) else context.getString(R.string.update_up_to_date, local),
                 update = update,
             )
         } catch (e: Exception) {
-            _status.value = Status(checking = false, message = if (silent) "" else "检查更新失败：${e.message}", error = e.message)
+            _status.value = Status(checking = false, message = if (silent) "" else context.getString(R.string.update_check_failed, e.message), error = e.message)
         }
     }
 
@@ -116,12 +117,12 @@ object UpdateChecker {
         runCatching {
             val request = DownloadManager.Request(Uri.parse(update.apkUrl)).apply {
                 setTitle("local music ${update.tag}")
-                setDescription("正在下载新版本…")
+                setDescription(context.getString(R.string.update_downloading_new))
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
                 setDestinationInExternalFilesDir(context, null, "updates/${target.name}")
             }
             val manager = context.getSystemService(DownloadManager::class.java)
-            val id = manager?.enqueue(request) ?: throw IllegalStateException("系统下载服务不可用")
+            val id = manager?.enqueue(request) ?: throw IllegalStateException(context.getString(R.string.update_download_service_unavailable))
             // 轮询：既判断完成，也把**进度**报给界面（500ms 一次，够顺滑而且几乎不耗电）
             val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
             scope.launch {
@@ -150,7 +151,7 @@ object UpdateChecker {
                     )
                     when (downloadStatus) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
-                            _status.value = _status.value.copy(downloading = false, progress = 1f, message = "下载完成，正在拉起安装…")
+                            _status.value = _status.value.copy(downloading = false, progress = 1f, message = context.getString(R.string.update_download_done))
                             withContext(Dispatchers.Main) { onDone(File(dir, target.name)) }
                             return@launch
                         }

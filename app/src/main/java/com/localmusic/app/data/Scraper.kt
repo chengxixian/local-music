@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
+import com.localmusic.app.R
 import android.content.Context
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,7 @@ object Scraper {
         var neteaseLyrics = 0
         var coverDiagDone = false
         val failures = mutableListOf<String>()
-        _status.value = Status(true, "开始刮削…")
+        _status.value = Status(true, context.getString(R.string.scrape_starting))
         try {
             // 先把"之前刮削盖住的、其实自带封面"的歌恢复原样（自动纠错，不用用户手动点）
             val restored = runCatching { CoverStore.restoreOriginals(context, songs) }.getOrDefault(0)
@@ -81,7 +82,7 @@ object Scraper {
                     val chunk = targets.subList(index, minOf(index + 8, targets.size))
                     val ids = mutableListOf<Long>()
                     for (song in chunk) {
-                        _status.value = Status(true, "搜索中：${song.title}", covers, lyrics, tried, failures.takeLast(3))
+                        _status.value = Status(true, context.getString(R.string.scrape_searching, song.title), covers, lyrics, tried, failures.takeLast(3))
                         val hit = runCatching { neteaseSearch(song.title, song.artist) }.getOrNull()
                         if (hit != null) {
                             songIdOf[song.uri] = hit.id
@@ -104,7 +105,7 @@ object Scraper {
                 val needLyrics = wantLyrics && LyricCache.read(context, song.uri) == null
                 if (!needCover && !needLyrics) continue
                 tried++
-                _status.value = Status(true, "刮削中：${song.title}", covers, lyrics, tried, failures.takeLast(3))
+                _status.value = Status(true, context.getString(R.string.scrape_working, song.title), covers, lyrics, tried, failures.takeLast(3))
                 // 网易云一首只搜一次，封面和歌词共用这个结果
                 val netease = if (wantNetease) runCatching { neteaseSearch(song.title, song.artist) }.getOrNull() else null
                 if (needCover) {
@@ -121,7 +122,7 @@ object Scraper {
                         // 攒够几张再让 UI 重载一次：每存一张就刷新会让整墙封面反复重解码（卡顿来源）
                         if (covers % 6 == 0) CoverStore.refresh()
                     } else {
-                        failures += "${song.title}：没找到封面"
+                        failures += context.getString(R.string.scrape_no_cover, song.title)
                         // 逐首诊断：到底断在哪一步（搜不到 / detail 没图 / 图被当占位图拦下 / 兜底也miss）
                         val detailPic = netease?.let { runCatching { neteaseCoverById(it.id) }.getOrNull() }
                         // 头一次 miss 时做一次接口对照：旧 detail 接口 vs v3 接口，看是"没图"还是"被限流"
