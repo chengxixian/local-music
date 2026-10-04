@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -31,7 +32,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +46,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.localmusic.app.R
 import com.localmusic.app.PlaybackUi
+import com.localmusic.app.data.Playlist
 import com.localmusic.app.data.ScanStatus
 import com.localmusic.app.data.Song
 import com.localmusic.app.data.formatTime
@@ -168,6 +173,8 @@ fun LibraryPage(
     onToggleFavorite: (Song) -> Unit,
     onPlay: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit = {},
+    onAddToPlaylist: (Song) -> Unit = {},
+    header: (@Composable () -> Unit)? = null,
     topPadding: Dp = LiquidSpacing.page,
 ) {
     val favoriteSongs = emptyList<Song>() // 过滤已在顶层完成，这里只负责画
@@ -207,6 +214,7 @@ fun LibraryPage(
     val playState = rememberUpdatedState(onPlay)
     val queueState = rememberUpdatedState(onAddToQueue)
     val favoriteState = rememberUpdatedState(onToggleFavorite)
+    val playlistState = rememberUpdatedState(onAddToPlaylist)
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         state = gridState,
@@ -215,6 +223,10 @@ fun LibraryPage(
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
+        // 乐单详情等场景要在这张网格上方插一块自己的卡片（改名 / 换封面 / 删除）
+        header?.let { h ->
+            item(span = { GridItemSpan(maxLineSpan) }) { h() }
+        }
         if (songs.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidEmptyState(
@@ -237,6 +249,7 @@ fun LibraryPage(
                     playState = playState,
                     queueState = queueState,
                     favoriteState = favoriteState,
+                    playlistState = playlistState,
                 )
             }
         }
@@ -260,6 +273,7 @@ private fun LibraryGridCard(
     playState: State<(Song) -> Unit>,
     queueState: State<(Song) -> Unit>,
     favoriteState: State<(Song) -> Unit>,
+    playlistState: State<(Song) -> Unit>,
 ) {
     val scheme = MiuixTheme.colorScheme
     Card(
@@ -287,6 +301,15 @@ private fun LibraryGridCard(
             // 上半：正方形封面铺满
             Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
                 Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
+                // 左上角：加入乐单（和右上角的心形成一对，操作逻辑一致 —— 点一下即加/去）
+                Box(
+                    Modifier.align(Alignment.TopStart).padding(6.dp).size(32.dp)
+                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                        .clickable { playlistState.value(song) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.QueueMusic, "加入乐单", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(32.dp)
                         .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
@@ -708,6 +731,237 @@ internal fun AboutAction(
         Icon(icon, contentDescription = label, tint = tint)
         Spacer(Modifier.height(4.dp))
         Text(label, style = MiuixTheme.textStyles.body2, color = tint)
+    }
+}
+
+/**
+ * 乐单详情页顶部的卡片：乐单名 + 改名 / 换封面 / 删除。
+ * 改名对话框由它自己管（只影响这一页，不必上升到 MainActivity）。
+ */
+@Composable
+fun PlaylistHeader(
+    playlist: Playlist,
+    onRename: (String) -> Unit,
+    onChangeCover: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var renaming by remember { mutableStateOf(false) }
+    LiquidCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
+            if (playlist.cover != null) {
+                FileImage(path = playlist.cover, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)))
+            } else {
+                DotMatrixMark(Modifier.size(56.dp, 56.dp), cell = 4.6.dp)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(playlist.name, style = MiuixTheme.textStyles.title3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${playlist.count} 首", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        LiquidListItem(title = "重命名乐单", leading = Icons.Rounded.CreateNewFolder, onClick = { renaming = true }, showDivider = true)
+        LiquidListItem(title = "更换乐单封面", leading = Icons.Rounded.AddPhotoAlternate, onClick = onChangeCover, showDivider = true)
+        LiquidListItem(
+            title = "删除乐单",
+            subtitle = "只删乐单，不动歌曲文件",
+            leading = Icons.Rounded.DeleteOutline,
+            onClick = onDelete,
+        )
+    }
+    if (renaming) {
+        NameDialog(
+            title = "重命名乐单",
+            initial = playlist.name,
+            onDismiss = { renaming = false },
+            onConfirm = { name -> renaming = false; onRename(name) },
+        )
+    }
+}
+
+/** 从本地路径读一张图（乐单封面 / 用户自选封面）。分离到 IO 线程，避免卡首帧。 */
+@Composable
+internal fun FileImage(path: String?, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
+    val context = LocalContext.current
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, path) {
+        value = withContext(Dispatchers.IO) {
+            path?.let { p ->
+                runCatching {
+                    android.graphics.BitmapFactory.decodeFile(p)?.asImageBitmap()
+                }.getOrNull()
+            }
+        }
+    }
+    bitmap?.let {
+        Image(bitmap = it, contentDescription = null, contentScale = contentScale, modifier = modifier)
+    } ?: Box(modifier.background(MiuixTheme.colorScheme.surfaceVariant))
+}
+
+/**
+ * 乐单页：列出所有乐单。每张卡片左边封面（用户自选图，没设就画点阵标记）、
+ * 右边名称与曲目数，点击进入乐单详情。顶部一行是「新建乐单」。
+ */
+@Composable
+fun PlaylistPage(
+    playlists: List<Playlist>,
+    topPadding: Dp = LiquidSpacing.page,
+    onCreate: (String) -> Unit,
+    onOpen: (Playlist) -> Unit,
+) {
+    var naming by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
+        verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
+    ) {
+        item {
+            LiquidListItem(
+                title = "新建乐单",
+                subtitle = "给乐单起个名字，之后可以改",
+                leading = Icons.Rounded.Add,
+                onClick = { draft = ""; naming = true },
+            )
+        }
+        if (playlists.isEmpty()) {
+            item {
+                LiquidCard {
+                    Text("还没有乐单", style = MiuixTheme.textStyles.title4)
+                    Text(
+                        "点上面的「新建乐单」，或者在曲库卡片左上角把歌加进来。",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    )
+                }
+            }
+        }
+        items(playlists, key = { it.id }) { playlist ->
+            LiquidCard(Modifier.clickable { onOpen(playlist) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
+                    if (playlist.cover != null) {
+                        FileImage(
+                            path = playlist.cover,
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+                        )
+                    } else {
+                        DotMatrixMark(Modifier.size(64.dp, 64.dp), cell = 5.2.dp)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(playlist.name, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${playlist.count} 首", style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                    }
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, modifier = Modifier.graphicsLayer { rotationZ = -90f })
+                }
+            }
+        }
+    }
+    if (naming) {
+        NameDialog(
+            title = "新建乐单",
+            initial = draft,
+            onDismiss = { naming = false },
+            onConfirm = { name -> naming = false; onCreate(name) },
+        )
+    }
+}
+
+/** 改名 / 新建通用的小输入框（玻璃卡片里放一个 BasicTextField）。 */
+@Composable
+internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        LiquidCard(Modifier.clickable(enabled = false) {}) {
+            Text(title, style = MiuixTheme.textStyles.title4)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = MiuixTheme.textStyles.body1.copy(color = MiuixTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MiuixTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                // 必须显式给颜色：本 App 用的是 MiuixTheme，没有套 M3 的 MaterialTheme，
+                // TextButton 会拿到 M3 默认色（深色玻璃卡上等于隐形）。
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
+                ) { Text("取消") }
+                TextButton(
+                    onClick = { onConfirm(text) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.primary),
+                ) { Text("确定") }
+            }
+        }
+    }
+}
+
+/**
+ * 「加入乐单」面板：列出所有乐单 + 勾选状态，下面能直接新建一个。
+ * 交互和"喜欢"一致：点一下就是加/去，不需要再确认。
+ */
+@Composable
+fun AddToPlaylistSheet(
+    song: Song,
+    playlists: List<Playlist>,
+    memberOf: Set<Long>,
+    onToggle: (Long, Boolean) -> Unit,
+    onCreate: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var naming by remember { mutableStateOf(false) }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        LiquidCard(Modifier.clickable(enabled = false) {}) {
+            Text("加入乐单", style = MiuixTheme.textStyles.title4)
+            Text(
+                song.title,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            LiquidListItem(
+                title = "新建乐单并加入",
+                leading = Icons.Rounded.Add,
+                onClick = { naming = true },
+            )
+            playlists.forEach { playlist ->
+                val checked = playlist.id in memberOf
+                LiquidListItem(
+                    title = playlist.name,
+                    subtitle = "${playlist.count} 首",
+                    leading = if (checked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    onClick = { onToggle(playlist.id, !checked) },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.primary),
+                ) { Text("完成") }
+            }
+        }
+    }
+    if (naming) {
+        NameDialog(
+            title = "新建乐单",
+            initial = "",
+            onDismiss = { naming = false },
+            onConfirm = { name -> naming = false; onCreate(name) },
+        )
     }
 }
 

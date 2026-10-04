@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.LocalContentColor
@@ -66,15 +67,17 @@ class MainActivity : ComponentActivity() {
 
 private enum class Page(val title: String, val icon: ImageVector) {
     Library("曲库", Icons.Rounded.LibraryMusic),
+    Playlists("乐单", Icons.Rounded.QueueMusic),
     Favorites("喜欢", Icons.Rounded.Favorite),
     Settings("设置", Icons.Rounded.Settings),
 }
 
-/** 滚轮单击切页的顺序（按用户要求：曲库 → 设置 → 喜欢 → 曲库…）。 */
+/** 滚轮单击切页的顺序（与 dock 从左到右一致：曲库 → 乐单 → 喜欢 → 设置）。 */
 private fun nextPage(current: Page): Page = when (current) {
-    Page.Library -> Page.Settings
-    Page.Settings -> Page.Favorites
-    Page.Favorites -> Page.Library
+    Page.Library -> Page.Playlists
+    Page.Playlists -> Page.Favorites
+    Page.Favorites -> Page.Settings
+    Page.Settings -> Page.Library
 }
 
 private val BarMargin = 16.dp
@@ -126,6 +129,13 @@ private fun AppShell() {
     // 我喜欢的音乐：DB 是一份，内存里缓存一份，改了之后 revision +1 → 这里重算
     val favoritesRevision by com.localmusic.app.data.FavoritesStore.revision.collectAsState()
     val favorites = remember(favoritesRevision, context) { com.localmusic.app.data.FavoritesStore.all(context) }
+    // 乐单：同样 revision 驱动；`openPlaylist` 是当前打开的乐单（null = 乐单列表页）
+    val playlistsRevision by com.localmusic.app.data.PlaylistStore.revision.collectAsState()
+    val playlists = remember(playlistsRevision, context) { com.localmusic.app.data.PlaylistStore.all(context) }
+    var openPlaylist by remember { mutableStateOf<com.localmusic.app.data.Playlist?>(null) }
+    // "加入乐单"面板正在为哪首歌打开；以及"换乐单封面"正在等哪张图
+    var pickerSong by remember { mutableStateOf<com.localmusic.app.data.Song?>(null) }
+    var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
     val scrapeStatus by com.localmusic.app.data.Scraper.status.collectAsState()
     val scrapeScope = rememberCoroutineScope()
     val updateState by com.localmusic.app.data.UpdateChecker.status.collectAsState()
@@ -190,6 +200,12 @@ private fun AppShell() {
     val libraryList = remember(songs, searchQuery) { songs.filter { matches(it) } }
     val favoriteList = remember(songs, favorites, searchQuery) {
         songs.filter { favorites.contains(it.uri) && matches(it) }
+    }
+    // 当前打开的乐单里的歌（按加入顺序；乐单里已不存在的歌自动忽略）
+    val playlistSongs = remember(openPlaylist, songs, playlistsRevision) {
+        val pl = openPlaylist ?: return@remember emptyList()
+        val byUri = songs.associateBy { it.uri }
+        com.localmusic.app.data.PlaylistStore.songIds(context, pl.id).mapNotNull { byUri[it] }
     }
 
     // 自动扫描：进入应用扫一次，之后定期复查（MediaStore 变更也会触发 ContentObserver 重扫）。
@@ -273,9 +289,26 @@ private fun AppShell() {
         }
     }
 
+    // 乐单封面：和歌曲封面一样复制进应用目录，原图被删也不怕
+    val playlistCoverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val target = playlistCoverTarget
+        if (uri != null && target != null) {
+            coverScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                com.localmusic.app.data.PlaylistStore.importCover(context, uri)?.let { path ->
+                    com.localmusic.app.data.PlaylistStore.setCover(context, target, path)
+                }
+            }
+        }
+        playlistCoverTarget = null
+    }
+
     // 返回键：先关播放页，再收均衡器面板
     BackHandler(enabled = showEq) { showEq = false }
     BackHandler(enabled = playerOpen && !showEq) { playerOpen = false }
+    BackHandler(enabled = pickerSong != null) { pickerSong = null }
+    BackHandler(enabled = openPlaylist != null && pickerSong == null) { openPlaylist = null }
 
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
@@ -339,6 +372,7 @@ private fun AppShell() {
                 )
                 val wheelList = when (page) {
                     Page.Library -> libraryList
+                    Page.Playlists -> playlistSongs
                     Page.Favorites -> favoriteList
                     Page.Settings -> emptyList()
                 }
@@ -377,6 +411,7 @@ private fun AppShell() {
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
                                         },
+                                        onAddToPlaylist = { song -> pickerSong = song },
                                         topPadding = pageTopPadding,
                                     )
                                     Page.Favorites -> LibraryPage(
@@ -393,8 +428,52 @@ private fun AppShell() {
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
                                         },
+                                        onAddToPlaylist = { song -> pickerSong = song },
                                         topPadding = pageTopPadding,
                                     )
+                                    Page.Playlists -> {
+                                        val opened = openPlaylist
+                                        if (opened == null) {
+                                            PlaylistPage(
+                                                playlists = playlists,
+                                                topPadding = pageTopPadding,
+                                                onCreate = { name -> com.localmusic.app.data.PlaylistStore.create(context, name) },
+                                                onOpen = { openPlaylist = it },
+                                            )
+                                        } else {
+                                            LibraryPage(
+                                                songs = playlistSongs,
+                                                nowPlaying = playback.id,
+                                                favorites = favorites,
+                                                highlightIndex = if (page == Page.Playlists) wheelIndex else -1,
+                                                filtering = false,
+                                                onToggleFavorite = { song ->
+                                                    com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
+                                                },
+                                                onPlay = { song -> player.play(playlistSongs, song); playerOpen = true },
+                                                onAddToQueue = { song ->
+                                                    player.appendToQueue(listOf(song))
+                                                    android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
+                                                },
+                                                onAddToPlaylist = { song -> pickerSong = song },
+                                                header = {
+                                                    PlaylistHeader(
+                                                        playlist = opened,
+                                                        onRename = { name -> com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name) },
+                                                        onChangeCover = {
+                                                            playlistCoverTarget = opened.id
+                                                            playlistCoverPicker.launch(arrayOf("image/*"))
+                                                        },
+                                                        onDelete = {
+                                                            com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
+                                                            openPlaylist = null
+                                                        },
+                                                    )
+                                                },
+                                                topPadding = pageTopPadding,
+                                            )
+                                        }
+                                    }
                                     Page.Settings -> SettingsPage(
                                         status = status, bitPerfect = bitPerfect, autoNcm = autoNcm,
                                         diagnostics = diagnostics, trees = trees,
@@ -510,6 +589,25 @@ private fun AppShell() {
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
+                        }
+                        // 「加入乐单」面板（和喜欢一样：点一下即加/去，不需要确认）
+                        pickerSong?.let { song ->
+                            val memberOf = remember(song.uri, playlistsRevision, context) {
+                                com.localmusic.app.data.PlaylistStore.playlistsOf(context, song.uri)
+                            }
+                            AddToPlaylistSheet(
+                                song = song,
+                                playlists = playlists,
+                                memberOf = memberOf,
+                                onToggle = { id, member ->
+                                    com.localmusic.app.data.PlaylistStore.setSong(context, id, song.uri, member)
+                                },
+                                onCreate = { name ->
+                                    val id = com.localmusic.app.data.PlaylistStore.create(context, name)
+                                    if (id > 0) com.localmusic.app.data.PlaylistStore.setSong(context, id, song.uri, true)
+                                },
+                                onDismiss = { pickerSong = null },
+                            )
                         }
                         if (!playerOpen && !showAbout) {
                             GlassTopBar(
