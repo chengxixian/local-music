@@ -177,4 +177,9 @@
     <string name="wheel_tint_purple">紫</string>
     <string name="wheel_tint_custom">自定义</string>
     <string name="set_tint_detail">（色相 %1$d° · 饱和 %2$d%% · 透光 %3$d%%）</string>
+    <string name="toast_restored_covers">已恢复 %1$d 首的自带封面</string>
+    <string name="toast_nothing_restore">没有需要恢复的</string>
+    <string name="toast_nothing_restore2">没有需要恢复的（这些歌没有自带封面）</string>
+    <string name="eq_note_unavailable">均衡器依赖系统 audiofx 效果器；本机没有可用实现时这里只做说明，不会假装有调节能力。</string>
+    <string name="eq_note_bands">频段数量由设备决定（多数 5 段）；调节立即生效并保存，重启后自动恢复。</string>
 </resources>

@@ -63,7 +63,7 @@ fun EqualizerSheet(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.GraphicEq, null, Modifier.size(22.dp), tint = scheme.primary)
                     Spacer(Modifier.width(LiquidSpacing.inline))
-                    Text("均衡器", style = MiuixTheme.textStyles.title2, color = scheme.onSurface, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_equalizer), style = MiuixTheme.textStyles.title2, color = scheme.onSurface, modifier = Modifier.weight(1f))
                     IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.eq_collapse)) }
                 }
 
@@ -142,13 +142,13 @@ fun EqualizerSheet(
                         }
                     } else {
                         Text(
-                            "均衡器依赖系统 audiofx 效果器；本机没有可用实现时这里只做说明，不会假装有调节能力。",
+                            stringResource(R.string.eq_note_unavailable),
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, textAlign = TextAlign.Start,
                         )
                     }
                     Spacer(Modifier.height(LiquidSpacing.inline))
                     Text(
-                        "频段数量由设备决定（多数 5 段）；调节立即生效并保存，重启后自动恢复。",
+                        stringResource(R.string.eq_note_bands),
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
                     )
                 }

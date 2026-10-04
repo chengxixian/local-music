@@ -132,11 +132,11 @@ private fun NameDialogGlass(
                         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                             contentColor = scheme.onSurfaceVariantSummary,
                         ),
-                    ) { Text("取消") }
+                    ) { Text(stringResource(R.string.pl_cancel)) }
                     androidx.compose.material3.TextButton(
                         onClick = { onConfirm(text) },
                         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = scheme.primary),
-                    ) { Text("确定") }
+                    ) { Text(stringResource(R.string.pl_confirm)) }
                 }
             }
         }
@@ -487,7 +487,7 @@ private fun AppShell() {
                             val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 com.localmusic.app.data.CoverStore.restoreOriginals(context, songs)
                             }
-                            android.widget.Toast.makeText(context, if (n > 0) "已恢复 $n 首的自带封面" else "没有需要恢复的", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, if (n > 0) context.getString(R.string.toast_restored_covers, n) else context.getString(R.string.toast_nothing_restore), android.widget.Toast.LENGTH_SHORT).show()
                         }
                     },
                     "滚轮玻璃颜色" to {
@@ -646,7 +646,7 @@ private fun AppShell() {
                                                 }
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    if (n > 0) "已恢复 $n 首的自带封面" else "没有需要恢复的（这些歌没有自带封面）",
+                                                    if (n > 0) context.getString(R.string.toast_restored_covers, n) else context.getString(R.string.toast_nothing_restore2),
                                                     android.widget.Toast.LENGTH_SHORT,
                                                 ).show()
                                             }
@@ -738,7 +738,7 @@ private fun AppShell() {
                                         playlist = opened,
                                         onRename = {
                                             showPlaylistMenu = false
-                                            askName("重命名乐单", opened.name) { name ->
+                                            askName(context.getString(R.string.pl_rename), opened.name) { name ->
                                                 com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name)
                                             }
                                         },

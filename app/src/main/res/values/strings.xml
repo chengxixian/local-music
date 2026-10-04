@@ -172,4 +172,9 @@
     <string name="wheel_tint_purple">Purple</string>
     <string name="wheel_tint_custom">Custom</string>
     <string name="set_tint_detail">(hue %1$d° · saturation %2$d%% · transmission %3$d%%)</string>
+    <string name="toast_restored_covers">Restored embedded artwork for %1$d tracks</string>
+    <string name="toast_nothing_restore">Nothing to restore</string>
+    <string name="toast_nothing_restore2">Nothing to restore (these tracks have no embedded artwork)</string>
+    <string name="eq_note_unavailable">The equalizer relies on the system audiofx effects; if this device has no implementation, this panel only explains that instead of pretending to have controls.</string>
+    <string name="eq_note_bands">The number of bands is decided by the device (usually 5). Changes apply immediately and are restored after a restart.</string>
 </resources>
