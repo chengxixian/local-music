@@ -68,4 +68,9 @@
     <string name="settings_scraping">Scraping…</string>
     <string name="settings_tree_persisted">Read permission persisted across restarts</string>
     <string name="settings_export_none">Not selected yet — files only stay in app-private storage and are lost on uninstall</string>
+    <string name="empty_favorites">Nothing in Favorites yet</string>
+    <string name="empty_no_match">No matching songs</string>
+    <string name="empty_library">Library is empty</string>
+    <string name="empty_favorites_hint">Tap the heart on a song card or in the player to add it</string>
+    <string name="empty_library_hint">Supports mp3 / aac(m4a) / flac / wav / ogg / opus and more</string>
 </resources>

@@ -232,11 +232,11 @@ fun LibraryPage(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LiquidEmptyState(
                     when {
-                        favoritesOnly -> "「喜欢」还是空的"
-                        filtering -> "没有匹配的歌曲"
-                        else -> "曲库为空"
+                        favoritesOnly -> stringResource(R.string.empty_favorites)
+                        filtering -> stringResource(R.string.empty_no_match)
+                        else -> stringResource(R.string.empty_library)
                     },
-                    hint = if (favoritesOnly) "在曲库或播放页点心形按钮加入" else "支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等",
+                    hint = if (favoritesOnly) stringResource(R.string.empty_favorites_hint) else stringResource(R.string.empty_library_hint),
                 )
             }
         } else {

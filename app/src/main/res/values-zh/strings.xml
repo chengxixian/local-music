@@ -73,4 +73,9 @@
     <string name="settings_scraping">刮削中…</string>
     <string name="settings_tree_persisted">读取权限已持久化，重启后仍然有效</string>
     <string name="settings_export_none">尚未选择 —— 目前只会暂存到应用私有目录，卸载即丢</string>
+    <string name="empty_favorites">「喜欢」还是空的</string>
+    <string name="empty_no_match">没有匹配的歌曲</string>
+    <string name="empty_library">曲库为空</string>
+    <string name="empty_favorites_hint">在曲库或播放页点心形按钮加入</string>
+    <string name="empty_library_hint">支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等</string>
 </resources>
