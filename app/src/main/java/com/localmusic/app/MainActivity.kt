@@ -818,7 +818,7 @@ private fun AppShell() {
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen && !showAbout && naming == null && pickerSong == null && openPlaylist == null) {
+                        if (!playerOpen && !showAbout && !showLanguage && !showPlaylistMenu && naming == null && pickerSong == null && openPlaylist == null) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->
