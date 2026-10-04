@@ -90,53 +90,53 @@ fun HomePage(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.leading)) {
                     Artwork(nowPlaying ?: songs.firstOrNull(), Modifier.size(72.dp), radius = 18, requestPx = 220)
                     Column(Modifier.weight(1f)) {
-                        Text(if (nowPlaying != null) "正在播放" else "开始聆听", style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
+                        Text(if (nowPlaying != null) stringResource(R.string.home_now_playing) else stringResource(R.string.home_start_listening), style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
                         Spacer(Modifier.height(4.dp))
                         Text(player.title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(player.artist, style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     // 没有当前曲目时，这个按钮要真的开始放歌（之前是空操作）；
-                    // 已有曲目时它相当于"打开播放器"。
+                    // 已有曲目时它相当于stringResource(R.string.home_open_player)。
                     FilledIconButton(
                         onClick = onStartListening,
                         enabled = songs.isNotEmpty() || player.id != null,
                     ) {
                         Icon(
                             if (player.id == null) Icons.Rounded.PlayArrow else Icons.Rounded.GraphicEq,
-                            if (player.id == null) "开始播放" else "打开播放器",
+                            if (player.id == null) stringResource(R.string.home_start_play) else stringResource(R.string.home_open_player),
                         )
                     }
                 }
-                player.error?.let { LiquidStatusBanner(text = "播放器：$it", icon = Icons.Rounded.ErrorOutline, color = scheme.error) }
+                player.error?.let { LiquidStatusBanner(text = stringResource(R.string.player_error_banner, it), icon = Icons.Rounded.ErrorOutline, color = scheme.error) }
             }
         }
         item {
             LiquidCard(modifier = Modifier.staggeredEntry(1)) {
-                Text("曲库概览", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.lib_overview), style = MiuixTheme.textStyles.title4)
                 Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item)) {
-                    Stat("全部歌曲", songs.size.toString(), Modifier.weight(1f))
-                    Stat("无损", lossless.toString(), Modifier.weight(1f))
-                    Stat("高解析", hiRes.toString(), Modifier.weight(1f))
+                    Stat(stringResource(R.string.stat_all), songs.size.toString(), Modifier.weight(1f))
+                    Stat(stringResource(R.string.stat_lossless), lossless.toString(), Modifier.weight(1f))
+                    Stat(stringResource(R.string.stat_hires), hiRes.toString(), Modifier.weight(1f))
                 }
                 // 我喜欢的音乐：这里给入口，收藏动作在曲库列表和播放页的心形按钮上
                 LiquidListItem(
                     title = stringResource(R.string.settings_favorites),
-                    subtitle = if (favoriteCount > 0) "$favoriteCount 首 · 点这里查看" else "还没有收藏 —— 在曲库或播放页点心形按钮加入",
+                    subtitle = if (favoriteCount > 0) stringResource(R.string.fav_count_tap, favoriteCount) else stringResource(R.string.fav_none),
                     leading = Icons.Rounded.Favorite,
                     onClick = onOpenFavorites,
                     showDivider = true,
                 )
-                LiquidListItem(title = "扫描存储器", subtitle = "重新索引本地歌曲与 ncm 导入", leading = Icons.Rounded.Refresh, onClick = onScan)
+                LiquidListItem(title = stringResource(R.string.scan_storage), subtitle = stringResource(R.string.scan_storage_sub), leading = Icons.Rounded.Refresh, onClick = onScan)
             }
         }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("最近添加", style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
-                TextButton(onClick = onOpenLibrary) { Text("全部") }
+                Text(stringResource(R.string.recent_added), style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
+                TextButton(onClick = onOpenLibrary) { Text(stringResource(R.string.all)) }
             }
         }
         if (songs.isEmpty()) {
-            item { LiquidEmptyState("还没有歌曲", hint = "授予存储权限后会自动扫描；也可在设置里授权 ncm 文件夹") }
+            item { LiquidEmptyState(stringResource(R.string.lib_empty), hint = stringResource(R.string.lib_empty_hint)) }
         } else {
             items(songs.take(30), key = { it.uri }) { song ->
                 LiquidCard {
@@ -319,7 +319,7 @@ private fun LibraryGridCard(
                 ) {
                     Icon(
                         if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        if (favorite) "取消喜欢" else "加入我喜欢的音乐",
+                        if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
                         modifier = Modifier.size(17.dp),
                         tint = if (favorite) scheme.primary else Color.White,
                     )
@@ -330,7 +330,7 @@ private fun LibraryGridCard(
                         .clickable { queueState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.Add, "加入播放列表", modifier = Modifier.size(20.dp), tint = Color.White)
+                    Icon(Icons.Rounded.Add, stringResource(R.string.card_add_queue), modifier = Modifier.size(20.dp), tint = Color.White)
                 }
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp)
@@ -338,7 +338,7 @@ private fun LibraryGridCard(
                         .clickable { playState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.PlayArrow, "播放", modifier = Modifier.size(20.dp), tint = Color.White)
+                    Icon(Icons.Rounded.PlayArrow, stringResource(R.string.player_play), modifier = Modifier.size(20.dp), tint = Color.White)
                 }
             }
             // 下半：歌名 + 信息
@@ -681,7 +681,7 @@ fun SettingsPage(
                     Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         Text(status.message, style = MiuixTheme.textStyles.footnote1, modifier = Modifier.weight(1f))
-                        TextButton(onClick = onCancel) { Text("停止扫描") }
+                        TextButton(onClick = onCancel) { Text(stringResource(R.string.scan_stop)) }
                     }
                 }
                 status.failures.forEach { LiquidStatusBanner(text = it, icon = Icons.Rounded.WarningAmber, color = scheme.error) }
@@ -692,8 +692,8 @@ fun SettingsPage(
             // 之前把 logo/版本/动作行/分组/二维码全平铺在这里，设置页被撑得很长。
             LiquidCard {
                 LiquidListItem(
-                    title = "关于 local music",
-                    subtitle = "版本、开源许可、上游项目与捐赠",
+                    title = stringResource(R.string.about_entry_title),
+                    subtitle = stringResource(R.string.about_entry_subtitle),
                     leading = Icons.Rounded.Info,
                     onClick = onOpenAbout,
                 )
@@ -702,7 +702,7 @@ fun SettingsPage(
                 val langCtx = LocalContext.current
                 LiquidListItem(
                     title = "语言 / Language",
-                    subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + " · 点击切换",
+                    subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + stringResource(R.string.settings_lang_tap),
                     leading = Icons.Rounded.Settings,
                     onClick = {
                         val opts = com.localmusic.app.data.LanguagePref.options
@@ -1083,7 +1083,7 @@ fun AboutPage(onBack: () -> Unit) {
                         Spacer(Modifier.height(2.dp))
                         Text("local music", style = MiuixTheme.textStyles.title3)
                         Text(
-                            "v$version · 本地优先的 HiFi 播放器",
+                            stringResource(R.string.about_tagline_versioned, version),
                             style = MiuixTheme.textStyles.body2,
                             color = scheme.onSurfaceVariantSummary,
                         )
@@ -1096,7 +1096,7 @@ fun AboutPage(onBack: () -> Unit) {
                         }
                         AboutAction(Icons.Rounded.Description, stringResource(R.string.about_action_readme), scheme.onSurface) { openUrl(context, "$REPO_URL#readme") }
                         // 捐赠用「手托爱心」，不用爱心本身（爱心在本 App 里是「喜欢」的意思）
-                        AboutAction(Icons.Rounded.VolunteerActivism, "捐赠", scheme.onSurface) { showDonate = true }
+                        AboutAction(Icons.Rounded.VolunteerActivism, stringResource(R.string.about_action_donate), scheme.onSurface) { showDonate = true }
                     }
                 }
             }

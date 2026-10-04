@@ -141,4 +141,25 @@
     <string name="toast_dsd_converting">DSD: extracting to PCM (slow the first time, then cached)…</string>
     <string name="toast_dsd_failed">DSD conversion failed: the file may be corrupt or unsupported</string>
     <string name="export_pick_body">NetEase ncm files are converted to FLAC. Please create a folder to store them:\n· The files stay in your own folder and are visible in any file manager\n· Uninstalling this app will not delete them\n· If you skip this, they are only kept in app-private storage and lost on uninstall</string>
+    <string name="home_now_playing">Now playing</string>
+    <string name="home_start_listening">Start listening</string>
+    <string name="home_start_play">Start playing</string>
+    <string name="home_open_player">Open player</string>
+    <string name="player_error_banner">Player: %1$s</string>
+    <string name="lib_overview">Library overview</string>
+    <string name="stat_all">All songs</string>
+    <string name="stat_lossless">Lossless</string>
+    <string name="stat_hires">Hi-res</string>
+    <string name="fav_count_tap">%1$d tracks · tap to view</string>
+    <string name="fav_none">Nothing liked yet — tap the heart on a library card or in the player</string>
+    <string name="scan_storage">Scan storage</string>
+    <string name="scan_storage_sub">Re-index local songs and ncm imports</string>
+    <string name="recent_added">Recently added</string>
+    <string name="all">All</string>
+    <string name="lib_empty">No songs yet</string>
+    <string name="lib_empty_hint">Storage is scanned automatically once you grant permission; you can also authorise an ncm folder in settings</string>
+    <string name="card_add_queue">Add to queue</string>
+    <string name="scan_stop">Stop scanning</string>
+    <string name="settings_lang_tap"> · tap to switch</string>
+    <string name="about_tagline_versioned">v%1$s · local-first HiFi player</string>
 </resources>
