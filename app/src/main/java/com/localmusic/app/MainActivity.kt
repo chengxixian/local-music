@@ -304,7 +304,9 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var showAbout by remember { mutableStateOf(false) }
-    var introDone by remember { mutableStateOf(com.localmusic.app.ui.IntroState.played) }
+    // 宣传动画：**不随启动播放**，只有带 promo 参数启动才播（供录屏做宣传视频用）
+    val promoAnimation = (androidx.compose.ui.platform.LocalContext.current as? android.app.Activity)?.intent?.getBooleanExtra("promo", false) == true
+    var introDone by remember { mutableStateOf(!promoAnimation) }
     var showLanguage by remember { mutableStateOf(false) }
     // 设置页的滚动位置：放在 AnimatedContent 之外，切语言重建 Activity 后不会弹回顶部
     val settingsListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -772,7 +774,6 @@ private fun AppShell() {
                         if (!introDone) {
                             com.localmusic.app.ui.IntroOverlay(
                                 onFinished = {
-                                    com.localmusic.app.ui.IntroState.played = true
                                     introDone = true
                                 },
                             )
