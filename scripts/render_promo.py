@@ -1,22 +1,26 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 local music 宣传动画渲染脚本（独立于 Android 工程）。
 
-视觉：**一个字母一个点阵块**（早期计算器/字符位显示）。
-点阵按字母分块，块内 5x7 灰点阵，块与块之间保持截断（没有连接的点）。
+视觉：**一个字母一个点阵块**（早期计算器/字符位显示）。点阵按字母分块，
+块内 5x7 灰点阵，块与块之间保持截断（没有连接的点）。
 
-时间轴（总长 12.0s，按**秒**定义阶段，便于延长）：
-    0.0-0.5    全黑停留
-    0.5-3.2    两个字母块（L 与 m）的灰点阵，自红点位置向外涟漪状淡入
-    3.0-5.2    Lm 字形点亮成白（带放大回弹）
-    5.2-6.6    m 右上角的点（红点）闪一圈红光
-    6.6-10.2   L 块不动、m 块向右拉开到 "music"；中间的 o c a l ␣ u s i c
-               各自以独立点阵块从左到右依次亮起，块间空隙始终截断
-    10.2-12.0  成形定格；红点持续放出涟漪扫过所有字母块
+时间轴（总长 15.0s，按**秒**定义阶段）：
+    0.0 - 0.5    全黑停留
+    0.5 - 3.2    两个字母块（L 与 m）的灰点阵，自红点位置向外涟漪状淡入
+    3.0 - 5.2    Lm 字形点亮成白（带放大回弹）
+    5.2 - 6.6    m 右上角的点（红点）闪一圈红光
+    6.6 - 10.2   L 块不动、m 块向右拉开；o c a l ␣ u s i c 各自独立成块依次亮起
+    10.2- 11.2   成形保持（白字 + 红点，涟漪持续）
+    11.2- 11.5   红点再闪一下，发出冲击波
+    11.2- 13.6   冲击波向外扫过：被扫过的点**统一褪成灰色**（白字变灰、红点也变灰），
+                 整个画面最终成为一片均匀的灰色点阵
+    13.6- 15.0   全灰点阵，涟漪继续从红点原本的位置发出（那里现在也是灰点）
 
-性能：4K/60fps 下每帧 33 MB，若落 PNG 会写出几十 GB。所以本脚本**直接管道**把
-      原始画面喂给 ffmpeg（rawvideo），不产生中间文件；红光晕在 1/4 分辨率上做模糊再放大。
+性能：4K/60fps 下每帧 33MB，若落 PNG 会写出几十 GB。所以本脚本**直接管道**把
+      原始画面喂给 ffmpeg（rawvideo），不产生中间文件；红光晕/冲击波环在 1/4
+      分辨率上绘制并模糊再放大。
 
 用法：
     python render_promo.py                       # 默认 4K 60fps
@@ -48,14 +52,24 @@ GLYPHS = {
 GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 
 # ── 时间轴（秒）──
-DURATION = 12.0
-T_GRID = (0.5, 3.2)      # 灰点阵涟漪淡入
-T_LIGHT = (3.0, 5.2)     # Lm 点亮
-T_FLASH = (5.2, 6.6)     # 红点闪光
-T_MORPH = (6.6, 10.2)    # 拉开 + 补全
-RIPPLE_PERIOD = 1.7      # 涟漪周期（秒）
-RIPPLE_WAVELEN = 3.0     # 涟漪波长（格）
-GLOW_DIV = 4             # 光晕按 1/N 分辨率计算
+DURATION = 16.0
+T_GRID = (0.5, 3.2)          # 灰点阵涟漪淡入
+T_LIGHT = (3.0, 5.2)         # Lm 点亮
+T_FLASH = (5.2, 6.6)         # 红点首次闪光
+T_MORPH = (6.6, 10.2)        # 拉开 + 补全
+T_HOLD = 11.2                # 成形保持到此刻
+T_SHOCK = (11.2, 14.0)       # 冲击波扫过（全画面转灰）
+SHOCK_FLASH = 0.30           # 冲击波起步时红点再闪一下的时长
+SHOCK_RING_LIFE = 1.20       # 可见冲击波环的存续时间
+SHOCK_SOFT = 1.50            # 单点褪色过渡宽度（格）
+
+RIPPLE_PERIOD = 1.7          # 涟漪周期（秒）
+RIPPLE_WAVELEN = 3.0         # 涟漪波长（格）
+GLOW_DIV = 4                 # 光晕/环按 1/N 分辨率计算
+
+WHITE = (255, 255, 255)
+GRAY = (150, 150, 150)       # 褪色后的点颜色
+GRID_STEADY = 0.22           # 褪色后点阵的稳定亮度（0..1）
 
 
 def clamp01(v):
@@ -71,7 +85,6 @@ def ease_out(a):
 
 
 def span(t, rng):
-    """把时间 t 映射到阶段 rng 的 0..1 进度。"""
     return clamp01((t - rng[0]) / max(rng[1] - rng[0], 1e-6))
 
 
@@ -91,13 +104,14 @@ def build_layout():
     return blocks, cursor - GAP
 
 
-def main(out_path, width, height, fps, keep_frames=False):
+def main(out_path, width, height, fps):
     blocks, total_cols = build_layout()
     l_block = blocks[0]
     m_block = next(b for b in blocks if b['ch'] == 'm')
     INIT_COL = {id(l_block): 0, id(m_block): 6}
     src_row, src_col_off = 2, 4          # 红点：m 块内字形 m 的右上角
     max_d = math.hypot(total_cols, CELL_ROWS)
+    shock_span = max_d + 2.0             # 冲击波要扫过的最大距离（格）
 
     total_frames = int(round(DURATION * fps))
     print("帧数 %d（%.1fs @ %dfps，%dx%d）" % (total_frames, DURATION, fps, width, height))
@@ -120,7 +134,6 @@ def main(out_path, width, height, fps, keep_frames=False):
     try:
         for fi in range(total_frames):
             t = fi / float(fps)
-            v = clamp01(t / DURATION)
 
             grid_a = span(t, T_GRID)
             light = span(t, T_LIGHT)
@@ -130,6 +143,13 @@ def main(out_path, width, height, fps, keep_frames=False):
             ease = smoothstep(morph)
             eo = ease_out(ease)
             pulse = max(0.0, math.sin(flash * math.pi))
+
+            # 冲击波：front 是"已扫过的距离"（格）
+            shock_p = span(t, T_SHOCK)
+            shock_front = shock_p * shock_span
+            ring_a = clamp01(1.0 - (t - T_SHOCK[0]) / SHOCK_RING_LIFE) if t >= T_SHOCK[0] else 0.0
+            flash2 = clamp01((t - T_HOLD) / SHOCK_FLASH) if t >= T_HOLD else 0.0
+            flash2 = math.sin(flash2 * math.pi) if 0.0 < flash2 < 1.0 else 0.0
 
             active_cols = 11 + (total_cols - 11) * ease
             cell = min(width / (active_cols + 3.0), height / 6.5)
@@ -156,6 +176,30 @@ def main(out_path, width, height, fps, keep_frames=False):
 
             cur_src_x = block_col(m_block) + src_col_off
 
+            # 单点褪色比例：0=原样，1=已成灰点
+            def convert_at(cx, cy):
+                dist = math.hypot(cx - cur_src_x, cy - src_row)
+                return clamp01((shock_front - dist) / SHOCK_SOFT)
+
+            # 冲击波把**整屏**铺成点阵（用与字母一致的格距，所以字母块内的点不会错位重复）
+            if shock_p > 0:
+                c0 = int(math.floor((0 - ox) / cell)) - 1
+                c1 = int(math.ceil((width - ox) / cell)) + 1
+                r0 = int(math.floor((0 - oy) / cell)) - 1
+                r1 = int(math.ceil((height - oy) / cell)) + 1
+                scx = ox + (cur_src_x + 0.5) * cell
+                scy = oy + (src_row + 0.5) * cell
+                for rr_ in range(r0, r1 + 1):
+                    for cc_ in range(c0, c1 + 1):
+                        cx_ = ox + (cc_ + 0.5) * cell
+                        cy_ = oy + (rr_ + 0.5) * cell
+                        dpx = math.hypot(cx_ - scx, cy_ - scy)
+                        conv = clamp01((shock_front * cell - dpx) / (SHOCK_SOFT * cell))
+                        if conv <= 0.01:
+                            continue
+                        wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dpx / (RIPPLE_WAVELEN * cell)))
+                        shade = int(255 * clamp01(GRID_STEADY * (0.72 + 0.48 * wave) * conv))
+                        circle(d, (cx_, cy_), dot_r * 0.9, (shade, shade, shade))
             for b in blocks:
                 bc = block_col(b)
                 is_old = id(b) in INIT_COL
@@ -171,6 +215,7 @@ def main(out_path, width, height, fps, keep_frames=False):
                 for r in range(CELL_ROWS):
                     for c in range(b['width']):
                         gx = bc + c
+                        conv = convert_at(gx, r)
                         dist = math.hypot(gx - cur_src_x, r - src_row)
                         front = clamp01((t - T_GRID[0] - (dist / max_d) * 1.60) / 0.90)
                         if front <= 0.01:
@@ -178,10 +223,12 @@ def main(out_path, width, height, fps, keep_frames=False):
                         wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dist / RIPPLE_WAVELEN))
                         base = 0.15 + 0.28 * wave
                         base *= 1.0 - 0.30 * ease
+                        # 冲击波扫过之后，点阵稳定在一个较亮的灰（整屏成为均匀灰点阵）
+                        base = base * (1.0 - conv) + GRID_STEADY * (0.75 + 0.45 * wave) * conv
                         shade = int(255 * clamp01(front * base * appear))
                         circle(d, px(gx, r), dot_r, (shade, shade, shade))
 
-                # ② 块内白色字形
+                # ② 块内白色字形（被冲击波扫过后褪成灰点）
                 for r, line in b['rows'].items():
                     for c, chv in enumerate(line):
                         if chv != 'X':
@@ -189,31 +236,54 @@ def main(out_path, width, height, fps, keep_frames=False):
                         a = light if is_old else appear
                         if a <= 0.01:
                             continue
+                        gx = bc + c
+                        conv = convert_at(gx, r)
                         grow = 1.0 + 0.3 * (1.0 - a)
-                        if b is m_block and r == src_row and c == src_col_off:
-                            if flash > 0 or settled > 0:
-                                circle(g, px(bc + c, r), dot_r * (3.0 + 2.6 * pulse),
+                        is_red = (b is m_block and r == src_row and c == src_col_off)
+                        if is_red:
+                            # 红点：首次闪光 -> 被冲击波扫过时变灰
+                            alive = 1.0 - conv
+                            if (flash > 0 or settled > 0) and alive > 0.02:
+                                circle(g, px(gx, r), dot_r * (3.0 + 2.6 * pulse),
                                        (255, 59, 48, int(110 * pulse)), scale)
-                                circle(d, px(bc + c, r), dot_r * (1.0 + 0.7 * pulse), (255, 59, 48))
+                                circle(d, px(gx, r), dot_r * (1.0 + 0.7 * pulse), (255, 59, 48))
+                            elif flash2 > 0 and alive > 0.02:
+                                # 冲击波起步：再闪一下
+                                circle(g, px(gx, r), dot_r * (3.2 + 3.0 * flash2),
+                                       (255, 59, 48, int(150 * flash2)), scale)
+                                circle(d, px(gx, r), dot_r * (1.0 + 1.0 * flash2), (255, 59, 48))
                             else:
-                                shade = int(255 * a)
-                                circle(d, px(bc + c, r), dot_r * grow, (shade, shade, shade))
+                                col = tuple(int(RED_C * (1 - conv) + GRAY_C * conv)
+                                            for RED_C, GRAY_C in zip((255, 59, 48), GRAY))
+                                radius = dot_r * ((1.0 + 0.7 * max(pulse, settled)) * (1 - conv) + 1.0 * conv)
+                                circle(d, px(gx, r), radius, col)
                         else:
-                            shade = int(255 * a)
-                            circle(d, px(bc + c, r), dot_r * grow, (shade, shade, shade))
+                            conv = convert_at(gx, r)
+                            col = tuple(int(255 * (1 - conv) + GRAY_C * conv) for GRAY_C in GRAY)
+                            radius = dot_r * (grow * (1 - conv) + 1.0 * conv)
+                            circle(d, px(gx, r), radius, col)
 
-            # 红点持续微光（涟漪源头）
+            # 冲击波可见圆环（1/4 分辨率绘制 + 模糊）
+            if ring_a > 0.01 and t >= T_SHOCK[0]:
+                rr = shock_front * cell * scale
+                cx, cy = px(cur_src_x, src_row)
+                cx, cy = cx * scale, cy * scale
+                w = max(1.0, cell * 0.55 * scale)
+                g.ellipse([cx - rr, cy - rr, cx + rr, cy + rr],
+                          outline=(255, 255, 255, int(210 * ring_a)), width=int(w))
+
+            # 红点位置的持续涟漪微光（冲击波之后依然从这发出，只是点本身已经是灰的）
             if settled > 0:
                 breathe = 0.5 + 0.5 * math.sin(2 * math.pi * t / RIPPLE_PERIOD)
                 circle(g, px(cur_src_x, src_row), dot_r * (2.2 + 0.9 * breathe),
-                       (255, 59, 48, int(65 * breathe)), scale)
+                       (255, 59, 48, int((65 * (1.0 - clamp01(shock_p)) ) * breathe)), scale)
 
             glow = glow.filter(ImageFilter.GaussianBlur(radius=max(1.0, cell * 0.4 * scale)))
             glow = glow.resize((width, height), Image.BILINEAR)
             img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
 
             proc.stdin.write(img.tobytes())
-            if fi % 30 == 0:
+            if fi % 60 == 0:
                 print("  帧 %d/%d" % (fi, total_frames), flush=True)
     finally:
         proc.stdin.close()
