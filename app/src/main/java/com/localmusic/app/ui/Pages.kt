@@ -378,7 +378,7 @@ private val SETTINGS_CARD_OF_WHEEL = mapOf(
  * 红点作为**品牌标记**画在 App 内（设置页「关于」卡）。
  */
 @Composable
-private fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accent: Boolean = true) {
+internal fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accent: Boolean = true) {
     val onSurface = MiuixTheme.colorScheme.onSurface
     val rows = DOT_MARK_ROWS
     androidx.compose.foundation.Canvas(modifier) {
@@ -406,15 +406,20 @@ private fun DotMatrixMark(modifier: Modifier = Modifier, cell: Dp = 4.dp, accent
     }
 }
 
-/** 图标用的点阵字形（方案 A：7 格大写 L + 5 格小写 m，底部对齐）。 */
-private val DOT_MARK_ROWS = listOf(
+/**
+ * 图标用的点阵字形（方案 A：7 格大写 L + 5 格小写 m）。
+ *
+ * ⚠️ 基线必须齐：L 的横（第 6 行）和 m 的最后一排竖（第 6 行）要落在**同一行**上。
+ * 之前手写这份表时把 m 放在第 1~4 行，底部比 L 高两行，看上去像"m 飘在半空"。
+ */
+internal val DOT_MARK_ROWS = listOf(
+    "X..........",
+    "X..........",
     "X..........",
     "X....X.X.X.",
     "X....XXXXX.",
     "X....X.X.X.",
-    "X....X.X.X.",
-    "X..........",
-    "XXXXX......",
+    "XXXXX.X.X.X",
 )
 
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
@@ -445,6 +450,7 @@ fun SettingsPage(
     onScrapeNow: () -> Unit = {},
     onRestoreCovers: () -> Unit = {},
     onClearScrapedCovers: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     neteaseSource: Boolean = true,
     onNeteaseSource: (Boolean) -> Unit = {},
     tintState: WheelTintState = WheelTintState(),
@@ -655,111 +661,27 @@ fun SettingsPage(
             }
         }
         item {
+            // 「关于」在设置里只留一个入口，点进去是独立页面（见 PlayerOverlay.kt 的 AboutPage）——
+            // 之前把 logo/版本/动作行/分组/二维码全平铺在这里，设置页被撑得很长。
             LiquidCard {
-                // 这里要显式取 ctx：liquid-miuix 里也有个叫 context 的 Composable 作用域函数，
-                // 直接用 context 会解析到它身上（编译报 Function invocation 'context(...)' expected）。
-                val ctx = LocalContext.current
-                val scope = rememberCoroutineScope()
-                val version = remember {
-                    runCatching {
-                        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
-                    }.getOrNull().orEmpty()
-                }
-                // ── 照 Lawnchair 关于页的排布：顶部居中 logo + 名称 + 版本 ──
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    DotMatrixMark(Modifier.size(168.dp, 108.dp), cell = 13.4.dp)
-                    Spacer(Modifier.height(2.dp))
-                    Text("local music", style = MiuixTheme.textStyles.title3)
-                    Text(
-                        "v$version · 本地优先的 HiFi 播放器",
-                        style = MiuixTheme.textStyles.body2,
-                        color = scheme.onSurfaceVariantSummary,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                // ── 动作行：源码 / 检查更新 / 项目说明 / 捐赠 ──
-                var showDonate by remember { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    AboutAction(Icons.Rounded.Code, "源码", scheme.onSurface) { openUrl(ctx, REPO_URL) }
-                    AboutAction(Icons.Rounded.SystemUpdate, "检查更新", scheme.onSurface) {
-                        scope.launch { com.localmusic.app.data.UpdateChecker.check(ctx, silent = false) }
-                    }
-                    AboutAction(Icons.Rounded.Description, "项目说明", scheme.onSurface) { openUrl(ctx, "$REPO_URL#readme") }
-                    // 捐赠别用爱心：爱心在本 App 里已经是「喜欢」的意思，会混淆
-                    AboutAction(Icons.Rounded.VolunteerActivism, "捐赠", scheme.onSurface) { showDonate = !showDonate }
-                }
-                if (showDonate) {
-                    Spacer(Modifier.height(10.dp))
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("支付宝扫码捐赠", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
-                        Spacer(Modifier.height(8.dp))
-                        Image(
-                            painter = painterResource(R.drawable.donate_alipay),
-                            contentDescription = "支付宝捐赠二维码",
-                            modifier = Modifier.fillMaxWidth(0.66f).clip(RoundedCornerShape(14.dp)),
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text("打开支付宝「扫一扫」", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                // ── 分组：产品（本项目用到的三个上游）──
-                Text("产品", style = MiuixTheme.textStyles.title4)
                 LiquidListItem(
-                    title = "播放内核 AURALIS",
-                    subtitle = "Rueded/AURALIS · GPLv3 · 位完美输出、USB 直通",
-                    leading = Icons.Rounded.GraphicEq,
-                    onClick = { openUrl(ctx, AURALIS_URL) },
-                    showDivider = true,
-                )
-                LiquidListItem(
-                    title = "液态玻璃前端",
-                    subtitle = "chengxixian/liquid-miuix · Compose 玻璃折射",
-                    leading = Icons.Rounded.Layers,
-                    onClick = { openUrl(ctx, LIQUID_URL) },
-                    showDivider = true,
-                )
-                LiquidListItem(
-                    title = "ncm 解码",
-                    subtitle = "taurusxin/ncmdump · .ncm 转 FLAC",
-                    leading = Icons.Rounded.CloudDownload,
-                    onClick = { openUrl(ctx, NCM_URL) },
-                )
-                // ── 分组：社区 ──
-                Text("社区", style = MiuixTheme.textStyles.title4)
-                LiquidListItem(
-                    title = "GitHub 仓库",
-                    subtitle = "chengxixian/local-music",
-                    leading = Icons.Rounded.Code,
-                    onClick = { openUrl(ctx, REPO_URL) },
-                    showDivider = true,
-                )
-                LiquidListItem(
-                    title = "版本发布与更新日志",
-                    subtitle = "所有版本、APK 与说明",
-                    leading = Icons.Rounded.NewReleases,
-                    onClick = { openUrl(ctx, "$REPO_URL/releases") },
-                )
-                // ── 分组：法律信息 ──
-                Text("法律信息", style = MiuixTheme.textStyles.title4)
-                LiquidListItem(
-                    title = "GNU GPL v3.0",
-                    subtitle = "本项目以 GPLv3 开源；上游内核同为 GPLv3",
-                    leading = Icons.Rounded.Gavel,
-                    onClick = { openUrl(ctx, "$REPO_URL/blob/main/LICENSE") },
+                    title = "关于 local music",
+                    subtitle = "版本、开源许可、上游项目与捐赠",
+                    leading = Icons.Rounded.Info,
+                    onClick = onOpenAbout,
                 )
             }
         }
     }
 }
 
-private const val REPO_URL = "https://github.com/chengxixian/local-music"
-private const val AURALIS_URL = "https://github.com/Rueded/AURALIS"
-private const val LIQUID_URL = "https://github.com/chengxixian/liquid-miuix"
-private const val NCM_URL = "https://github.com/taurusxin/ncmdump"
+internal const val REPO_URL = "https://github.com/chengxixian/local-music"
+internal const val AURALIS_URL = "https://github.com/Rueded/AURALIS"
+internal const val LIQUID_URL = "https://github.com/chengxixian/liquid-miuix"
+internal const val NCM_URL = "https://github.com/taurusxin/ncmdump"
 
 /** 用外部浏览器打开链接（失败就静默，不弹崩溃）。 */
-private fun openUrl(context: android.content.Context, url: String) {
+internal fun openUrl(context: android.content.Context, url: String) {
     runCatching {
         context.startActivity(
             android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
@@ -770,7 +692,7 @@ private fun openUrl(context: android.content.Context, url: String) {
 
 /** 关于页的动作按钮：图标 + 文字，竖排，点击有涟漪。 */
 @Composable
-private fun AboutAction(
+internal fun AboutAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color,
@@ -786,5 +708,144 @@ private fun AboutAction(
         Icon(icon, contentDescription = label, tint = tint)
         Spacer(Modifier.height(4.dp))
         Text(label, style = MiuixTheme.textStyles.body2, color = tint)
+    }
+}
+
+/**
+ * **关于页**：设置里只留一个入口，点进来是这个独立页面（照 Lawnchair 关于页的排布）。
+ *
+ * 为什么独立成页：logo + 版本 + 动作行 + 三组清单全平铺在设置页里，会把设置撑得很长。
+ * 捐赠也不再平铺二维码 —— 点「捐赠」才弹出，避免页面上一直挂着一张收款码。
+ */
+@Composable
+fun AboutPage(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scheme = MiuixTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull().orEmpty()
+    }
+    var showDonate by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                LiquidCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "返回") }
+                        Spacer(Modifier.width(4.dp))
+                        Text("关于", style = MiuixTheme.textStyles.title3)
+                    }
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        DotMatrixMark(Modifier.size(168.dp, 108.dp), cell = 13.4.dp)
+                        Spacer(Modifier.height(2.dp))
+                        Text("local music", style = MiuixTheme.textStyles.title3)
+                        Text(
+                            "v$version · 本地优先的 HiFi 播放器",
+                            style = MiuixTheme.textStyles.body2,
+                            color = scheme.onSurfaceVariantSummary,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        AboutAction(Icons.Rounded.Code, "源码", scheme.onSurface) { openUrl(context, REPO_URL) }
+                        AboutAction(Icons.Rounded.SystemUpdate, "检查更新", scheme.onSurface) {
+                            scope.launch { com.localmusic.app.data.UpdateChecker.check(context, silent = false) }
+                        }
+                        AboutAction(Icons.Rounded.Description, "项目说明", scheme.onSurface) { openUrl(context, "$REPO_URL#readme") }
+                        // 捐赠用「手托爱心」，不用爱心本身（爱心在本 App 里是「喜欢」的意思）
+                        AboutAction(Icons.Rounded.VolunteerActivism, "捐赠", scheme.onSurface) { showDonate = true }
+                    }
+                }
+            }
+            item {
+                LiquidCard {
+                    Text("产品", style = MiuixTheme.textStyles.title4)
+                    LiquidListItem(
+                        title = "播放内核 AURALIS",
+                        subtitle = "Rueded/AURALIS · GPLv3 · 位完美输出、USB 直通",
+                        leading = Icons.Rounded.GraphicEq,
+                        onClick = { openUrl(context, AURALIS_URL) },
+                        showDivider = true,
+                    )
+                    LiquidListItem(
+                        title = "液态玻璃前端",
+                        subtitle = "chengxixian/liquid-miuix · Compose 玻璃折射",
+                        leading = Icons.Rounded.Layers,
+                        onClick = { openUrl(context, LIQUID_URL) },
+                        showDivider = true,
+                    )
+                    LiquidListItem(
+                        title = "ncm 解码",
+                        subtitle = "taurusxin/ncmdump · .ncm 转 FLAC",
+                        leading = Icons.Rounded.CloudDownload,
+                        onClick = { openUrl(context, NCM_URL) },
+                    )
+                }
+            }
+            item {
+                LiquidCard {
+                    Text("社区", style = MiuixTheme.textStyles.title4)
+                    LiquidListItem(
+                        title = "GitHub 仓库",
+                        subtitle = "chengxixian/local-music",
+                        leading = Icons.Rounded.Code,
+                        onClick = { openUrl(context, REPO_URL) },
+                        showDivider = true,
+                    )
+                    LiquidListItem(
+                        title = "版本发布与更新日志",
+                        subtitle = "所有版本、APK 与说明",
+                        leading = Icons.Rounded.NewReleases,
+                        onClick = { openUrl(context, "$REPO_URL/releases") },
+                    )
+                }
+            }
+            item {
+                LiquidCard {
+                    Text("法律信息", style = MiuixTheme.textStyles.title4)
+                    LiquidListItem(
+                        title = "GNU GPL v3.0",
+                        subtitle = "本项目以 GPLv3 开源；上游内核同为 GPLv3",
+                        leading = Icons.Rounded.Gavel,
+                        onClick = { openUrl(context, "$REPO_URL/blob/main/LICENSE") },
+                    )
+                }
+            }
+        }
+
+        // 捐赠：点一下才弹出（点背景关闭），不再一直挂在页面上
+        if (showDonate) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable { showDonate = false },
+                contentAlignment = Alignment.Center,
+            ) {
+                LiquidCard {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("捐赠支持", style = MiuixTheme.textStyles.title4)
+                        Spacer(Modifier.height(6.dp))
+                        Text("支付宝扫码，感谢支持", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Spacer(Modifier.height(10.dp))
+                        Image(
+                            painter = painterResource(R.drawable.donate_alipay),
+                            contentDescription = "支付宝捐赠二维码",
+                            modifier = Modifier.fillMaxWidth(0.72f).clip(RoundedCornerShape(14.dp)),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text("打开支付宝「扫一扫」", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Spacer(Modifier.height(10.dp))
+                        TextButton(onClick = { showDonate = false }) { Text("关闭") }
+                    }
+                }
+            }
+        }
     }
 }
