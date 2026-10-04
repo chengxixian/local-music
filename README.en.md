@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="docs/banner.png" width="100%" alt="local music — a local-first Android HiFi player">
 </p>
 
@@ -103,7 +103,7 @@ NOTICE          License boundaries: code is GPL-3.0, brand assets are All Rights
   material and no DAC to test with. The app can *probe* whether a connected DAC advertises
   bit-perfect DSD (`AudioFormat.ENCODING_DSD` + `MIXER_BEHAVIOR_BIT_PERFECT`) and reports the
   result honestly in the playback diagnostics (logcat tag `LMDsd`).
-- **The UI is currently Chinese only.** Strings are hardcoded in Compose, so adding locales
+- **Localization covers four languages** (English, Simplified Chinese, Japanese, Russian): every user-facing string lives in `res/values*/strings.xml`, and the language can be changed in Settings (glass dialog) or via the Android 13+ per-app language setting. Diagnostic and log strings in the data layer are still Chinese.
   means extracting them into `strings.xml` first.
 - NetEase scraping uses undocumented endpoints: it may be rate-limited, region-dependent, and
   serves copyrighted content — personal local use only.

@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="docs/banner.png" width="100%" alt="local music — 本地优先的 Android HiFi 播放器">
 </p>
 
@@ -63,6 +63,7 @@
 
 - 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
 - 许可 **GPL-3.0**（因为播放内核移植自 GPLv3 的 AURALIS）
+- **多语言**：界面文案全部走资源文件，支持 **English / 简体中文 / 日本語 / Русский** 四种语言（未翻译的键回落英文）；设置页「语言 / Language」用液态玻璃弹窗切换，也支持 Android 13+ 的按应用语言。数据层的诊断/日志文案仍是中文。
 - **品牌标识保留所有权利**：`docs/` 下的图标与横幅、`app/src/main/res/` 里的应用图标（`mipmap-*`、`drawable-nodpi/ic_launcher_foreground.png`）与应用内的点阵 `Lm` 标记是本项目**自主设计的标识**，**不属于 GPL 授权范围**。欢迎 fork 代码，但请不要使用同款图标与横幅。详见 [**NOTICE**](NOTICE)。© 2026 chengxixian
 
 ### 功能一览

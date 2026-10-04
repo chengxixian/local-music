@@ -1,6 +1,6 @@
 {
-  "version": "0.5.3",
-  "notes": "本次更新（0.5.3）：\n· 新增 USB DAC 的 DSD 直通能力探测：插上 DAC 后按 MIXER_BEHAVIOR_BIT_PERFECT + AudioFormat.ENCODING_DSD 查询设备能力，播放页诊断行如实报告「可请求原生 DSD 直通 / 只有 DSD 编码 / 未上报」（同时写入 logcat 标签 LMDsd）\n· 修正 App 内点阵标记的红点一直不显示的问题（判定行号写错，条件永不成立）\n· 首页与横幅重做（README 排版模仿 miuix：横幅满屏、居中标语、徽章行、截图三栏）\n\n0.5.2 内容：\n· 支持 DSD 播放（.dsf/.dff）：自研 DSD→PCM 抽取（两级 4:1 箱式平均 → 176.4kHz/24bit），结果缓存，转好的 PCM 继续走 USB bit-perfect\n· 修正 DSD 转码后按 PCM 规格申请 USB 直通（之前拿 2822400Hz/1bit 必被拒）\n· 输出优先指定 USB DAC；蓝牙有损，高解析必须走 USB\n\n0.5.0 内容：\n· 新增「乐单」：dock 第二栏，两列卡片，新建 / 重命名 / 换封面 / 删除；未自选封面时用第一首歌的封面\n· 曲库与喜欢卡片左上角新增「加入乐单」；乐单详情为独立页面（玻璃工具栏 + ⋮ 操作）",
-  "apkUrl": "https://github.com/chengxixian/local-music/releases/download/v0.5.3/local-music-v0.5.3-debug.apk",
+  "version": "0.6.0",
+  "notes": "本次更新（0.6.0）：\n· 多语言支持：English / 简体中文 / 日本語 / Русский 四种语言，全部界面文案（约 192 条）都已资源化\n· 设置页新增「语言 / Language」：点击弹出**液态玻璃选择面板**（跟随系统 / English / 简体中文 / 日本語 / Русский），当前项打勾；也支持 Android 13+ 的按应用语言设置\n· 英文为默认资源：未翻译的语言自动回落英文\n· 弹窗打开时收起滚轮（语言面板、乐单操作面板）\n\n0.5.3 内容：\n· USB DAC 的 DSD 直通能力探测（按 MIXER_BEHAVIOR_BIT_PERFECT + AudioFormat.ENCODING_DSD 查询，播放页诊断行如实报告）\n· 修正 App 内点阵标记红点一直不显示的问题；首页与横幅重做\n\n0.5.2 内容：\n· 支持 DSD 播放（.dsf/.dff）：自研 DSD→PCM 抽取（两级 4:1 箱式平均 → 176.4kHz/24bit），结果缓存，转好的 PCM 继续走 USB bit-perfect\n· 修正 DSD 转码后按 PCM 规格申请 USB 直通；输出优先指定 USB DAC",
+  "apkUrl": "https://github.com/chengxixian/local-music/releases/download/v0.6.0/local-music-v0.6.0-debug.apk",
   "size": 81158144
 }

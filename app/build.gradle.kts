@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
@@ -9,8 +9,8 @@ android {
         applicationId = "com.localmusic.app"
         minSdk = 33
         targetSdk = 36
-        versionCode = 53
-        versionName = "0.5.3"
+        versionCode = 60
+        versionName = "0.6.0"
     }
     buildFeatures { compose = true }
     compileOptions {
