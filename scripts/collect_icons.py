@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 图标整理脚本：把工程里所有图标收集到一个目录，并生成一张带尺寸标注的总览图。
@@ -12,7 +12,7 @@
     <out>/ICONS.md                    清单（路径 / 尺寸 / 用途）
 
 用法：
-    python collect_icons.py --root "D:\\dsh work region\\local-music" --out "D:\\dsh work region\\icons"
+    python collect_icons.py --root "D:\\dsh work region\\local-music" --out "D:\\dsh work region\\icon"
 """
 
 import argparse
