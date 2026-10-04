@@ -98,4 +98,16 @@
     <string name="queue_move_up">上移</string>
     <string name="queue_move_down">下移</string>
     <string name="queue_remove">从列表移除</string>
+    <string name="eq_collapse">收起</string>
+    <string name="eq_enable">启用</string>
+    <string name="eq_scope">系统 audiofx 效果器，挂当前播放会话</string>
+    <string name="eq_unavailable">这台设备没有可用的系统均衡器</string>
+    <string name="eq_bypassed_note">USB 直通开启中：系统混音被旁路，均衡器此刻不生效</string>
+    <string name="eq_bass">低音增强 %1$s%%</string>
+    <string name="eq_loudness">响度增强 %1$s dB</string>
+    <string name="export_pick_title">选择 FLAC 导出位置</string>
+    <string name="export_pick_action">新建 / 选择文件夹</string>
+    <string name="update_found">发现新版本 %1$s</string>
+    <string name="update_later">以后再说</string>
+    <string name="update_download_install">下载并安装</string>
 </resources>

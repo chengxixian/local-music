@@ -1,6 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import com.localmusic.app.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -49,7 +51,7 @@ fun ExportFolderPrompt(
             ) {
                 Icon(Icons.Rounded.CreateNewFolder, null, Modifier.size(40.dp), tint = scheme.primary)
                 Spacer(Modifier.height(LiquidSpacing.item))
-                Text("选择 FLAC 导出位置", style = MiuixTheme.textStyles.title2, color = scheme.onSurface, textAlign = TextAlign.Center)
+                Text(stringResource(R.string.export_pick_title), style = MiuixTheme.textStyles.title2, color = scheme.onSurface, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(LiquidSpacing.inline))
                 Text(
                     "网易云下载的 ncm 会转成 FLAC。请新建一个文件夹给它存放：\n" +
@@ -62,9 +64,9 @@ fun ExportFolderPrompt(
                 )
                 Spacer(Modifier.height(LiquidSpacing.page))
                 Button(onClick = onPick, modifier = Modifier.fillMaxWidth()) {
-                    Text("新建 / 选择文件夹")
+                    Text(stringResource(R.string.export_pick_action))
                 }
-                TextButton(onClick = onDismiss) { Text("以后再说") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.update_later)) }
             }
         }
     }

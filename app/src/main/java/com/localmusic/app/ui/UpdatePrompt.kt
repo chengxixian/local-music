@@ -1,6 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import com.localmusic.app.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudDownload
@@ -51,7 +53,7 @@ fun UpdatePrompt(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.SystemUpdate, null, tint = scheme.primary, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(LiquidSpacing.inline))
-                Text("发现新版本 ${update.tag}", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.update_found, update.tag), style = MiuixTheme.textStyles.title4)
             }
             Spacer(Modifier.height(LiquidSpacing.tight))
             Text(
@@ -94,12 +96,12 @@ fun UpdatePrompt(
                         modifier = Modifier.weight(1f),
                     )
                 } else {
-                    TextButton(onClick = onDismiss) { Text("以后再说") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.update_later)) }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onUpdate) {
                         Icon(Icons.Rounded.CloudDownload, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("下载并安装")
+                        Text(stringResource(R.string.update_download_install))
                     }
                 }
             }

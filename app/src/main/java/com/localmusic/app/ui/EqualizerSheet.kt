@@ -1,6 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import com.localmusic.app.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -62,13 +64,13 @@ fun EqualizerSheet(
                     Icon(Icons.Rounded.GraphicEq, null, Modifier.size(22.dp), tint = scheme.primary)
                     Spacer(Modifier.width(LiquidSpacing.inline))
                     Text("均衡器", style = MiuixTheme.textStyles.title2, color = scheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, "收起") }
+                    IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.eq_collapse)) }
                 }
 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("启用", style = MiuixTheme.textStyles.title4)
-                        Text("系统 audiofx 效果器，挂当前播放会话", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                        Text(stringResource(R.string.eq_enable), style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.eq_scope), style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = eq.enabled, onCheckedChange = onEnabled, enabled = eq.available)
                 }
@@ -82,7 +84,7 @@ fun EqualizerSheet(
                     ) {
                         Icon(Icons.Rounded.WarningAmber, null, Modifier.size(18.dp), tint = scheme.error)
                         Spacer(Modifier.width(LiquidSpacing.inline))
-                        Text(eq.message.ifBlank { "这台设备没有可用的系统均衡器" }, style = MiuixTheme.textStyles.footnote1, color = scheme.error)
+                        Text(eq.message.ifBlank { stringResource(R.string.eq_unavailable) }, style = MiuixTheme.textStyles.footnote1, color = scheme.error)
                     }
                 }
                 if (eq.bypassed) {
@@ -94,7 +96,7 @@ fun EqualizerSheet(
                     ) {
                         Icon(Icons.Rounded.Headphones, null, Modifier.size(18.dp), tint = scheme.primary)
                         Spacer(Modifier.width(LiquidSpacing.inline))
-                        Text("USB 直通开启中：系统混音被旁路，均衡器此刻不生效", style = MiuixTheme.textStyles.footnote1, color = scheme.primary)
+                        Text(stringResource(R.string.eq_bypassed_note), style = MiuixTheme.textStyles.footnote1, color = scheme.primary)
                     }
                 }
 
@@ -129,12 +131,12 @@ fun EqualizerSheet(
                             )
                         }
                         if (eq.bassSupported) {
-                            Text("低音增强 ${"%.0f".format(eq.bassStrength / 10f)}%", style = MiuixTheme.textStyles.body2)
+                            Text(stringResource(R.string.eq_bass, "%.0f".format(eq.bassStrength / 10f)), style = MiuixTheme.textStyles.body2)
                             Slider(value = eq.bassStrength.toFloat(), valueRange = 0f..1000f,
                                 onValueChange = { onBass(it.toInt()) }, enabled = eq.enabled)
                         }
                         if (eq.loudnessSupported) {
-                            Text("响度增强 ${"%.1f".format(eq.loudnessGainMb / 100f)} dB", style = MiuixTheme.textStyles.body2)
+                            Text(stringResource(R.string.eq_loudness, "%.1f".format(eq.loudnessGainMb / 100f)), style = MiuixTheme.textStyles.body2)
                             Slider(value = eq.loudnessGainMb.toFloat(), valueRange = 0f..1500f,
                                 onValueChange = { onLoudness(it.toInt()) }, enabled = eq.enabled)
                         }

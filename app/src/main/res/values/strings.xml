@@ -93,4 +93,16 @@
     <string name="queue_move_up">Move up</string>
     <string name="queue_move_down">Move down</string>
     <string name="queue_remove">Remove from queue</string>
+    <string name="eq_collapse">Collapse</string>
+    <string name="eq_enable">Enable</string>
+    <string name="eq_scope">System audiofx effects, attached to the current playback session</string>
+    <string name="eq_unavailable">No system equalizer available on this device</string>
+    <string name="eq_bypassed_note">USB passthrough is on: the system mixer is bypassed, so the equalizer has no effect right now</string>
+    <string name="eq_bass">Bass boost %1$s%%</string>
+    <string name="eq_loudness">Loudness %1$s dB</string>
+    <string name="export_pick_title">Choose where to export FLAC</string>
+    <string name="export_pick_action">New / choose folder</string>
+    <string name="update_found">New version %1$s available</string>
+    <string name="update_later">Later</string>
+    <string name="update_download_install">Download and install</string>
 </resources>
