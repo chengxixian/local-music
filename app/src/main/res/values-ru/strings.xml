@@ -200,4 +200,12 @@
     <string name="settings_lang_tap"> · нажмите для смены</string>
     <string name="about_tagline_versioned">v%1$s · HiFi-плеер для локальных файлов</string>
     <string name="export_pick_body">Файлы ncm преобразуются в FLAC. Создайте папку для них:\n· файлы остаются в вашей папке и видны в файловом менеджере\n· удаление приложения их не удалит\n· если пропустить, они останутся только во внутренней папке и пропадут при удалении</string>
+    <string name="pl_empty_hint">Нажмите «Новый плейлист» выше или добавьте песни кнопкой в левом верхнем углу карточки.</string>
+    <string name="pl_back_about">Назад</string>
+    <string name="toast_cleared_scraped2">Удалено обложек: %1$d, собираю заново по исправленной логике…</string>
+    <string name="player_error_banner">Плеер: %1$s</string>
+    <string name="lib_empty">Песен пока нет</string>
+    <string name="lib_empty_hint">После выдачи разрешения память сканируется автоматически; папку ncm можно разрешить в настройках</string>
+    <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
+    <string name="update_found_long">Доступна новая версия %1$s (текущая %2$s)</string>
 </resources>

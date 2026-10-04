@@ -200,4 +200,12 @@
     <string name="settings_lang_tap"> · タップで切替</string>
     <string name="about_tagline_versioned">v%1$s · ローカル優先の HiFi プレーヤー</string>
     <string name="export_pick_body">NetEase の ncm は FLAC に変換されます。保存先フォルダを作成してください：\n· ファイルは自分のフォルダに残り、ファイルマネージャーで見えます\n· このアプリを削除しても消えません\n· 選ばない場合はアプリ専用領域のみ（削除で消えます）</string>
+    <string name="pl_empty_hint">上の「新しいプレイリスト」をタップするか、ライブラリのカード左上のボタンから追加できます。</string>
+    <string name="pl_back_about">戻る</string>
+    <string name="toast_cleared_scraped2">%1$d 枚の取得済みカバーを削除し、修正したロジックで再取得しています…</string>
+    <string name="player_error_banner">プレーヤー: %1$s</string>
+    <string name="lib_empty">曲がありません</string>
+    <string name="lib_empty_hint">権限を許可すると自動でスキャンします。設定で ncm フォルダを許可することもできます</string>
+    <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
+    <string name="update_found_long">新しいバージョン %1$s があります（現在 %2$s）</string>
 </resources>
