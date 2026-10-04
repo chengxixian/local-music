@@ -240,7 +240,16 @@ private fun AppShell() {
                 if (playable == null) {
                     android.widget.Toast.makeText(context, "DSD 转换失败：文件可能损坏或格式不支持", android.widget.Toast.LENGTH_LONG).show()
                 } else {
-                    val converted = song.copy(uri = android.net.Uri.fromFile(playable).toString())
+                    // 规格必须换成"转码后的 PCM"：Song 的 sampleRate/bitDepth 会进 MediaItem extras，
+                    // 而 USB 直通（AudioMixerAttributes）正是按它去申请源规格的。
+                    // 不换的话会拿 DSD 的 2822400Hz/1bit 去申请 —— 任何 DAC 都不可能支持，
+                    // 结果是白退化成系统输出，USB DAC 直通等于失效。
+                    val converted = song.copy(
+                        uri = android.net.Uri.fromFile(playable).toString(),
+                        format = "wav",
+                        sampleRate = com.localmusic.app.data.Dsd.PCM_RATE,
+                        bitDepth = 24,
+                    )
                     player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
                     playerOpen = true
                 }
