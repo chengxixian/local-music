@@ -669,6 +669,7 @@ private fun AppShell() {
                                         .align(Alignment.TopCenter)
                                         .padding(start = 16.dp, end = 16.dp, top = 80.dp)
                                         .fillMaxWidth(),
+                                    onBack = { openPlaylist = null; showPlaylistMenu = false },
                                     onMenu = { showPlaylistMenu = true },
                                 )
                                 // 重命名 / 换封面 / 删除：收在一个按钮弹出的面板里

@@ -763,10 +763,19 @@ fun PlaylistHeader(
     backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
     playlist: Playlist,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit,
     onMenu: () -> Unit,
 ) {
     GlassCard(backdrop = backdrop, modifier = modifier, contentPadding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 返回：从乐单详情回乐单列表（系统返回键也能用，但页面上得有看得见的入口）
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "返回乐单列表", tint = MiuixTheme.colorScheme.onSurface)
+            }
+            Spacer(Modifier.width(6.dp))
             if (playlist.cover != null) {
                 FileImage(path = playlist.cover, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)))
             } else {
