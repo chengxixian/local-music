@@ -162,6 +162,7 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var playerOpen by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
     var bitPerfect by remember { mutableStateOf(prefs.getBoolean("bitPerfect", false)) }
     var autoNcm by remember { mutableStateOf(prefs.getBoolean("autoNcm", true)) }
@@ -445,6 +446,7 @@ private fun AppShell() {
                                         onPickExport = { pickExportFolder.launch(ExportInitialUri) },
                                         onRemoveTree = { library.removeTree(it); trees = library.treeUris().toList(); exportLabel = prefs.getString("exportLabel", null) },
                                         onScan = { library.scan() },
+                                        onOpenAbout = { showAbout = true },
                                         onCancel = { library.cancel() },
                                         tintState = tintState,
                                         wheelIndex = wheelIndex,
@@ -498,7 +500,11 @@ private fun AppShell() {
                                 onRemoveFromQueue = { player.removeFromQueue(it) },
                             )
                         }
-                        if (!playerOpen) {
+                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
+                        if (showAbout) {
+                            AboutPage(onBack = { showAbout = false })
+                        }
+                        if (!playerOpen && !showAbout) {
                             GlassTopBar(
                                 backdrop = backdrop,
                                 title = page.title,
@@ -513,7 +519,7 @@ private fun AppShell() {
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen) {
+                        if (!playerOpen && !showAbout) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->
