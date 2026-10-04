@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   Русский. Непереведённые ключи откатываются к res/values/ (английский).
   Остальные ключи можно дописать позже (имена как в values/strings.xml).
@@ -57,4 +57,67 @@
     <string name="empty_library">Библиотека пуста</string>
     <string name="empty_no_match">Нет подходящих песен</string>
     <string name="empty_favorites">В избранном пока пусто</string>
+    <string name="settings_ncm_import">Импорт ncm из NetEase</string>
+    <string name="settings_auto_convert2">Автоконвертация в MP3 / FLAC</string>
+    <string name="settings_scrape_auto">Автозаполнение после сканирования</string>
+    <string name="settings_restore_covers">Восстановить встроенные обложки</string>
+    <string name="settings_clear_scraped">Удалить собранные обложки и собрать заново</string>
+    <string name="settings_hue">Оттенок</string>
+    <string name="settings_saturation">Насыщенность</string>
+    <string name="settings_transmission">Пропускание (ниже — темнее)</string>
+    <string name="settings_remove">Удалить</string>
+    <string name="settings_eq_unavailable">Недоступно на этом устройстве</string>
+    <string name="settings_eq_bypassed">USB passthrough активен · эквалайзер не действует</string>
+    <string name="settings_eq_off">Отключено · нажмите, чтобы открыть панель</string>
+    <string name="settings_scraping">Сбор…</string>
+    <string name="settings_tree_persisted">Разрешение на чтение сохраняется после перезапуска</string>
+    <string name="settings_export_none">Не выбрано — файлы только во внутренней папке и удаляются при удалении приложения</string>
+    <string name="player_clear_search">Очистить поиск</string>
+    <string name="player_pick_cover">Выбрать обложку</string>
+    <string name="player_unfavorite">Убрать из избранного</string>
+    <string name="player_favorite">Добавить в избранное</string>
+    <string name="queue_empty">Очередь пуста</string>
+    <string name="queue_collapse">Свернуть очередь</string>
+    <string name="queue_move_up">Вверх</string>
+    <string name="queue_move_down">Вниз</string>
+    <string name="queue_remove">Убрать из очереди</string>
+    <string name="home_now_playing">Сейчас играет</string>
+    <string name="home_start_listening">Начать слушать</string>
+    <string name="home_start_play">Начать воспроизведение</string>
+    <string name="home_open_player">Открыть плеер</string>
+    <string name="lib_overview">Обзор библиотеки</string>
+    <string name="stat_all">Все песни</string>
+    <string name="stat_lossless">Без потерь</string>
+    <string name="stat_hires">Hi-Res</string>
+    <string name="fav_none">Пока ничего не добавлено — нажмите сердечко на карточке или в плеере</string>
+    <string name="scan_storage">Сканировать память</string>
+    <string name="scan_storage_sub">Переиндексировать локальные песни и ncm</string>
+    <string name="recent_added">Недавно добавленные</string>
+    <string name="all">Все</string>
+    <string name="card_add_queue">Добавить в очередь</string>
+    <string name="scan_stop">Остановить сканирование</string>
+    <string name="pl_new_sub">Задайте имя, позже можно изменить</string>
+    <string name="pl_settings">Настройки плейлиста</string>
+    <string name="pl_back">Назад к плейлистам</string>
+    <string name="pl_rename">Переименовать плейлист</string>
+    <string name="pl_change_cover">Сменить обложку плейлиста</string>
+    <string name="pl_delete">Удалить плейлист</string>
+    <string name="pl_delete_sub">Удаляется только плейлист, файлы остаются</string>
+    <string name="pl_add_new">Создать плейлист и добавить</string>
+    <string name="eq_collapse">Свернуть</string>
+    <string name="eq_enable">Включить</string>
+    <string name="eq_scope">Системные эффекты audiofx, привязаны к текущей сессии</string>
+    <string name="eq_note_unavailable">Эквалайзер зависит от системных эффектов audiofx; если их нет, панель только поясняет это.</string>
+    <string name="eq_note_bands">Число полос задаёт устройство (обычно 5). Изменения применяются сразу и сохраняются.</string>
+    <string name="export_pick_title">Выберите папку для экспорта FLAC</string>
+    <string name="export_pick_action">Создать / выбрать папку</string>
+    <string name="update_later">Позже</string>
+    <string name="update_download_install">Скачать и установить</string>
+    <string name="update_note_outdated">Установленная версия больше не самая новая.</string>
+    <string name="update_note_install">Нажмите «Скачать и установить»: APK будет получен с GitHub и передан системному установщику.</string>
+    <string name="update_downloading">Загрузка…</string>
+    <string name="scrape_starting">Начинаю сбор…</string>
+    <string name="scan_running">Сканирование локальной музыки…</string>
+    <string name="update_checking">Проверка обновлений…</string>
+    <string name="toast_cleared_scraped">Удалено обложек: %1$d, собираю заново…</string>
 </resources>

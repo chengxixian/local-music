@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   日本語。未翻訳のキーは res/values/（英語）へフォールバックします。
   残りのキーは後から追記できます（キー名は values/strings.xml と同じ）。
@@ -57,4 +57,67 @@
     <string name="empty_library">ライブラリは空です</string>
     <string name="empty_no_match">一致する曲がありません</string>
     <string name="empty_favorites">お気に入りはまだ空です</string>
+    <string name="settings_ncm_import">NetEase ncm の取り込み</string>
+    <string name="settings_auto_convert2">MP3 / FLAC に自動変換</string>
+    <string name="settings_scrape_auto">スキャン後に自動で補完</string>
+    <string name="settings_restore_covers">埋め込みカバーに戻す</string>
+    <string name="settings_clear_scraped">取得したカバーを消して再取得</string>
+    <string name="settings_hue">色相</string>
+    <string name="settings_saturation">彩度</string>
+    <string name="settings_transmission">透過率（低いほど暗い）</string>
+    <string name="settings_remove">削除</string>
+    <string name="settings_eq_unavailable">この端末では利用できません</string>
+    <string name="settings_eq_bypassed">USB パススルー中・現在は無効</string>
+    <string name="settings_eq_off">無効・タップしてガラスパネルを開く</string>
+    <string name="settings_scraping">取得中…</string>
+    <string name="settings_tree_persisted">読み取り権限は再起動後も維持されます</string>
+    <string name="settings_export_none">未選択 — 今はアプリ専用領域のみ（アンインストールで消えます）</string>
+    <string name="player_clear_search">検索を消す</string>
+    <string name="player_pick_cover">カバーを選ぶ</string>
+    <string name="player_unfavorite">お気に入りから外す</string>
+    <string name="player_favorite">お気に入りに追加</string>
+    <string name="queue_empty">再生キューは空です</string>
+    <string name="queue_collapse">キューを閉じる</string>
+    <string name="queue_move_up">上へ</string>
+    <string name="queue_move_down">下へ</string>
+    <string name="queue_remove">キューから削除</string>
+    <string name="home_now_playing">再生中</string>
+    <string name="home_start_listening">聴き始める</string>
+    <string name="home_start_play">再生を開始</string>
+    <string name="home_open_player">プレーヤーを開く</string>
+    <string name="lib_overview">ライブラリ概要</string>
+    <string name="stat_all">すべての曲</string>
+    <string name="stat_lossless">ロスレス</string>
+    <string name="stat_hires">ハイレゾ</string>
+    <string name="fav_none">まだお気に入りがありません — カードかプレーヤーのハートをタップ</string>
+    <string name="scan_storage">ストレージをスキャン</string>
+    <string name="scan_storage_sub">ローカル曲と ncm 取り込みを再索引</string>
+    <string name="recent_added">最近追加</string>
+    <string name="all">すべて</string>
+    <string name="card_add_queue">キューに追加</string>
+    <string name="scan_stop">スキャンを停止</string>
+    <string name="pl_new_sub">名前を付けてください。後で変更できます</string>
+    <string name="pl_settings">プレイリスト設定</string>
+    <string name="pl_back">プレイリスト一覧へ戻る</string>
+    <string name="pl_rename">プレイリスト名を変更</string>
+    <string name="pl_change_cover">プレイリストのカバーを変更</string>
+    <string name="pl_delete">プレイリストを削除</string>
+    <string name="pl_delete_sub">プレイリストのみ削除、ファイルは消しません</string>
+    <string name="pl_add_new">新しいプレイリストを作って追加</string>
+    <string name="eq_collapse">閉じる</string>
+    <string name="eq_enable">有効</string>
+    <string name="eq_scope">システム audiofx エフェクト（現在の再生セッションに接続）</string>
+    <string name="eq_note_unavailable">イコライザーはシステムの audiofx に依存します。実装がない端末では説明のみを表示します。</string>
+    <string name="eq_note_bands">バンド数は端末依存（多くは 5 バンド）。変更は即時反映され、再起動後も復元されます。</string>
+    <string name="export_pick_title">FLAC の出力先を選択</string>
+    <string name="export_pick_action">フォルダを作成 / 選択</string>
+    <string name="update_later">後で</string>
+    <string name="update_download_install">ダウンロードしてインストール</string>
+    <string name="update_note_outdated">インストール済みのバージョンは最新ではありません。</string>
+    <string name="update_note_install">「ダウンロードしてインストール」を押すと GitHub から APK を取得し、システムのインストーラーに渡します。</string>
+    <string name="update_downloading">ダウンロード中…</string>
+    <string name="scrape_starting">取得を開始…</string>
+    <string name="scan_running">ローカル音楽をスキャン中…</string>
+    <string name="update_checking">更新を確認中…</string>
+    <string name="toast_cleared_scraped">%1$d 枚のカバーを削除し、再取得しています…</string>
 </resources>
