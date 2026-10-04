@@ -93,13 +93,13 @@ for i, (label, grid) in enumerate(VARIANTS):
     ImageDraw.Draw(mask).ellipse((0, 0, canvas - 1, canvas - 1), fill=255)
     big.putalpha(mask)
     prev.paste(big, (x0 + 12, 40), big)
-    # 小图（48px，看图标尺寸下的可读性）
+    # 小图（48px）单独放在大图**下方**——之前叠在大圆里，看起来像"图标中间还有个小图标"
     small = Image.new("RGBA", (48, 48), (0, 0, 0, 255))
     small.alpha_composite(render(grid, 48))
     m2 = Image.new("L", (48, 48), 0)
     ImageDraw.Draw(m2).ellipse((0, 0, 47, 47), fill=255)
     small.putalpha(m2)
-    prev.paste(small.resize((96, 96), Image.LANCZOS), (x0 + 12 + 168, 40 + 168), small.resize((96, 96), Image.LANCZOS))
+    prev.paste(small.resize((96, 96), Image.LANCZOS), (x0 + 12, 40 + canvas + 6), small.resize((96, 96), Image.LANCZOS))
     d.text((x0 + 12, 16), label, fill=(240, 240, 240))
 
 prev.resize((prev.size[0] // 2, prev.size[1] // 2), Image.LANCZOS).save(OUT_PREVIEW)
