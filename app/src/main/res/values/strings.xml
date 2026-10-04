@@ -1,42 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  中文（默认）字符串。
-  约定：只放**界面文案**；日志标签、文件路径、URL、SharedPreferences 键、格式名不要放进来。
-  新增语言：复制到 values-en / values-ja / values-ru 并翻译，键名保持一致。
--->
 <resources>
-    <!-- 关于页 -->
-    <string name="about_title">关于</string>
-    <string name="about_entry_title">关于 local music</string>
-    <string name="about_entry_subtitle">版本、开源许可、上游项目与捐赠</string>
-    <string name="about_tagline">本地优先的 HiFi 播放器</string>
-    <string name="about_action_source">源码</string>
-    <string name="about_action_update">检查更新</string>
-    <string name="about_action_readme">项目说明</string>
-    <string name="about_action_donate">捐赠</string>
-    <string name="about_back">返回</string>
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_entry_title">About local music</string>
+    <string name="about_entry_subtitle">Version, license, upstream projects and donation</string>
+    <string name="about_tagline">A local-first HiFi player</string>
+    <string name="about_action_source">Source</string>
+    <string name="about_action_update">Check for updates</string>
+    <string name="about_action_readme">README</string>
+    <string name="about_action_donate">Donate</string>
+    <string name="about_back">Back</string>
 
-    <string name="about_group_product">产品</string>
-    <string name="about_kernel_title">播放内核 AURALIS</string>
-    <string name="about_kernel_subtitle">Rueded/AURALIS · GPLv3 · 位完美输出、USB 直通</string>
-    <string name="about_ui_title">液态玻璃前端</string>
-    <string name="about_ui_subtitle">chengxixian/liquid-miuix · Compose 玻璃折射</string>
-    <string name="about_ncm_title">ncm 解码</string>
-    <string name="about_ncm_subtitle">taurusxin/ncmdump · .ncm 转 FLAC</string>
+    <string name="about_group_product">Product</string>
+    <string name="about_kernel_title">Playback core AURALIS</string>
+    <string name="about_kernel_subtitle">Rueded/AURALIS · GPLv3 · bit-perfect output, USB passthrough</string>
+    <string name="about_ui_title">Liquid glass UI</string>
+    <string name="about_ui_subtitle">chengxixian/liquid-miuix · Compose glass refraction</string>
+    <string name="about_ncm_title">ncm decoding</string>
+    <string name="about_ncm_subtitle">taurusxin/ncmdump · .ncm to FLAC</string>
 
-    <string name="about_group_community">社区</string>
-    <string name="about_repo_title">GitHub 仓库</string>
-    <string name="about_releases_title">版本发布与更新日志</string>
-    <string name="about_releases_subtitle">所有版本、APK 与说明</string>
+    <string name="about_group_community">Community</string>
+    <string name="about_repo_title">GitHub repository</string>
+    <string name="about_releases_title">Releases and changelog</string>
+    <string name="about_releases_subtitle">All versions, APKs and notes</string>
 
-    <string name="about_group_legal">法律信息</string>
+    <string name="about_group_legal">Legal</string>
     <string name="about_license_title">GNU GPL v3.0</string>
-    <string name="about_license_subtitle">本项目以 GPLv3 开源；上游内核同为 GPLv3</string>
+    <string name="about_license_subtitle">This project is GPLv3; the upstream core is GPLv3 too</string>
 
-    <!-- 捐赠弹窗 -->
-    <string name="donate_title">捐赠支持</string>
-    <string name="donate_subtitle">支付宝扫码，感谢支持</string>
-    <string name="donate_qr_desc">支付宝捐赠二维码</string>
-    <string name="donate_hint">打开支付宝「扫一扫」</string>
-    <string name="donate_close">关闭</string>
+    <!-- Donation dialog -->
+    <string name="donate_title">Support the project</string>
+    <string name="donate_subtitle">Scan with Alipay — thank you!</string>
+    <string name="donate_qr_desc">Alipay donation QR code</string>
+    <string name="donate_hint">Open Alipay and tap \"Scan\"</string>
+    <string name="donate_close">Close</string>
 </resources>
