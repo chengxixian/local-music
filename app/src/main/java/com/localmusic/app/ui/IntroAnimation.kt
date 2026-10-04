@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import androidx.compose.animation.core.Animatable
@@ -140,13 +140,22 @@ fun IntroOverlay(onFinished: () -> Unit) {
             val oy = (size.height - gridH) / 2f - size.height * 0.04f - lift
             val dotR = cell * 0.15f
 
+            // 涟漪：按到中心的距离归一化（0 = 最中心，1 = 最外圈）
+            val midX = (cols - 1) / 2f
+            val midY = (rows - 1) / 2f
+            val maxD = kotlin.math.hypot(midX, midY).coerceAtLeast(0.001f)
+            val textMidX = (maxCol - 1) / 2f
+            val textMaxD = kotlin.math.hypot(textMidX, 3f).coerceAtLeast(0.001f)
+            fun ripple(c: Float, r: Float) = (kotlin.math.hypot(c - midX, r - midY) / maxD).coerceIn(0f, 1f)
+            fun rippleText(c: Float, r: Float) = (kotlin.math.hypot(c - textMidX, r - 3f) / textMaxD).coerceIn(0f, 1f)
+
             fun px(col: Float, row: Float) = Offset(ox + (col + 0.5f) * cell, oy + (row + 0.5f) * cell)
 
             // ① 底色点阵（灰）
             val gridFade = 1f - ease
             for (y in 0 until rows) {
                 for (x in 0 until cols) {
-                    val stagger = (x + y).toFloat() / (cols + rows - 2).toFloat()
+                    val stagger = ripple(x.toFloat(), y.toFloat())
                     val a = ((v - 0.05f - stagger * 0.20f) / 0.09f).coerceIn(0f, 1f) * gridFade
                     if (a > 0.01f) drawCircle(Color(0xFF8A8A8A).copy(alpha = a * 0.5f), dotR, px(x.toFloat(), y.toFloat()))
                 }
@@ -156,7 +165,7 @@ fun IntroOverlay(onFinished: () -> Unit) {
             for (y in 0 until rows) {
                 for (x in 0 until cols) {
                     if (MARK[y].getOrNull(x) != 'X') continue
-                    val stagger = (x + y).toFloat() / (cols + rows - 2).toFloat()
+                    val stagger = ripple(x.toFloat(), y.toFloat())
                     val a = ((v - 0.28f - stagger * 0.14f) / 0.09f).coerceIn(0f, 1f)
                     if (a <= 0.01f) continue
                     val t = moves.firstOrNull { it.first == x && it.second == y }
@@ -176,7 +185,7 @@ fun IntroOverlay(onFinished: () -> Unit) {
             // ③ 补全的字：逐点浮出
             for (d in targets) {
                 if (moves.any { it.third == d }) continue
-                val order = (d.first + d.second).toFloat() / (maxCol + rows).toFloat()
+                val order = rippleText(d.first.toFloat(), d.second.toFloat())
                 val a = ((v - 0.60f - order * 0.16f) / 0.10f).coerceIn(0f, 1f)
                 if (a > 0.01f) drawCircle(Color.White.copy(alpha = a), dotR, px(d.first.toFloat(), d.second.toFloat()))
             }
