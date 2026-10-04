@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Русский. Непереведённые ключи откатываются к res/values/ (английский).
+  Остальные ключи можно дописать позже (имена как в values/strings.xml).
+-->
+<resources>
+    <!-- Навигация -->
+    <string name="nav_library">Библиотека</string>
+    <string name="nav_playlists">Плейлисты</string>
+    <string name="nav_favorites">Избранное</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- О приложении -->
+    <string name="about_title">О приложении</string>
+    <string name="about_entry_title">О local music</string>
+    <string name="about_entry_subtitle">Версия, лицензия, исходные проекты и поддержка</string>
+    <string name="about_tagline">HiFi-плеер, ориентированный на локальные файлы</string>
+    <string name="about_action_source">Исходный код</string>
+    <string name="about_action_update">Проверить обновления</string>
+    <string name="about_action_readme">README</string>
+    <string name="about_action_donate">Поддержать</string>
+    <string name="about_back">Назад</string>
+    <string name="about_group_product">Продукт</string>
+    <string name="about_group_community">Сообщество</string>
+    <string name="about_group_legal">Правовая информация</string>
+
+    <!-- Настройки -->
+    <string name="settings_rescan">Пересканировать</string>
+    <string name="settings_scrape">Автосбор метаданных</string>
+    <string name="settings_scrape_cover">Загружать обложки</string>
+    <string name="settings_scrape_lyrics">Загружать текст песен</string>
+    <string name="settings_netease">Источник NetEase</string>
+    <string name="settings_scrape_now">Собрать сейчас</string>
+    <string name="settings_equalizer">Эквалайзер</string>
+    <string name="settings_usb_passthrough">USB passthrough</string>
+    <string name="settings_audio_output">Аудиовыход</string>
+    <string name="settings_wheel_tint">Цвет стекла кольца</string>
+
+    <!-- Воспроизведение -->
+    <string name="player_play">Воспроизвести</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_prev">Предыдущий трек</string>
+    <string name="player_next">Следующий трек</string>
+    <string name="player_queue">Очередь</string>
+    <string name="player_shuffle">Перемешать</string>
+    <string name="player_repeat">Повтор</string>
+
+    <!-- Плейлисты -->
+    <string name="pl_new">Новый плейлист</string>
+    <string name="pl_empty">Плейлистов пока нет</string>
+    <string name="pl_add_title">Добавить в плейлист</string>
+    <string name="pl_done">Готово</string>
+    <string name="pl_cancel">Отмена</string>
+    <string name="pl_confirm">ОК</string>
+
+    <!-- Пустая библиотека -->
+    <string name="empty_library">Библиотека пуста</string>
+    <string name="empty_no_match">Нет подходящих песен</string>
+    <string name="empty_favorites">В избранном пока пусто</string>
+</resources>

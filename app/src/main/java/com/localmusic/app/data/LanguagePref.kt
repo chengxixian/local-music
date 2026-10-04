@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
 import android.content.Context
@@ -26,6 +26,8 @@ object LanguagePref {
         null to "跟随系统 / System",
         "en" to "English",
         "zh-CN" to "简体中文",
+        "ja" to "日本語",
+        "ru" to "Русский",
     )
 
     fun currentTag(context: Context): String? = context

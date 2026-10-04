@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   Android 13+ 的"应用语言"清单：系统设置 → 应用 → local music → 语言。
   也可以用 adb 指定：cmd locale set-app-locales com.localmusic.app locales en
@@ -8,4 +8,6 @@
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="zh-CN" />
     <locale android:name="en" />
+    <locale android:name="ja" />
+    <locale android:name="ru" />
 </locale-config>

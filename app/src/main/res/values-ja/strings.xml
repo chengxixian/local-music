@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  日本語。未翻訳のキーは res/values/（英語）へフォールバックします。
+  残りのキーは後から追記できます（キー名は values/strings.xml と同じ）。
+-->
+<resources>
+    <!-- ナビゲーション -->
+    <string name="nav_library">ライブラリ</string>
+    <string name="nav_playlists">プレイリスト</string>
+    <string name="nav_favorites">お気に入り</string>
+    <string name="nav_settings">設定</string>
+
+    <!-- このアプリについて -->
+    <string name="about_title">このアプリについて</string>
+    <string name="about_entry_title">local music について</string>
+    <string name="about_entry_subtitle">バージョン・ライセンス・上流プロジェクト・寄付</string>
+    <string name="about_tagline">ローカル優先の HiFi プレーヤー</string>
+    <string name="about_action_source">ソース</string>
+    <string name="about_action_update">更新を確認</string>
+    <string name="about_action_readme">README</string>
+    <string name="about_action_donate">寄付</string>
+    <string name="about_back">戻る</string>
+    <string name="about_group_product">プロダクト</string>
+    <string name="about_group_community">コミュニティ</string>
+    <string name="about_group_legal">法的情報</string>
+
+    <!-- 設定 -->
+    <string name="settings_rescan">再スキャン</string>
+    <string name="settings_scrape">自動スクレイピング</string>
+    <string name="settings_scrape_cover">カバーを取得</string>
+    <string name="settings_scrape_lyrics">歌詞を取得</string>
+    <string name="settings_netease">NetEase 音源</string>
+    <string name="settings_scrape_now">今すぐ取得</string>
+    <string name="settings_equalizer">イコライザー</string>
+    <string name="settings_usb_passthrough">USB パススルー</string>
+    <string name="settings_audio_output">音声出力</string>
+    <string name="settings_wheel_tint">ホイールリングのガラス色</string>
+
+    <!-- 再生 -->
+    <string name="player_play">再生</string>
+    <string name="player_pause">一時停止</string>
+    <string name="player_prev">前の曲</string>
+    <string name="player_next">次の曲</string>
+    <string name="player_queue">再生キュー</string>
+    <string name="player_shuffle">シャッフル</string>
+    <string name="player_repeat">リピート</string>
+
+    <!-- プレイリスト -->
+    <string name="pl_new">新しいプレイリスト</string>
+    <string name="pl_empty">プレイリストがありません</string>
+    <string name="pl_add_title">プレイリストに追加</string>
+    <string name="pl_done">完了</string>
+    <string name="pl_cancel">キャンセル</string>
+    <string name="pl_confirm">OK</string>
+
+    <!-- ライブラリの空状態 -->
+    <string name="empty_library">ライブラリは空です</string>
+    <string name="empty_no_match">一致する曲がありません</string>
+    <string name="empty_favorites">お気に入りはまだ空です</string>
+</resources>
