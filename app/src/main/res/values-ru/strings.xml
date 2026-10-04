@@ -208,4 +208,5 @@
     <string name="lib_empty_hint">После выдачи разрешения память сканируется автоматически; папку ncm можно разрешить в настройках</string>
     <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
     <string name="update_found_long">Доступна новая версия %1$s (текущая %2$s)</string>
+    <string name="about_play_animation">Воспроизвести анимацию</string>
 </resources>

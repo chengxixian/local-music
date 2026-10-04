@@ -1050,7 +1050,8 @@ fun AddToPlaylistSheet(
  * 捐赠也不再平铺二维码 —— 点「捐赠」才弹出，避免页面上一直挂着一张收款码。
  */
 @Composable
-fun AboutPage(onBack: () -> Unit) {
+fun AboutPage(
+    onPlayAnimation: () -> Unit = {},onBack: () -> Unit) {
     val context = LocalContext.current
     val scheme = MiuixTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -1086,7 +1087,8 @@ fun AboutPage(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        AboutAction(Icons.Rounded.Code, stringResource(R.string.about_action_source), scheme.onSurface) { openUrl(context, REPO_URL) }
+                        AboutAction(Icons.Rounded.PlayArrow, stringResource(R.string.about_play_animation), scheme.onSurface) { onPlayAnimation() }
+                                                AboutAction(Icons.Rounded.Code, stringResource(R.string.about_action_source), scheme.onSurface) { openUrl(context, REPO_URL) }
                         AboutAction(Icons.Rounded.SystemUpdate, stringResource(R.string.about_action_update), scheme.onSurface) {
                             scope.launch { com.localmusic.app.data.UpdateChecker.check(context, silent = false) }
                         }

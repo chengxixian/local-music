@@ -304,6 +304,7 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var showAbout by remember { mutableStateOf(false) }
+    var showIntro by remember { mutableStateOf(false) }
     var showLanguage by remember { mutableStateOf(false) }
     // 设置页的滚动位置：放在 AnimatedContent 之外，切语言重建 Activity 后不会弹回顶部
     val settingsListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -768,9 +769,14 @@ private fun AppShell() {
                                 onDismiss = { showLanguage = false },
                             )
                         }
-                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
+                        // 点阵动画（从关于页触发；点任意位置跳过）
+                        if (showIntro) {
+                            Box(Modifier.fillMaxSize().clickable { showIntro = false }) {
+                                com.localmusic.app.ui.IntroOverlay(onFinished = { showIntro = false })
+                            }
+                        }                        // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
-                            AboutPage(onBack = { showAbout = false })
+                            AboutPage(onBack = { showAbout = false }, onPlayAnimation = { showIntro = true })
                         }
                         // 问名字（新建 / 重命名乐单）：在浮层里，滚轮之上
                         naming?.let { req ->
@@ -818,7 +824,7 @@ private fun AppShell() {
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen && !showAbout && !showLanguage && !showPlaylistMenu && naming == null && pickerSong == null && openPlaylist == null) {
+                        if (!playerOpen && !showAbout && !showIntro && !showLanguage && !showPlaylistMenu && naming == null && pickerSong == null && openPlaylist == null) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->

@@ -208,4 +208,5 @@
     <string name="lib_empty_hint">権限を許可すると自動でスキャンします。設定で ncm フォルダを許可することもできます</string>
     <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
     <string name="update_found_long">新しいバージョン %1$s があります（現在 %2$s）</string>
+    <string name="about_play_animation">ドットマトリクスアニメを再生</string>
 </resources>

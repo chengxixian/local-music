@@ -199,4 +199,5 @@
     <string name="update_downloading_new">Downloading the new version…</string>
     <string name="update_download_service_unavailable">System download service unavailable</string>
     <string name="update_download_done">Download finished, launching the installer…</string>
+    <string name="about_play_animation">Play animation</string>
 </resources>

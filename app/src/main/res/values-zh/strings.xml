@@ -204,4 +204,5 @@
     <string name="update_downloading_new">正在下载新版本…</string>
     <string name="update_download_service_unavailable">系统下载服务不可用</string>
     <string name="update_download_done">下载完成，正在拉起安装…</string>
+    <string name="about_play_animation">播放点阵动画</string>
 </resources>
