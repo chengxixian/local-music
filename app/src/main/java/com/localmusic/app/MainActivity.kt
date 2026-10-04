@@ -32,6 +32,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
@@ -141,10 +142,10 @@ private fun NameDialogGlass(
     }
 }
 
-private enum class Page(val title: String, val icon: ImageVector) {    Library("曲库", Icons.Rounded.LibraryMusic),
-    Playlists("乐单", Icons.Rounded.QueueMusic),
-    Favorites("喜欢", Icons.Rounded.Favorite),
-    Settings("设置", Icons.Rounded.Settings),
+private enum class Page(@androidx.annotation.StringRes val titleRes: Int, val icon: ImageVector) {    Library(R.string.nav_library, Icons.Rounded.LibraryMusic),
+    Playlists(R.string.nav_playlists, Icons.Rounded.QueueMusic),
+    Favorites(R.string.nav_favorites, Icons.Rounded.Favorite),
+    Settings(R.string.nav_settings, Icons.Rounded.Settings),
 }
 
 /** 滚轮单击切页的顺序（与 dock 从左到右一致：曲库 → 乐单 → 喜欢 → 设置）。 */
@@ -790,7 +791,7 @@ private fun AppShell() {
                         if (!playerOpen && !showAbout) {
                             GlassTopBar(
                                 backdrop = backdrop,
-                                title = page.title,
+                                title = stringResource(page.titleRes),
                                 // 曲库/喜欢：顶栏直接当搜索框；设置页还是标题
                                 query = searchQuery,
                                 onQueryChange = if (page == Page.Settings) null else { q -> searchQuery = q },
@@ -855,7 +856,7 @@ private fun AppShell() {
                                     )
                                     // ② 内容层：与玻璃是兄弟
                                     GlassNavBarContent(
-                                        items = Page.entries.map { it.icon to it.title },
+                                        items = Page.entries.map { it.icon to stringResource(it.titleRes) },
                                         selectedIndex = Page.entries.indexOf(page),
                                         onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false },
                                         modifier = Modifier.matchParentSize(),

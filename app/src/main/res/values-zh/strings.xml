@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   中文（默认）字符串。
   约定：只放**界面文案**；日志标签、文件路径、URL、SharedPreferences 键、格式名不要放进来。
@@ -39,4 +39,8 @@
     <string name="donate_qr_desc">支付宝捐赠二维码</string>
     <string name="donate_hint">打开支付宝「扫一扫」</string>
     <string name="donate_close">关闭</string>
-</resources>
+    <!-- 导航（dock 与顶栏） -->
+    <string name="nav_library">曲库</string>
+    <string name="nav_playlists">乐单</string>
+    <string name="nav_favorites">喜欢</string>
+    <string name="nav_settings">设置</string></resources>
