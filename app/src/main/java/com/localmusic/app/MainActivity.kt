@@ -354,11 +354,13 @@ private fun AppShell() {
         }
     }
 
-    // 启动时查一次 GitHub Release 版本；有新版本就弹玻璃提示（失败静默，不打扰）
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(3_000)
-        com.localmusic.app.data.UpdateChecker.check(context, silent = true)
-    }
+    // 启动**不**自动检查更新：改成用户手动触发（关于页的「检查更新」）。
+    // 这样既是用户要求的行为，也去掉了"应用自己联网检查/自我更新"这类商店禁项。
+    // 需要恢复自动检查时，取消下面这段的注释即可。
+    // LaunchedEffect(Unit) {
+    //     kotlinx.coroutines.delay(3_000)
+    //     com.localmusic.app.data.UpdateChecker.check(context, silent = true)
+    // }
 
     // 网易云源自检：结果只写 logcat（标签 LMNetease）。手机 shell 没有网络出口，
     // 所以"能不能用"只能靠应用自己跑一遍来看。
