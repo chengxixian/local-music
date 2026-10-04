@@ -48,7 +48,7 @@ import com.localmusic.app.R
 import com.localmusic.app.PlaybackUi
 import com.localmusic.app.data.Playlist
 import com.localmusic.app.data.ScanStatus
-import com.localmusic.app.data.Song
+import com.liquidmiuix.glass.*import com.localmusic.app.data.Song
 import com.localmusic.app.data.formatTime
 import com.liquidmiuix.theme.LiquidSpacing
 import com.liquidmiuix.ui.*
@@ -735,18 +735,40 @@ internal fun AboutAction(
 }
 
 /**
+ * 通用**液态玻璃卡片**（用于乐单详情工具栏与「加入乐单」面板）。
+ *
+ * ⚠️ 只能画在**浮层**：`liquidGlass` 采样采集层，玻璃自己若在采集层里就是自引用 backdrop
+ * （真机上渲染异常甚至崩溃）。玻璃 Box 与内容必须是兄弟，玻璃里不能放子内容。
+ */
+@Composable
+fun GlassCard(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(24.dp),
+    contentPadding: androidx.compose.ui.unit.Dp = 18.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(modifier) {
+        Box(Modifier.matchParentSize().liquidGlass(backdrop = backdrop, shape = shape))
+        Column(Modifier.padding(contentPadding), content = content)
+    }
+}
+
+/**
  * 乐单详情页顶部的卡片：乐单名 + 改名 / 换封面 / 删除。
  * 改名对话框由它自己管（只影响这一页，不必上升到 MainActivity）。
  */
 @Composable
 fun PlaylistHeader(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
     playlist: Playlist,
+    modifier: Modifier = Modifier,
     onRename: (String) -> Unit,
     onChangeCover: () -> Unit,
     onDelete: () -> Unit,
     onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
-    LiquidCard {
+    GlassCard(backdrop = backdrop, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
             if (playlist.cover != null) {
                 FileImage(path = playlist.cover, modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)))
@@ -895,6 +917,7 @@ internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, o
  */
 @Composable
 fun AddToPlaylistSheet(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
     song: Song,
     playlists: List<Playlist>,
     memberOf: Set<Long>,
@@ -907,7 +930,7 @@ fun AddToPlaylistSheet(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
-        LiquidCard(Modifier.clickable(enabled = false) {}) {
+        GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.88f)) {
             Text("加入乐单", style = MiuixTheme.textStyles.title4)
             Text(
                 song.title,

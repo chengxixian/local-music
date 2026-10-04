@@ -533,22 +533,7 @@ private fun AppShell() {
                                                     android.widget.Toast.makeText(context, "已加入播放列表：${song.title}", android.widget.Toast.LENGTH_SHORT).show()
                                                 },
                                                 onAddToPlaylist = { song -> pickerSong = song },
-                                                header = {
-                                                    PlaylistHeader(
-                                                        playlist = opened,
-                                                        onRename = { name -> com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name) },
-                                                        onChangeCover = {
-                                                            playlistCoverTarget = opened.id
-                                                            playlistCoverPicker.launch(arrayOf("image/*"))
-                                                        },
-                                                        onDelete = {
-                                                            com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
-                                                            openPlaylist = null
-                                                        },
-                                                        onAskName = askName,
-                                                    )
-                                                },
-                                                topPadding = pageTopPadding,
+                                                topPadding = pageTopPadding + 300.dp,
                                             )
                                         }
                                     }
@@ -664,6 +649,29 @@ private fun AppShell() {
                                 onRemoveFromQueue = { player.removeFromQueue(it) },
                             )
                         }
+                        // 乐单详情：顶部玻璃工具栏（浮层 → 真玻璃；同时这个状态收起滚轮）
+                        openPlaylist?.let { opened ->
+                            if (!playerOpen && !showAbout) {
+                                PlaylistHeader(
+                                    backdrop = backdrop,
+                                    playlist = opened,
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(start = 16.dp, end = 16.dp, top = 80.dp)
+                                        .fillMaxWidth(),
+                                    onRename = { name -> com.localmusic.app.data.PlaylistStore.rename(context, opened.id, name) },
+                                    onChangeCover = {
+                                        playlistCoverTarget = opened.id
+                                        playlistCoverPicker.launch(arrayOf("image/*"))
+                                    },
+                                    onDelete = {
+                                        com.localmusic.app.data.PlaylistStore.delete(context, opened.id)
+                                        openPlaylist = null
+                                    },
+                                    onAskName = askName,
+                                )
+                            }
+                        }
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
@@ -684,6 +692,7 @@ private fun AppShell() {
                                 com.localmusic.app.data.PlaylistStore.playlistsOf(context, song.uri)
                             }
                             AddToPlaylistSheet(
+                                backdrop = backdrop,
                                 song = song,
                                 playlists = playlists,
                                 memberOf = memberOf,
@@ -713,7 +722,7 @@ private fun AppShell() {
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen && !showAbout && naming == null) {
+                        if (!playerOpen && !showAbout && naming == null && pickerSong == null && openPlaylist == null) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->
