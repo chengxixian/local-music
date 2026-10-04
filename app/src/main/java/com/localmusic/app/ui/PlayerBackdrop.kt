@@ -14,6 +14,8 @@ import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -75,11 +77,14 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
         if (pair != null) {
             // ① 不透明兜底色（保证严丝合缝盖住下层）
             Box(Modifier.fillMaxSize().background(pair.second))
-            // ② 高清模糊封面：放大撑出屏幕，糊掉的边缘落在可视区外
+            // ② 模糊封面：放大撑出屏幕，糊掉的边缘落在可视区外；**降饱和**让它退成"氛围色"
+            //    而不是抢眼的图（纯模糊的高饱和封面会很吵，字也压不住）。
+            val calm = ColorMatrix().apply { setToSaturation(0.42f) }
             Image(
                 bitmap = pair.first,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = ColorFilter.colorMatrix(calm),
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
