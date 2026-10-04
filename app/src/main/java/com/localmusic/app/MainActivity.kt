@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app
 
 import android.Manifest
@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
@@ -57,7 +58,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         askForPermissions()
-        setContent { LiquidTheme { AppShell() } }
+        // 套用上次选择的界面语言（跟随系统时不设置）
+    com.localmusic.app.data.LanguagePref.applyStored(this)
+
+    setContent { LiquidTheme { AppShell() } }
     }
     private fun askForPermissions() {
         val wanted = buildList {
@@ -291,7 +295,7 @@ private fun AppShell() {
             .apply()
     }
 
-    var page by remember { mutableStateOf(Page.Library) }
+    var page by rememberSaveable { mutableStateOf(Page.Library) }
     // 搜索词提到顶层：输入框在顶栏（额头）里，曲库/喜欢两页共用它
     var searchQuery by remember { mutableStateOf("") }
     // 滚轮选中的下标（换页时归零）
