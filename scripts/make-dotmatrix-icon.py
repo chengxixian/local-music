@@ -59,8 +59,8 @@ for y, row in enumerate(M):
 # 强调点：m 的右上角那颗，点成红色
 accent = (m_offset_y, 6 + 4)
 
-# 排版：字形块占画布约 60%（自适应图标安全区上限约 61%），再按格子切分
-block = int(CANVAS * 0.60)
+# 排版：字形块占画布 48%（原来 60% 太满、圆角遮罩还容易切到角上的点）
+block = int(CANVAS * 0.48)
 cell = block / COLS
 # Nothing 的 Ndot 字形用的是**圆角方点**而不是正圆，点大、间距紧，字重才均匀
 dot = cell * 0.43          # 点亮格子的边长（图标尺寸下点要大才立得住）
@@ -84,9 +84,7 @@ for y in range(ROWS):
         cx = ox + (x + 0.5) * cell
         cy = oy + (y + 0.5) * cell
         lit = grid[y][x] == "X"
-        if lit and (y, x) == accent:
-            rounded_dot(cx, cy, dot, dot_radius, RED)
-        elif lit:
+        if lit:
             rounded_dot(cx, cy, dot, dot_radius, WHITE)
         else:
             rounded_dot(cx, cy, dim, dim * 0.34, GRID_DIM)
