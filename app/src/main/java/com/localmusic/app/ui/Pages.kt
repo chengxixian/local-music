@@ -451,6 +451,7 @@ internal val DOT_MARK_ROWS = listOf(
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
 @Composable
 fun SettingsPage(
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
     status: ScanStatus,
     bitPerfect: Boolean,
     autoNcm: Boolean,
@@ -498,7 +499,7 @@ fun SettingsPage(
     ) {
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 0 || wheelIndex == 1, scheme.primary)) {
-                Text("音频输出", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_audio_output), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("USB Bit-perfect", style = MiuixTheme.textStyles.title4)
@@ -512,10 +513,10 @@ fun SettingsPage(
                 LiquidListItem(
                     title = stringResource(R.string.settings_equalizer),
                     subtitle = when {
-                        !eq.available -> eq.message.ifBlank { "本机不可用" }
-                        eq.bypassed -> "USB 直通中 · 当前不生效"
+                        !eq.available -> eq.message.ifBlank { stringResource(R.string.settings_eq_unavailable) }
+                        eq.bypassed -> stringResource(R.string.settings_eq_bypassed)
                         eq.enabled -> "已启用 · " + eq.bands.joinToString(" / ") { "${"%.0f".format(it.levelMb / 100f)}" } + " dB"
-                        else -> "未启用 · 点击打开玻璃面板调节"
+                        else -> stringResource(R.string.settings_eq_off)
                     },
                     leading = Icons.Rounded.GraphicEq,
                     onClick = onOpenEq,
@@ -524,10 +525,10 @@ fun SettingsPage(
         }
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 2..4, scheme.primary)) {
-                Text("网易云 ncm 导入", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_ncm_import), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("自动转换为 MP3 / FLAC", style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.settings_auto_convert2), style = MiuixTheme.textStyles.title4)
                         Text("扫描授权文件夹时自动转换：优先转 FLAC；转不出 FLAC 就回退成 MP3 或原样发布，不再直接失败。输出到导出文件夹（未设则落应用私有 files/music/ncm），原文件保留。",
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
@@ -537,7 +538,7 @@ fun SettingsPage(
                 LiquidListItem(
                     title = stringResource(R.string.settings_export_dir),
                     subtitle = exportLabel?.let { "$it（转换后的 FLAC / MP3 导出到这里，卸载应用也不会删）" }
-                        ?: "尚未选择 —— 目前只会暂存到应用私有目录，卸载即丢",
+                        ?: stringResource(R.string.settings_export_none),
                     leading = Icons.Rounded.DriveFileMove,
                     onClick = onPickExport,
                     showDivider = true,
@@ -550,10 +551,10 @@ fun SettingsPage(
                 } else trees.forEach { tree ->
                     LiquidListItem(
                         title = treeLabel(tree),
-                        subtitle = "读取权限已持久化，重启后仍然有效",
+                        subtitle = stringResource(R.string.settings_tree_persisted),
                         leading = Icons.Rounded.Folder,
                         showDivider = true,
-                        trailing = { TextButton(onClick = { onRemoveTree(tree) }) { Text("移除") } },
+                        trailing = { TextButton(onClick = { onRemoveTree(tree) }) { Text(stringResource(R.string.settings_remove)) } },
                     )
                 }
             }
@@ -563,7 +564,7 @@ fun SettingsPage(
                 Text(stringResource(R.string.settings_scrape), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("扫描后自动补全", style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.settings_scrape_auto), style = MiuixTheme.textStyles.title4)
                         Text("只补缺的：已有封面/歌词的歌会跳过。来源 iTunes · Deezer（封面）、LRCLIB（歌词），结果缓存在应用目录，之后离线可用。",
                             style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
@@ -587,7 +588,7 @@ fun SettingsPage(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) "刮削中…" else stringResource(R.string.settings_scrape_now)) }
+                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) stringResource(R.string.settings_scraping) else stringResource(R.string.settings_scrape_now)) }
                 }
                 // 之前刮削把歌曲自带的封面盖掉过？这里一键把原封面放回来（用户自己设的封面不动）
                 LiquidListItem(
@@ -609,7 +610,7 @@ fun SettingsPage(
         }
         item {
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 10, scheme.primary)) {
-                Text("滚轮圆环玻璃颜色", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_wheel_tint), style = MiuixTheme.textStyles.title4)
                 Text("有色玻璃是「吸光」的：颜色越沉、透光率越低。只改滚轮那一圈，dock / 顶栏 / 播放控件保持无色玻璃。",
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                 Row(
@@ -637,7 +638,7 @@ fun SettingsPage(
                 }
                 // 调色盘：色相 / 饱和度 / 透光率。拖动任意一个即进入"自定义"，实时生效
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("色相", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_hue), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Text("${tintState.hue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(
@@ -646,7 +647,7 @@ fun SettingsPage(
                     valueRange = 0f..360f,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("饱和度", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_saturation), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Text("${(tintState.sat * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(
@@ -655,7 +656,7 @@ fun SettingsPage(
                     valueRange = 0f..1f,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("透光率（越低调越暗）", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.settings_transmission), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
                     Text("${(tintState.level * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(

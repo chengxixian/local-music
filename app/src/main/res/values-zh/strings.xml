@@ -58,4 +58,19 @@
     <string name="settings_add_folder">添加文件夹</string>
     <string name="settings_auto_convert">自动转换</string>
     <string name="settings_rescan_library">重新扫描曲库</string>
+    <string name="settings_audio_output">音频输出</string>
+    <string name="settings_ncm_import">网易云 ncm 导入</string>
+    <string name="settings_auto_convert2">自动转换为 MP3 / FLAC</string>
+    <string name="settings_scrape_auto">扫描后自动补全</string>
+    <string name="settings_wheel_tint">滚轮圆环玻璃颜色</string>
+    <string name="settings_hue">色相</string>
+    <string name="settings_saturation">饱和度</string>
+    <string name="settings_transmission">透光率（越低调越暗）</string>
+    <string name="settings_remove">移除</string>
+    <string name="settings_eq_unavailable">本机不可用</string>
+    <string name="settings_eq_bypassed">USB 直通中 · 当前不生效</string>
+    <string name="settings_eq_off">未启用 · 点击打开玻璃面板调节</string>
+    <string name="settings_scraping">刮削中…</string>
+    <string name="settings_tree_persisted">读取权限已持久化，重启后仍然有效</string>
+    <string name="settings_export_none">尚未选择 —— 目前只会暂存到应用私有目录，卸载即丢</string>
 </resources>

@@ -53,4 +53,19 @@
     <string name="settings_add_folder">Add folder</string>
     <string name="settings_auto_convert">Auto convert</string>
     <string name="settings_rescan_library">Rescan library</string>
+    <string name="settings_audio_output">Audio output</string>
+    <string name="settings_ncm_import">NetEase ncm import</string>
+    <string name="settings_auto_convert2">Auto-convert to MP3 / FLAC</string>
+    <string name="settings_scrape_auto">Auto-fill after scanning</string>
+    <string name="settings_wheel_tint">Wheel ring glass colour</string>
+    <string name="settings_hue">Hue</string>
+    <string name="settings_saturation">Saturation</string>
+    <string name="settings_transmission">Transmission (lower = darker)</string>
+    <string name="settings_remove">Remove</string>
+    <string name="settings_eq_unavailable">Not available on this device</string>
+    <string name="settings_eq_bypassed">USB passthrough active · equalizer bypassed</string>
+    <string name="settings_eq_off">Disabled · tap to open the glass EQ panel</string>
+    <string name="settings_scraping">Scraping…</string>
+    <string name="settings_tree_persisted">Read permission persisted across restarts</string>
+    <string name="settings_export_none">Not selected yet — files only stay in app-private storage and are lost on uninstall</string>
 </resources>

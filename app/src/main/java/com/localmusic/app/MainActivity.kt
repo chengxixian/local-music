@@ -303,6 +303,8 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var showAbout by remember { mutableStateOf(false) }
+    // 设置页的滚动位置：放在 AnimatedContent 之外，切语言重建 Activity 后不会弹回顶部
+    val settingsListState = androidx.compose.foundation.lazy.rememberLazyListState()
     var showEq by remember { mutableStateOf(false) }
     var bitPerfect by remember { mutableStateOf(prefs.getBoolean("bitPerfect", false)) }
     var autoNcm by remember { mutableStateOf(prefs.getBoolean("autoNcm", true)) }
@@ -603,6 +605,7 @@ private fun AppShell() {
                                         }
                                     }
                                     Page.Settings -> SettingsPage(
+                                        listState = settingsListState,
                                         status = status, bitPerfect = bitPerfect, autoNcm = autoNcm,
                                         diagnostics = diagnostics, trees = trees,
                                         exportLabel = exportLabel,
