@@ -4,8 +4,9 @@
 **前端使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)**，
 **ncm 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)**。
 
-![播放页](docs/screenshots/player-glass.png)
-![曲库与收藏](docs/screenshots/library-favorites.png)
+![曲库：卡片上直接标出格式与规格（FLAC 24bit/96kHz）](docs/screenshots/library-hires.png)
+![播放页：整页封面模糊背景 + 规格行](docs/screenshots/player-glass.png)
+![乐单](docs/screenshots/playlists.png)
 
 > 工程位置（开发机）：`D:\dsh work region\local-music`
 > 前端库引用的是工作区里已 clone 的 `liquid-miuix-repo/library`（`projectDir` 直接指过去，没有复制代码）；
@@ -16,6 +17,20 @@
 ## 项目介绍
 
 一个**本地优先**的 Android HiFi 播放器：扫描你自己的存储、把网易云 `.ncm` 转成 FLAC/MP3、自动刮削封面与歌词，播放内核支持 float PCM 直通（bit-perfect），界面是全套液态玻璃 + 一个 iPod 式滚轮。
+
+**面向高品质音源**：曲库卡片与播放页直接标出每首歌的真实规格（格式 / 位深 / 采样率 / 声道），高解析 PCM 一路送到 USB DAC 走 bit-perfect 直通。
+
+### 支持的音频格式
+
+| 类别 | 格式 | 说明 |
+|---|---|---|
+| 无损 / 高解析 PCM | **FLAC、WAV、ALAC(m4a)** | 曲库识别并展示真实规格，实测 **24bit/96kHz**（截图里的徽章就是曲库自己读出来的） |
+| 高采样率 PCM | **最高 384kHz / 32bit** | 含 **DXD（24bit/352.8kHz）**——它本质是 PCM，走 FLAC/WAV 通道即可播放 |
+| 有损 | MP3、AAC(m4a)、OGG、Opus | 常规播放 |
+| **DSD** | `.dsf` / `.dff` | ❌ **暂不支持**：扫描阶段就不收这两种扩展名，曲库不会出现 DSD 文件，也没有把 DSD 转 PCM 的解码器 |
+
+> 关于 bit-perfect：Android 14+ 才会用 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)` 申请直通；更低版本或设备不支持时自动回落系统混音（能听，但不再"位完美"）。USB DAC 直通我在真机上**没有 DAC 可测**，这条只有实现、没有实测证据。
+
 
 - 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
 - 许可 **GPL-3.0**（因为播放内核移植自 GPLv3 的 AURALIS）
