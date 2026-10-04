@@ -885,12 +885,12 @@ fun PlaylistPage(
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
+            // onClick 是普通 lambda，不能在里面调 stringResource，先在组合作用域取好
+            val plNewLabel = stringResource(R.string.pl_new)
             LiquidListItem(
                 title = stringResource(R.string.pl_new),
                 subtitle = stringResource(R.string.pl_new_sub),
                 leading = Icons.Rounded.Add,
-                // onClick 是普通 lambda，不能在里面调 stringResource，先在外面取好
-                val plNewLabel = stringResource(R.string.pl_new)
                 onClick = { onAskName(plNewLabel, "") { name -> onCreate(name) } },
             )
         }
@@ -1020,11 +1020,11 @@ fun AddToPlaylistSheet(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(8.dp))
+            // onClick 是普通 lambda，不能在里面调 stringResource，先在组合作用域取好
+            val plNewLabel = stringResource(R.string.pl_new)
             LiquidListItem(
                 title = stringResource(R.string.pl_add_new),
                 leading = Icons.Rounded.Add,
-                // onClick 是普通 lambda，不能在里面调 stringResource，先在外面取好
-                val plNewLabel = stringResource(R.string.pl_new)
                 onClick = { onAskName(plNewLabel, "") { name -> onCreate(name) } },
             )
             playlists.forEach { playlist ->
