@@ -696,6 +696,20 @@ fun SettingsPage(
                     leading = Icons.Rounded.Info,
                     onClick = onOpenAbout,
                 )
+                // 语言：默认英文（res/values 就是英文），中文在 values-zh；
+                // 点一下在 跟随系统 -> English -> 简体中文 之间循环。
+                val langCtx = LocalContext.current
+                LiquidListItem(
+                    title = "语言 / Language",
+                    subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + " · 点击切换",
+                    leading = Icons.Rounded.Settings,
+                    onClick = {
+                        val opts = com.localmusic.app.data.LanguagePref.options
+                        val idx = opts.indexOfFirst { it.first == com.localmusic.app.data.LanguagePref.currentTag(langCtx) }
+                        val next = opts[(idx + 1).mod(opts.size)]
+                        com.localmusic.app.data.LanguagePref.set(langCtx, next.first)
+                    },
+                )
             }
         }
     }
