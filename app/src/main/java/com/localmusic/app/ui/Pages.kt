@@ -478,6 +478,7 @@ fun SettingsPage(
     onRestoreCovers: () -> Unit = {},
     onClearScrapedCovers: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
+    onOpenLanguage: () -> Unit = {},
     neteaseSource: Boolean = true,
     onNeteaseSource: (Boolean) -> Unit = {},
     tintState: WheelTintState = WheelTintState(),
@@ -1182,6 +1183,44 @@ fun AboutPage(onBack: () -> Unit) {
                         TextButton(onClick = { showDonate = false }) { Text(stringResource(R.string.donate_close)) }
                     }
                 }
+            }
+        }
+    }
+}
+/**
+ * 语言选择弹窗（**液态玻璃**）。
+ *
+ * 只能从浮层调用：liquidGlass 采样采集层，设置页在采集层内部，玻璃画在那里会自引用。
+ * 所以设置页只负责"通知外层打开"，弹窗由 MainActivity 在浮层渲染。
+ */
+@Composable
+fun LanguageDialog(
+    backdrop: com.kyant.backdrop.backdrops.LayerBackdrop?,
+    currentTag: String?,
+    onPick: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.84f)) {
+            Text("语言 / Language", style = MiuixTheme.textStyles.title4)
+            Spacer(Modifier.height(8.dp))
+            com.localmusic.app.data.LanguagePref.options.forEach { (tag, label) ->
+                LiquidListItem(
+                    title = label,
+                    subtitle = if (tag == currentTag) "当前 / Current" else null,
+                    leading = if (tag == currentTag) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    onClick = { onPick(tag) },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary),
+                ) { Text(stringResource(R.string.pl_cancel)) }
             }
         }
     }

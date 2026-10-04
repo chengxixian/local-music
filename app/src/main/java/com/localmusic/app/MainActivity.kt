@@ -304,6 +304,7 @@ private fun AppShell() {
     var wheelIndex by remember(page) { mutableStateOf(0) }
     // 播放页不再是 dock 里的一栏（用户觉得多余）：点歌 / 点迷你播放条才进播放页
     var showAbout by remember { mutableStateOf(false) }
+    var showLanguage by remember { mutableStateOf(false) }
     // 设置页的滚动位置：放在 AnimatedContent 之外，切语言重建 Activity 后不会弹回顶部
     val settingsListState = androidx.compose.foundation.lazy.rememberLazyListState()
     var showEq by remember { mutableStateOf(false) }
@@ -658,6 +659,7 @@ private fun AppShell() {
                                         onRemoveTree = { library.removeTree(it); trees = library.treeUris().toList(); exportLabel = prefs.getString("exportLabel", null) },
                                         onScan = { library.scan() },
                                         onOpenAbout = { showAbout = true },
+                                        onOpenLanguage = { showLanguage = true },
                                         onCancel = { library.cancel() },
                                         tintState = tintState,
                                         wheelIndex = wheelIndex,
@@ -756,6 +758,15 @@ private fun AppShell() {
                                     )
                                 }
                             }
+                        }
+                        // 语言选择：液态玻璃弹窗（必须在浮层，设置页在采集层内）
+                        if (showLanguage) {
+                            LanguageDialog(
+                                backdrop = backdrop,
+                                currentTag = com.localmusic.app.data.LanguagePref.currentTag(context),
+                                onPick = { tag -> com.localmusic.app.data.LanguagePref.set(context, tag); showLanguage = false },
+                                onDismiss = { showLanguage = false },
+                            )
                         }
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
