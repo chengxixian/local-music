@@ -52,7 +52,7 @@ GLYPHS = {
 GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 
 # ── 时间轴（秒）──
-DURATION = 16.0
+DURATION = 18.0
 T_GRID = (0.5, 3.2)          # 灰点阵涟漪淡入
 T_LIGHT = (3.0, 5.2)         # Lm 点亮
 T_FLASH = (5.2, 6.6)         # 红点首次闪光
@@ -198,8 +198,8 @@ def main(out_path, width, height, fps):
                         if conv <= 0.01:
                             continue
                         wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dpx / (RIPPLE_WAVELEN * cell)))
-                        shade = int(255 * clamp01(GRID_STEADY * (0.72 + 0.48 * wave) * conv))
-                        circle(d, (cx_, cy_), dot_r * 0.9, (shade, shade, shade))
+                        shade = int(255 * clamp01(GRID_STEADY * (0.28 + 1.10 * wave) * conv))
+                        circle(d, (cx_, cy_), dot_r * (0.70 + 0.60 * wave), (shade, shade, shade))
             for b in blocks:
                 bc = block_col(b)
                 is_old = id(b) in INIT_COL
@@ -221,10 +221,10 @@ def main(out_path, width, height, fps):
                         if front <= 0.01:
                             continue
                         wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dist / RIPPLE_WAVELEN))
-                        base = 0.15 + 0.28 * wave
+                        base = 0.10 + 0.44 * wave
                         base *= 1.0 - 0.30 * ease
                         # 冲击波扫过之后，点阵稳定在一个较亮的灰（整屏成为均匀灰点阵）
-                        base = base * (1.0 - conv) + GRID_STEADY * (0.75 + 0.45 * wave) * conv
+                        base = base * (1.0 - conv) + GRID_STEADY * (0.28 + 1.10 * wave) * conv
                         shade = int(255 * clamp01(front * base * appear))
                         circle(d, px(gx, r), dot_r, (shade, shade, shade))
 
@@ -259,10 +259,34 @@ def main(out_path, width, height, fps):
                                 circle(d, px(gx, r), radius, col)
                         else:
                             conv = convert_at(gx, r)
+                            if is_old:
+                                dly = (math.hypot(gx - cur_src_x, r - src_row) / max_d) * 0.45
+                                lp = clamp01((light - dly) / 0.30)
+                                fl = max(0.0, math.sin(math.pi * lp))
+                            else:
+                                fl = 0.0
                             col = tuple(int(255 * (1 - conv) + GRAY_C * conv) for GRAY_C in GRAY)
-                            radius = dot_r * (grow * (1 - conv) + 1.0 * conv)
+                            radius = dot_r * (grow * (1 - conv) + 1.0 * conv) * (1.0 + 1.2 * fl)
                             circle(d, px(gx, r), radius, col)
+                            if fl > 0.04:
+                                circle(g, px(gx, r), dot_r * (2.2 + 2.4 * fl), (255, 255, 255, int(150 * fl)), scale)
 
+            # 全屏点阵里重新浮现：Lm 与完整名称（从红点位置向外逐点亮起）
+            re = clamp01((t - 15.0) / 1.4)
+            if re > 0.01:
+                for b in blocks:
+                    bc = b['final']
+                    for r_, line in b['rows'].items():
+                        for c_, chv in enumerate(line):
+                            if chv != 'X':
+                                continue
+                            gx_ = bc + c_
+                            d_ = math.hypot(gx_ - cur_src_x, r_ - src_row)
+                            a_ = clamp01(re * 2.6 - d_ / (max_d * 2.0))
+                            if a_ <= 0.01:
+                                continue
+                            sh = int(255 * a_)
+                            circle(d, px(gx_, r_), dot_r * (0.80 + 0.55 * a_), (sh, sh, sh))
             # 冲击波可见圆环（1/4 分辨率绘制 + 模糊）
             if ring_a > 0.01 and t >= T_SHOCK[0]:
                 rr = shock_front * cell * scale
