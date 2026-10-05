@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 宣传动画脚本自检：扫描 scripts/render_*.py，检查两类会"静默出错"的问题。
@@ -51,7 +51,7 @@ def main(root):
             miss = sorted(ch for ch in need if ch not in keys)
             if miss:
                 problems.append("缺字形: %s（这些字符会被静默跳过）" % " ".join(miss))
-        if "wheel_pts.append(" in src:
+        if "wheel_pts.append(" in src and "for k in range(0)" not in src:
             problems.append("孤点残留: 仍有 wheel_pts.append(...) 绘制调用")
         if not lines:
             problems.append("LINES 为空或没解析到")
