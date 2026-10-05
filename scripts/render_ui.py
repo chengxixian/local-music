@@ -134,7 +134,7 @@ def main(out_path, width, height, fps):
                           wr + int(round(math.sin(ang) * wrad)), 'r'))
     pass
     for (dx, dy) in ((0, -2), (0, 2), (-2, 0), (2, 0)):
-        wheel_pts.append((wc + dx, wr + dy, 'k'))
+        pass
 
     # 本段正文（三行）与上一段收尾（四行，用于衔接）
     line_rows = CELL_ROWS + 2
