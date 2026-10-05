@@ -64,6 +64,7 @@ RIGHT_X = 0.52                      # 介绍文字的起始列比例
 DURATION = 12.0
 LINE_STEP = (1.2, 3.6)              # 每行点亮的时间间隔（秒）
 LINE_FADE = 1.1                     # 单行淡入时长
+OPENING_TAIL = 18.0                 # 开场动画总时长：涟漪相位从这里继续，保证接缝处波峰对得上
 RIPPLE_PERIOD = 1.7
 RIPPLE_WAVELEN = 3.0
 GLOW_DIV = 4
@@ -117,6 +118,21 @@ def main(out_path, width, height, fps):
     src_row = 2
 
     # 预排每行的点
+    # 开场结尾的 "local music"（列 0 起、底边对齐），用于衔接
+    bridge_pts = []
+    _cur = 0
+    for ch in GRID_TEXT:
+        _g = GLYPHS.get(ch)
+        if _g is None:
+            _cur += GLYPH_W + GAP
+            continue
+        _top = CELL_ROWS - len(_g)
+        for _r, _row in enumerate(_g):
+            for _c, _v in enumerate(_row):
+                if _v == 'X':
+                    bridge_pts.append((_cur + _c, _top + _r))
+        _cur += (SPACE_W if ch == ' ' else GLYPH_W) + GAP
+
     rendered_lines = []
     for i, line in enumerate(LINES):
         pts = []
@@ -164,13 +180,21 @@ def main(out_path, width, height, fps):
                     cx_ = ox + (cc_ + 0.5) * cell
                     cy_ = oy + (rr_ + 0.5) * cell
                     dpx = math.hypot(cx_ - scx, cy_ - scy)
-                    wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dpx / (RIPPLE_WAVELEN * cell)))
+                    wave = 0.5 + 0.5 * math.sin(2 * math.pi * ((t + OPENING_TAIL) / RIPPLE_PERIOD - dpx / (RIPPLE_WAVELEN * cell)))
                     left = cx_ < width * LEFT_KEEP
-                    ramp = clamp01((cx_ - width * 0.36) / (width * 0.12))
+                    lr = clamp01((t - 0.8) / 1.2)
+                    ramp = clamp01((cx_ - width * 0.36) / (width * 0.12)) * lr
                     amp = LEFT_DIM + (0.20 - LEFT_DIM) * ramp
                     shade = int(255 * clamp01(amp * (0.25 + 1.0 * wave)))
                     circle(d, (cx_, cy_), dot_r * (0.70 + 0.55 * wave), (shade, shade, shade))
 
+            # ①b 衔接：开场结尾重新浮现的 local music 先原样保持（同网格同位置），
+            #     然后淡出，交给右侧四行介绍
+            bridge = clamp01(1.0 - (t - 1.3) / 1.3)
+            if bridge > 0.01:
+                for (cc_, rr_) in bridge_pts:
+                    sh = int(255 * bridge)
+                    circle(d, px(cc_, rr_), dot_r * 1.75, (sh, sh, sh))
             # ② 右侧四行：依次淡入，落位后保持
             for i, pts in enumerate(rendered_lines):
                 start = LINE_STEP[0] + i * (LINE_STEP[1] - LINE_STEP[0]) / max(len(LINES) - 1, 1)
