@@ -60,7 +60,7 @@ GLYPHS = {
 GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 GRID_TEXT = "local music"                 # 只用于推导网格
 LINES = ["AUTO", "COVER", "LYRIC"]                # 本段正文：自动补全封面与歌词（不涉及任何音源平台）
-BRIDGE_LINES = ["AUTO", "COVER", "LYRIC"]   # 上一段（第二段）的收尾，用于衔接
+BRIDGE_LINES = ["GLASS", "UI", "CLICK", "WHEEL"]   # 上一段（第二段）的收尾，用于衔接
 
 LEFT_KEEP = 0.44
 LEFT_DIM = 0.10
