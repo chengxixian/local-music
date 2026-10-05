@@ -57,8 +57,8 @@ GLYPHS = {
 
 GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 GRID_TEXT = "local music"                 # 只用于推导网格
-LINES = ["GLASS", "UI", "CLICK", "WHEEL"]                # 本段正文：液态玻璃 + iPod 式滚轮
-BRIDGE_LINES = ["GLASS", "UI", "CLICK", "WHEEL"]   # 上一段（第二段）的收尾，用于衔接
+LINES = ["AUTO", "COVER", "LYRIC"]                # 本段正文：自动补全封面与歌词（不涉及任何音源平台）
+BRIDGE_LINES = ["AUTO", "COVER", "LYRIC"]   # 上一段（第二段）的收尾，用于衔接
 
 LEFT_KEEP = 0.44
 LEFT_DIM = 0.10
@@ -133,7 +133,7 @@ def main(out_path, width, height, fps):
         wheel_pts.append((wc + int(round(math.cos(ang) * wrad)),
                           wr + int(round(math.sin(ang) * wrad)), 'r'))
     pass
-    for (dx, dy) in ((0, -2), (0, 2), (-2, 0), (2, 0)):
+    for (dx, dy) in ((2, 2), (3, 3), (4, 4), (5, 5)):
         wheel_pts.append((wc + dx, wr + dy, 'k'))
 
     # 本段正文（三行）与上一段收尾（四行，用于衔接）
@@ -205,7 +205,7 @@ def main(out_path, width, height, fps):
                         sh = int(255 * bridge)
                         circle(d, px(cc_, rr_), dot_r * 1.75, (sh, sh, sh))
 
-            # ③ 点阵滚轮：圆环 + 中心键 + 上下左右四向键
+            # ③ 点阵放大镜：圆环（镜片）+ 中心点 + 对角手柄 —— 表示自动补全封面歌词
             wa = clamp01((t - WHEEL_START) / 1.4)
             if wa > 0.01:
                 for (cc_, rr_, kind) in wheel_pts:
