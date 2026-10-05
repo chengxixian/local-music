@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 介绍段动画（与开场动画的点阵**严格对齐**）。
@@ -166,7 +166,8 @@ def main(out_path, width, height, fps):
                     dpx = math.hypot(cx_ - scx, cy_ - scy)
                     wave = 0.5 + 0.5 * math.sin(2 * math.pi * (t / RIPPLE_PERIOD - dpx / (RIPPLE_WAVELEN * cell)))
                     left = cx_ < width * LEFT_KEEP
-                    amp = LEFT_DIM if left else 0.42
+                    ramp = clamp01((cx_ - width * 0.36) / (width * 0.12))
+                    amp = LEFT_DIM + (0.20 - LEFT_DIM) * ramp
                     shade = int(255 * clamp01(amp * (0.25 + 1.0 * wave)))
                     circle(d, (cx_, cy_), dot_r * (0.70 + 0.55 * wave), (shade, shade, shade))
 
@@ -178,12 +179,12 @@ def main(out_path, width, height, fps):
                     continue
                 for (cc_, rr_) in pts:
                     dpx = math.hypot(ox + (cc_ + 0.5) * cell - scx, oy + (rr_ + 0.5) * cell - scy)
-                    a_pt = clamp01(a_line * 2.2 - dpx / (max(width, height) * 0.75))
+                    a_pt = clamp01(a_line * 3.0 - dpx / (max(width, height) * 0.60))
                     if a_pt <= 0.01:
                         continue
                     fl = max(0.0, math.sin(math.pi * clamp01(a_pt / 0.55)))
                     sh = int(255 * a_pt)
-                    circle(d, px(cc_, rr_), dot_r * (1.0 + 0.45 * fl), (sh, sh, sh))
+                    circle(d, px(cc_, rr_), dot_r * (1.75 + 0.55 * fl), (max(sh, 150),) * 3)
                     if fl > 0.04:
                         circle(g, px(cc_, rr_), dot_r * (1.5 + 1.0 * fl), (255, 255, 255, int(60 * fl)), scale)
 
