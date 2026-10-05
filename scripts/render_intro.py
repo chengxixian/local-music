@@ -56,7 +56,7 @@ GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 GRID_TEXT = "local music"          # 只用来推导宽度，保证与开场同一网格
 
 # ── 版面 ──
-LINES = ["local", "music", "HIFI", "FLAC"]   # 右侧自上而下的四行
+LINES = ["local", "music", "DSD", "DXD"]    # 右侧四行：主打 DSD / DXD（FLAC 通用，不作为卖点）
 LEFT_KEEP = 0.44                    # 左侧 44% 留给实机演示
 LEFT_DIM = 0.10                     # 左侧点阵亮度（0 = 完全纯黑）
 RIGHT_X = 0.52                      # 介绍文字的起始列比例

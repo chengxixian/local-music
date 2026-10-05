@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 第三段介绍动画：液态玻璃 + iPod 式滚轮。
@@ -49,13 +49,15 @@ GLYPHS = {
     'O': [".XXX.", "X...X", "X...X", "X...X", "X...X", "X...X", ".XXX."],
     'S': [".XXXX", "X....", "X....", ".XXX.", "....X", "....X", "XXXX."],
     'U': ["X...X", "X...X", "X...X", "X...X", "X...X", "X...X", ".XXX."],
+    'V': ["X...X", "X...X", "X...X", "X...X", "X...X", ".X.X.", "..X.."],
     'W': ["X...X", "X...X", "X...X", "X.X.X", "X.X.X", "XX.XX", "X...X"],
+    'Y': ["X...X", "X...X", ".X.X.", "..X..", "..X..", "..X..", "..X.."],
     ' ': [".....", "....."],
 }
 
 GLYPH_W, GAP, SPACE_W, CELL_ROWS = 5, 1, 3, 7
 GRID_TEXT = "local music"                 # 只用于推导网格
-LINES = ["GLASS", "WHEEL"]                # 本段正文（纵向只够两行 + 滚轮）
+LINES = ["COVER", "LYRIC"]                # 本段正文：自动补全封面与歌词（不涉及任何音源平台）
 BRIDGE_LINES = ["local", "music", "HIFI", "FLAC"]   # 上一段的收尾，用于衔接
 
 LEFT_KEEP = 0.44
@@ -131,7 +133,7 @@ def main(out_path, width, height, fps):
         wheel_pts.append((wc + int(round(math.cos(ang) * wrad)),
                           wr + int(round(math.sin(ang) * wrad)), 'r'))
     wheel_pts.append((wc, wr, 'c'))
-    for (dx, dy) in ((0, -2), (0, 2), (-2, 0), (2, 0)):
+    for (dx, dy) in ((2, 2), (3, 3), (4, 4), (5, 5)):
         wheel_pts.append((wc + dx, wr + dy, 'k'))
 
     # 本段正文（三行）与上一段收尾（四行，用于衔接）
@@ -203,7 +205,7 @@ def main(out_path, width, height, fps):
                         sh = int(255 * bridge)
                         circle(d, px(cc_, rr_), dot_r * 1.75, (sh, sh, sh))
 
-            # ③ 点阵滚轮：环 + 中心键 + 四向键
+            # ③ 点阵放大镜：圆环（镜片）+ 中心点 + 对角手柄 —— 表示自动补全封面歌词
             wa = clamp01((t - WHEEL_START) / 1.4)
             if wa > 0.01:
                 for (cc_, rr_, kind) in wheel_pts:
