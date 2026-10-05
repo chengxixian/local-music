@@ -266,10 +266,10 @@ def main(out_path, width, height, fps):
                             else:
                                 fl = 0.0
                             col = tuple(int(255 * (1 - conv) + GRAY_C * conv) for GRAY_C in GRAY)
-                            radius = dot_r * (grow * (1 - conv) + 1.0 * conv) * (1.0 + 1.2 * fl)
+                            radius = dot_r * (grow * (1 - conv) + 1.0 * conv) * (1.0 + 0.45 * fl)
                             circle(d, px(gx, r), radius, col)
                             if fl > 0.04:
-                                circle(g, px(gx, r), dot_r * (2.2 + 2.4 * fl), (255, 255, 255, int(150 * fl)), scale)
+                                circle(g, px(gx, r), dot_r * (1.5 + 1.1 * fl), (255, 255, 255, int(70 * fl)), scale)
 
             # 全屏点阵里重新浮现：Lm 与完整名称（从红点位置向外逐点亮起）
             re = clamp01((t - 15.0) / 1.4)
