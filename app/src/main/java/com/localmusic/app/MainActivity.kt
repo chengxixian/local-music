@@ -322,8 +322,9 @@ private fun AppShell() {
     val barScale by animateFloatAsState(if (barPressed) BarPressedScale else 1f, LiquidMotion.press(), label = "barScale")
 
     val nowPlaying = remember(songs, playback.id) { songs.firstOrNull { it.uri == playback.id } }
-    // dock 选中色：跟随当前歌曲封面（取不到则回落到主题色）
+    // dock 仅在播放页跟随封面（主界面用主题色）
     val dockAccent = com.localmusic.app.ui.rememberPlayerAccent(nowPlaying)
+    // dock 选中色：跟随当前歌曲封面（取不到则回落到主题色）
 
     // ── 滚轮导航：曲库/喜欢用过滤后的歌曲列表，设置用下面这张动作表 ──
     // 过滤上提到这里，是为了让"滚轮选中的下标"和页面真正显示的列表永远一致。
@@ -694,7 +695,7 @@ private fun AppShell() {
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
                         // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
                         // 顶栏让位给页面自己的那行玻璃圆钮。
-                        if (playerOpen) {
+                        PopIn(visible = playerOpen) {
                             PlayerPage(
                                 backdrop = backdrop,
                                 song = nowPlaying,
@@ -736,7 +737,7 @@ private fun AppShell() {
                                     onMenu = { showPlaylistMenu = true },
                                 )
                                 // 重命名 / 换封面 / 删除：收在一个按钮弹出的面板里
-                                if (showPlaylistMenu) {
+                                PopIn(visible = showPlaylistMenu) {
                                     PlaylistActionsSheet(
                                         backdrop = backdrop,
                                         playlist = opened,
@@ -762,7 +763,7 @@ private fun AppShell() {
                             }
                         }
                         // 语言选择：液态玻璃弹窗（必须在浮层，设置页在采集层内）
-                        if (showLanguage) {
+                        PopIn(visible = showLanguage) {
                             LanguageDialog(
                                 backdrop = backdrop,
                                 currentTag = com.localmusic.app.data.LanguagePref.currentTag(context),
@@ -775,7 +776,7 @@ private fun AppShell() {
                             AboutPage(onBack = { showAbout = false })
                         }
                         // 问名字（新建 / 重命名乐单）：在浮层里，滚轮之上
-                        naming?.let { req ->
+                        PopInData(naming) { req ->
                             NameDialogGlass(
                                 backdrop = backdrop,
                                 title = req.title,
@@ -785,7 +786,7 @@ private fun AppShell() {
                             )
                         }
                         // 「加入乐单」面板（和喜欢一样：点一下即加/去，不需要确认）
-                        pickerSong?.let { song ->
+                        PopInData(pickerSong) { song ->
                             val memberOf = remember(song.uri, playlistsRevision, context) {
                                 com.localmusic.app.data.PlaylistStore.playlistsOf(context, song.uri)
                             }
@@ -875,8 +876,8 @@ private fun AppShell() {
                                     GlassNavBarContent(
                                         items = Page.entries.map { it.icon to stringResource(it.titleRes) },
                                         selectedIndex = Page.entries.indexOf(page),
-                                        selectedColor = dockAccent,
-                                        onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false },
+                                        selectedColor = if (playerOpen) dockAccent else null,
+                                        onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false; openPlaylist = null; showPlaylistMenu = false; pickerSong = null; naming = null },
                                         modifier = Modifier.matchParentSize(),
                                         backdrop = backdrop,
                                         contentHeight = BarHeight,

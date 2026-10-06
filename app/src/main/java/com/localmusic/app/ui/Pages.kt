@@ -1221,3 +1221,87 @@ fun LanguageDialog(
         }
     }
 }
+
+/**
+ * 弹出动效：**渐入渐出 + 缩放**。
+ *
+ * 关键点：退出时内容不能立刻从组合里消失，否则动画没得播。所以这里用一个 `kept`
+ * 状态把内容多留一会儿，等退场动画播完（约 160ms）再真正移除。
+ *
+ * 用法（替换原来的 `if (visible) { ... }`，内容不要再套 if）：
+ *     PopIn(visible = showX) { Box(...) { ...弹窗内容... } }
+ */
+@Composable
+fun PopIn(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    var kept by remember { mutableStateOf(visible) }
+    val anim = remember { androidx.compose.animation.core.Animatable(if (visible) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(visible) {
+        if (visible) {
+            kept = true
+            anim.animateTo(1f, androidx.compose.animation.core.spring(
+                dampingRatio = 0.72f,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+            ))
+        } else {
+            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 160))
+            kept = false
+        }
+    }
+    if (kept) {
+        Box(
+            modifier.graphicsLayer {
+                val v = anim.value
+                alpha = v
+                val s = 0.92f + 0.08f * v
+                scaleX = s
+                scaleY = s
+            }
+        ) { content() }
+    }
+}
+
+/**
+ * 带数据的弹出动效：用于 `x?.let { }` 形式的弹窗。
+ *
+ * 退出时数据会先变成 null，内容立刻消失就播不了退场 —— 所以这里把**最后一份非空数据**
+ * 留住，等退场动画播完再移除。
+ *
+ * 用法：把 `PopInData(naming) { req -> ... }` 换成 `PopInData(naming) { req -> ... }`。
+ */
+@Composable
+fun <T : Any> PopInData(
+    data: T?,
+    modifier: Modifier = Modifier,
+    content: @Composable (T) -> Unit,
+) {
+    var kept by remember { mutableStateOf<T?>(data) }
+    if (data != null) kept = data
+    val visible = data != null
+    val anim = remember { androidx.compose.animation.core.Animatable(if (visible) 1f else 0f) }
+    androidx.compose.runtime.LaunchedEffect(visible) {
+        if (visible) {
+            anim.animateTo(1f, androidx.compose.animation.core.spring(
+                dampingRatio = 0.72f,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
+            ))
+        } else {
+            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 160))
+            kept = null
+        }
+    }
+    kept?.let { d ->
+        Box(
+            modifier.graphicsLayer {
+                val v = anim.value
+                alpha = v
+                val s = 0.92f + 0.08f * v
+                scaleX = s
+                scaleY = s
+            }
+        ) { content(d) }
+    }
+}
