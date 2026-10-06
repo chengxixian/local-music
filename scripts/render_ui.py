@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 第三段介绍动画：液态玻璃 + iPod 式滚轮。
@@ -248,7 +248,7 @@ def main(out_path, width, height, fps):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=r"D:\dsh work region\promo\local-music-ui-4k60.mp4")
+    ap.add_argument("--out", default=r"D:\dsh work region\video\local-music-ui-4k60.mp4")
     ap.add_argument("--width", type=int, default=3840)
     ap.add_argument("--height", type=int, default=2160)
     ap.add_argument("--fps", type=int, default=60)

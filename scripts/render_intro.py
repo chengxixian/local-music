@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 介绍段动画（与开场动画的点阵**严格对齐**）。
@@ -228,7 +228,7 @@ def main(out_path, width, height, fps):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=r"D:\dsh work region\promo\local-music-intro-4k60.mp4")
+    ap.add_argument("--out", default=r"D:\dsh work region\video\local-music-intro-4k60.mp4")
     ap.add_argument("--width", type=int, default=3840)
     ap.add_argument("--height", type=int, default=2160)
     ap.add_argument("--fps", type=int, default=60)
