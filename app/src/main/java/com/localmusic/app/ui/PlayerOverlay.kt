@@ -181,6 +181,8 @@ fun PlayerPage(
     onRemoveFromQueue: (Int) -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
+    // 主题色：优先取当前歌曲封面的鲜艳色，取不到再回落默认主题色
+    val accent = rememberPlayerAccent(song) ?: scheme.primary
     val context = LocalContext.current
     // 播放进度在播放页内部收集：只有这一屏会跟着 400ms 的进度重组，曲库网格不受影响
     val livePosition by positionFlow.collectAsState()
@@ -312,7 +314,7 @@ fun PlayerPage(
                     Spacer(Modifier.height(LiquidSpacing.tight))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onShuffle) {
-                            Icon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) scheme.primary else scheme.onSurfaceVariantSummary)
+                            Icon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) accent else scheme.onSurfaceVariantSummary)
                         }
                         IconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_prev)) }
                         FilledIconButton(onClick = onToggle, modifier = Modifier.size(56.dp)) {
@@ -324,14 +326,14 @@ fun PlayerPage(
                             Icon(
                                 if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
-                                tint = if (favorite) scheme.primary else scheme.onSurfaceVariantSummary,
+                                tint = if (favorite) accent else scheme.onSurfaceVariantSummary,
                             )
                         }
                         IconButton(onClick = onRepeat) {
                             Icon(
                                 if (player.repeat == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                                 stringResource(R.string.player_repeat),
-                                tint = if (player.repeat != androidx.media3.common.Player.REPEAT_MODE_OFF) scheme.primary else scheme.onSurfaceVariantSummary,
+                                tint = if (player.repeat != androidx.media3.common.Player.REPEAT_MODE_OFF) accent else scheme.onSurfaceVariantSummary,
                             )
                         }
                     }
