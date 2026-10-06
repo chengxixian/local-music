@@ -322,6 +322,8 @@ private fun AppShell() {
     val barScale by animateFloatAsState(if (barPressed) BarPressedScale else 1f, LiquidMotion.press(), label = "barScale")
 
     val nowPlaying = remember(songs, playback.id) { songs.firstOrNull { it.uri == playback.id } }
+    // dock 选中色：跟随当前歌曲封面（取不到则回落到主题色）
+    val dockAccent = com.localmusic.app.ui.rememberPlayerAccent(nowPlaying)
 
     // ── 滚轮导航：曲库/喜欢用过滤后的歌曲列表，设置用下面这张动作表 ──
     // 过滤上提到这里，是为了让"滚轮选中的下标"和页面真正显示的列表永远一致。
@@ -873,6 +875,7 @@ private fun AppShell() {
                                     GlassNavBarContent(
                                         items = Page.entries.map { it.icon to stringResource(it.titleRes) },
                                         selectedIndex = Page.entries.indexOf(page),
+                                        selectedColor = dockAccent,
                                         onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false },
                                         modifier = Modifier.matchParentSize(),
                                         backdrop = backdrop,

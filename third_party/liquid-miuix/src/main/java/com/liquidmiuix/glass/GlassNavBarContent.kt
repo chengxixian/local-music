@@ -1,4 +1,6 @@
-package com.liquidmiuix.glass
+﻿package com.liquidmiuix.glass
+
+import androidx.compose.ui.graphics.Color
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -185,6 +187,8 @@ private fun sliderSpring() = spring<Float>(
  */
 @Composable
 fun GlassNavBarContent(
+    /** 选中态颜色；传 null 则用主题 primary。用于让 dock 跟随当前歌曲封面取色。 */
+    selectedColor: Color? = null,
     items: List<Pair<ImageVector, String>>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
@@ -483,7 +487,7 @@ fun GlassNavBarContent(
             items.forEachIndexed { index, (icon, label) ->
                 val selected = index == anchorIndex
                 val tint = if (selected) {
-                    MiuixTheme.colorScheme.primary
+                    (selectedColor ?: MiuixTheme.colorScheme.primary)
                 } else {
                     MiuixTheme.colorScheme.onSurfaceVariantSummary
                 }
