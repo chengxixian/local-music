@@ -4,7 +4,7 @@
 第三段介绍动画：液态玻璃 + iPod 式滚轮。
 
 与第一段（开场）、第二段（介绍）共用同一网格与涟漪相位，拼接严格对齐：
-    OPENING_TAIL = 30.0   # 开场 18s + 介绍段 12s，涟漪相位从这里继续
+    OPENING_TAIL = 66.0   # 开场 18s + 介绍段 12s，涟漪相位从这里继续
     cell / ox / oy 公式与 render_promo.py、render_intro.py 完全一致
 
 版面：右侧上方用**点阵画一个 iPod 式滚轮**（24 点圆环 + 中心键 + 四向键），
@@ -72,7 +72,7 @@ LINE_START = 1.6                # 正文开始时间（滚轮先出现）
 LINE_STEP = 1.1                 # 行间间隔
 LINE_FADE = 1.0
 WHEEL_START = 1.5
-OPENING_TAIL = 30.0             # 前两段总时长：涟漪相位继续
+OPENING_TAIL = 66.0             # 前两段总时长：涟漪相位继续
 RIPPLE_PERIOD = 1.7
 RIPPLE_WAVELEN = 3.0
 GLOW_DIV = 4
