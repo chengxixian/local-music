@@ -310,14 +310,18 @@ fun PlayerPage(
                         }
                     }
                     Spacer(Modifier.height(LiquidSpacing.inline))
-                    SeekBar(player, livePosition, onSeek)
+                    SeekBar(player, livePosition, onSeek, accent)
                     Spacer(Modifier.height(LiquidSpacing.tight))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onShuffle) {
                             Icon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) accent else scheme.onSurfaceVariantSummary)
                         }
                         IconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_prev)) }
-                        FilledIconButton(onClick = onToggle, modifier = Modifier.size(56.dp)) {
+                        FilledIconButton(
+                            onClick = onToggle,
+                            modifier = Modifier.size(56.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = accent, contentColor = scheme.onPrimary),
+                        ) {
                             Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                                 if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play), modifier = Modifier.size(30.dp))
                         }
@@ -486,7 +490,7 @@ private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positi
 }
 
 @Composable
-private fun SeekBar(player: PlaybackUi, livePosition: Long, onSeek: (Long) -> Unit) {
+private fun SeekBar(player: PlaybackUi, livePosition: Long, onSeek: (Long) -> Unit, accent: Color) {
     val duration = player.duration.coerceAtLeast(1L)
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
@@ -497,6 +501,11 @@ private fun SeekBar(player: PlaybackUi, livePosition: Long, onSeek: (Long) -> Un
             valueRange = 0f..duration.toFloat(),
             onValueChange = { dragging = true; dragValue = it },
             onValueChangeFinished = { dragging = false; onSeek(dragValue.toLong()) },
+            colors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent,
+                inactiveTrackColor = accent.copy(alpha = 0.24f),
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth()) {
