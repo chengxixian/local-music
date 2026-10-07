@@ -115,31 +115,59 @@ class PlaybackService : MediaSessionService() {
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
         } ?: run { status("等待连接兼容 USB DAC · 当前使用系统输出"); return }
         appendDsdCapability(usb)
-        val format = player.audioFormat
-        val extras = player.currentMediaItem?.mediaMetadata?.extras
-        val rate = format?.sampleRate?.takeIf { it > 0 } ?: extras?.getInt("sampleRate", 0) ?: 0
-        val channels = format?.channelCount?.takeIf { it > 0 } ?: extras?.getInt("channels", 0) ?: 0
-        val bits = extras?.getInt("bitDepth", 0) ?: 0
-        if (rate <= 0 || channels !in 1..2 || bits <= 0) {
-            status("USB 已连接 · 源 PCM 规格未完整确认，使用系统输出"); return
+        // 设备不一定上报 bit-perfect 组合（实测 Moondrop Old Fashioned 什么都没报），
+        // 所以不再"等设备上报" —— **自己构造**目标规格去请求：32bit(float)/384kHz 起步，
+        // 被拒就逐档降到 192k / 96k / 48k，取第一档被接受的组合。
+        fun buildMixer(rate: Int, encoding: Int): AudioMixerAttributes {
+            val fmt = AudioFormat.Builder()
+                .setEncoding(encoding)
+                .setSampleRate(rate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                .build()
+            return AudioMixerAttributes.Builder(fmt)
+                .setMixerBehavior(AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT)
+                .build()
+        }
+        val attempts = listOf(
+            384_000 to AudioFormat.ENCODING_PCM_FLOAT,
+            384_000 to AudioFormat.ENCODING_PCM_32BIT,
+            192_000 to AudioFormat.ENCODING_PCM_FLOAT,
+            192_000 to AudioFormat.ENCODING_PCM_32BIT,
+            96_000 to AudioFormat.ENCODING_PCM_FLOAT,
+            48_000 to AudioFormat.ENCODING_PCM_FLOAT,
+        )
+        val best: AudioMixerAttributes? = try {
+            player.setPreferredAudioDevice(usb)
+            attempts.firstNotNullOfOrNull { (rate, encoding) ->
+                val mixer = try { buildMixer(rate, encoding) } catch (e: Exception) { null }
+                if (mixer != null && manager.setPreferredMixerAttributes(platformAttributes, usb, mixer)) mixer else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+        if (best == null) {
+            player.setPreferredAudioDevice(null)
+            status("${usb.productName}：384k/192k/96k/48k 直通请求均被拒绝；系统输出"); return
         }
         try {
-            // Float sink emits float for >16-bit PCM; do not request an unrelated integer format.
-            val encoding = if (bits > 16) AudioFormat.ENCODING_PCM_FLOAT else AudioFormat.ENCODING_PCM_16BIT
-            val mask = if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
-            val mixer = manager.getSupportedMixerAttributes(usb).firstOrNull {
-                it.mixerBehavior == AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT &&
-                    it.format.sampleRate == rate && it.format.encoding == encoding && it.format.channelMask == mask
-            } ?: run { status("${usb.productName}：不支持当前 $rate Hz PCM 的直通组合；系统输出"); return }
             player.playbackParameters = PlaybackParameters.DEFAULT
             player.volume = 1f
             player.setPreferredAudioDevice(usb)
-            if (manager.setPreferredMixerAttributes(platformAttributes, usb, mixer)) {
+            if (manager.setPreferredMixerAttributes(platformAttributes, usb, best)) {
                 preferred = usb
                 EqualizerController.setBypassed(true) // 直通绕开系统混音，效果器插不进去
-                status("USB 直通请求已接受 · ${rate / 1000.0} kHz · 非硬件测量证明")
+                val bits = when (best.format.encoding) {
+                    AudioFormat.ENCODING_PCM_FLOAT -> "32f"
+                    AudioFormat.ENCODING_PCM_32BIT -> "32"
+                    AudioFormat.ENCODING_PCM_24BIT_PACKED -> "24"
+                    else -> "16"
+                }
+                status(
+                    "USB 直通请求已接受 · ${best.format.sampleRate / 1000.0} kHz · $bits bit" +
+                        " · 按解码器最高规格申请（非硬件测量证明）"
+                )
             } else { player.setPreferredAudioDevice(null); status("设备拒绝 USB 直通请求；系统输出") }
-        } catch (e: Exception) {
+            } catch (e: Exception) {
             player.setPreferredAudioDevice(null)
             status("USB 请求不可用：${e.message}；系统输出")
         }

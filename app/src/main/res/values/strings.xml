@@ -105,7 +105,7 @@
     <string name="update_found">New version %1$s available</string>
     <string name="update_later">Later</string>
     <string name="update_download_install">Download and install</string>
-    <string name="set_usb_note">On Android 14+ with a USB DAC attached, the app requests bit-perfect passthrough matching the source PCM format; otherwise it falls back to the system mixer.</string>
+    <string name="set_usb_note">On Android 14+ with a USB DAC attached, the app requests bit-perfect passthrough at 32-bit / 384 kHz (stepping down to 192/96/48 kHz if refused); otherwise it falls back to the system mixer.</string>
     <string name="set_ncm_auto_long">When scanning authorised folders, files are converted automatically: FLAC first; if FLAC is not possible it falls back to MP3 or publishes the original instead of failing. Output goes to your export folder (or app-private files/music/ncm if unset); originals are kept.</string>
     <string name="set_add_folder">Add music / ncm folder</string>
     <string name="set_export_at">%1$s (converted FLAC / MP3 are exported here and survive uninstalling the app)</string>

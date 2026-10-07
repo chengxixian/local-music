@@ -110,7 +110,7 @@
     <string name="update_found">发现新版本 %1$s</string>
     <string name="update_later">以后再说</string>
     <string name="update_download_install">下载并安装</string>
-    <string name="set_usb_note">Android 14+ 且外接 USB DAC 时，按源 PCM 规格申请直通；不支持时自动回落到系统混音。</string>
+    <string name="set_usb_note">Android 14+ 且外接 USB DAC 时，按 32bit / 384kHz 主动申请直通（被拒则逐档降到 192/96/48kHz）；都失败时回落到系统混音。</string>
     <string name="set_ncm_auto_long">扫描授权文件夹时自动转换：优先转 FLAC；转不出 FLAC 就回退成 MP3 或原样发布，不再直接失败。输出到导出文件夹（未设则落应用私有 files/music/ncm），原文件保留。</string>
     <string name="set_add_folder">添加音乐 / ncm 文件夹</string>
     <string name="set_export_at">%1$s（转换后的 FLAC / MP3 导出到这里，卸载应用也不会删）</string>
