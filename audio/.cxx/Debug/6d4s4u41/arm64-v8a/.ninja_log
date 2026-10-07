@@ -1,0 +1,13 @@
+# ninja log v5
+1	906	8130514864882591	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+908	1023	8130514866048273	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78
+3	146	8130517223739514	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+147	286	8130517225168194	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78
+3	167	8130518282841534	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+168	301	8130518284195365	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78
+3	159	8130519527859897	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+160	311	8130519529406768	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78
+3	138	8130521655723143	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+139	261	8130521656951251	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78
+2	130	8130522391903361	CMakeFiles/usbisoc.dir/usbisoc.c.o	34f3d0e2e6da827c
+130	233	8130522392949442	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/arm64-v8a/libusbisoc.so	418d5b28e61e6e78

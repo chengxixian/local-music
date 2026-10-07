@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app
 
 import com.localmusic.app.R
@@ -64,6 +64,54 @@ class MainActivity : ComponentActivity() {
     com.localmusic.app.data.LanguagePref.applyStored(this)
 
     setContent { LiquidTheme { AppShell() } }
+
+    // 自研 UAC 驱动的阶段 0 探针：先申请该 USB 设备权限（系统弹一次窗），
+    // 拿到权限后再跑探针 —— 那时 claimInterface(force=true) 会给出决定性结论
+    //（能否抢掉内核的 snd-usb-audio）。结果都打在 logcat 的 LMUsb 里。
+    runCatching {
+        com.localmusic.app.data.UsbAudioPermission.ensure(this) { granted ->
+            android.util.Log.i("LMUsb", "USB 权限已授予 = $granted")
+            com.localmusic.audio.playback.UsbAudioProbe.probe(this) { }
+            // ⚠️ 不再"打开 App 就自动播放"。
+            // 之前那样做，一旦数据有问题就是把大噪音直接送进 DAC（实测吓到用户，
+            // 也可能伤耳朵/伤设备）。现在必须显式触发：
+            //   adb shell am start -n com.localmusic.app/.MainActivity --ez usbtest true
+            // ⚠️ 安全诊断通道（**完全不碰 USB / 不出声**）：
+            //   把"最大且采样率被 DAC 支持的那个文件"解码成 32bit PCM 写到
+            //   /sdcard/Download/lmflac/_pcm_dump.raw，供在电脑上逐字节比对。
+            //   触发：adb shell am start -n com.localmusic.app/.MainActivity --ez pcmdump true
+            if (intent?.getBooleanExtra("pcmdump", false) == true) runCatching {
+                Thread {
+                    runCatching {
+                        val dirs = listOf(
+                            "/storage/emulated/0/Download/lmflac",
+                            "/storage/emulated/0/Music",
+                        )
+                        val exts = listOf(".flac", ".mp3", ".m4a", ".wav")
+                        // 优先用**固定的测试文件**（由电脑推上来，文件名无空格）——
+                        // 这样电脑侧的参考解码可以逐样本对齐，避开设备端文件名/通配的地狱。
+                        val fixed = java.io.File("/storage/emulated/0/Download/_usbtest.flac")
+                        val f = if (fixed.isFile && fixed.length() > 0) fixed else
+                            dirs.map { java.io.File(it) }.filter { it.isDirectory }
+                                .flatMap { d -> (d.listFiles() ?: emptyArray()).toList() }
+                                .filter { it.isFile && it.length() > 3_000_000L && exts.any { e -> it.name.lowercase().endsWith(e) } }
+                                .maxByOrNull { it.length() }
+                        if (f == null) {
+                            android.util.Log.i("LMUsb", "PCM导出：没找到文件")
+                        } else {
+                            val out = java.io.File("/storage/emulated/0/Download/lmflac/_pcm_dump.raw")
+                            val n = java.io.FileOutputStream(out).use { os ->
+                                android.util.Log.i("LMUsb", "PCM导出：开始 " + f.absolutePath)
+                                val w = com.localmusic.audio.playback.UsbPcmDecoder.decodeTo(f.absolutePath, os)
+                                w
+                            }
+                            android.util.Log.i("LMUsb", "PCM导出：完成 $n 字节 -> ${out.absolutePath}")
+                        }
+                    }
+                }.start()
+            }
+        }
+    }
     }
     private fun askForPermissions() {
         val wanted = buildList {
@@ -224,7 +272,31 @@ private fun AppShell() {
      */
     val uiScope = rememberCoroutineScope()
     val playSong: (List<com.localmusic.app.data.Song>, com.localmusic.app.data.Song) -> Unit = { list, song ->
-        if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
+        // ── 点歌即 USB 直通 ──────────────────────────────────────────────
+        // 只有当设置里的「USB Bit-perfect」打开时才走这条路（默认关闭，
+        // 因此正常播放完全不受影响）。这条路不经过 ExoPlayer：
+        // 解码 → 管道 → 原生 usbfs 等时 → DAC，采样率按文件原始值设置。
+        // 解码端带垃圾数据安全闸：异常时宁可不出声，也绝不把噪音送进 DAC。
+        // playSong 定义在 bitPerfect 状态变量之前（作用域拿不到），
+        // 所以直接读偏好 —— 偏好本来就是开关的真源，等价且更直接。
+        if (prefs.getBoolean("bitPerfect", false)) {
+            playerOpen = true
+            // 界面/队列/进度/通知仍交给 ExoPlayer —— 它此时已被服务静音（volume=0），
+            // 所以不会和直通两路同时出声，播放页也能正确显示"正在播放"而不是空状态。
+            player.play(list, song)
+            val rawPath = if (song.uri.startsWith("file://")) {
+                runCatching { android.net.Uri.parse(song.uri).path }.getOrNull()
+            } else song.uri
+            if (rawPath.isNullOrBlank()) {
+                android.widget.Toast.makeText(context, "无法解析文件路径", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                Thread {
+                    runCatching {
+                        com.localmusic.audio.playback.UsbUac2Stream.playFile(context, rawPath)
+                    }
+                }.start()
+            }
+        } else if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
             playerOpen = true
         } else {
@@ -655,7 +727,24 @@ private fun AppShell() {
                                                 ).show()
                                             }
                                         },
-                                        onBitPerfect = { bitPerfect = it; prefs.edit().putBoolean("bitPerfect", it).apply() },
+                                        onBitPerfect = {
+                                            bitPerfect = it
+                                            prefs.edit().putBoolean("bitPerfect", it).apply()
+                                            // 真正的 USB 直通开关（不用 adb）：
+                                            //   开 → 后台启动自研 UAC2 等时输出（按源采样率直出）
+                                            //   关 → 关闭管道，原生层自然收尾并释放接口
+                                            // 只有你手动打开才会出声，打开 App 不会自动播放。
+                                            if (it) {
+                                                Thread {
+                                                    runCatching {
+                                                        com.localmusic.audio.playback.UsbUac2Stream
+                                                            .playFile(context)
+                                                    }
+                                                }.start()
+                                            } else {
+                                                com.localmusic.audio.playback.UsbUac2Stream.stop()
+                                            }
+                                        },
                                         onAutoNcm = { autoNcm = it; prefs.edit().putBoolean("autoNcm", it).apply() },
                                         onPickTree = { pickFolder.launch(NeteaseTreeUri) },
                                         onPickExport = { pickExportFolder.launch(ExportInitialUri) },

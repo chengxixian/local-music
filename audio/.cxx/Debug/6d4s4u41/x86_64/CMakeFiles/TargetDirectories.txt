@@ -1,0 +1,3 @@
+D:/dsh work region/local-music/audio/.cxx/Debug/6d4s4u41/x86_64/CMakeFiles/usbisoc.dir
+D:/dsh work region/local-music/audio/.cxx/Debug/6d4s4u41/x86_64/CMakeFiles/edit_cache.dir
+D:/dsh work region/local-music/audio/.cxx/Debug/6d4s4u41/x86_64/CMakeFiles/rebuild_cache.dir

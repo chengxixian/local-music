@@ -1,0 +1,13 @@
+# ninja log v5
+0	121	8130514896618126	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+122	239	8130514897834045	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697
+4	141	8130517233749521	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+142	263	8130517235000550	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697
+2	114	8130518291242399	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+115	217	8130518292293171	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697
+2	112	8130519537770111	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+113	219	8130519538859194	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697
+2	100	8130521663749605	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+100	200	8130521664746442	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697
+2	109	8130522399565445	CMakeFiles/usbisoc.dir/usbisoc.c.o	3b7135529e0b4530
+110	206	8130522400573071	D:/dsh work region/local-music/audio/build/intermediates/cxx/Debug/6d4s4u41/obj/x86_64/libusbisoc.so	8484f21c3d1e3697

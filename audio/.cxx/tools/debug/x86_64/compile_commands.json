@@ -1,0 +1,7 @@
+[
+{
+  "directory": "D:/dsh work region/local-music/audio/.cxx/Debug/6d4s4u41/x86_64",
+  "command": "D:\\tool\\sdk\\ndk\\28.2.13676358\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe --target=x86_64-none-linux-android33 --sysroot=D:/tool/sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/sysroot -Dusbisoc_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -fno-limit-debug-info  -fPIC -o CMakeFiles\\usbisoc.dir\\usbisoc.c.o -c \"D:\\dsh work region\\local-music\\audio\\src\\main\\cpp\\usbisoc.c\"",
+  "file": "D:\\dsh work region\\local-music\\audio\\src\\main\\cpp\\usbisoc.c"
+}
+]

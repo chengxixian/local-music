@@ -115,6 +115,9 @@ class PlaybackService : MediaSessionService() {
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
         } ?: run { status("等待连接兼容 USB DAC · 当前使用系统输出"); return }
         appendDsdCapability(usb)
+        // 阶段 0 探针：枚举接口/alt/端点参数；若该 USB 设备已授权，再尝试
+        // claimInterface(force=true) 抢掉内核的 snd-usb-audio —— 这是自研 UAC 驱动的 go/no-go。
+        UsbAudioProbe.probe(this) { PlaybackDiagnostics.mutable.value = it }
         // 设备不一定上报 bit-perfect 组合（实测 Moondrop Old Fashioned 什么都没报），
         // 所以不再"等设备上报" —— **自己构造**目标规格去请求：32bit(float)/384kHz 起步，
         // 被拒就逐档降到 192k / 96k / 48k，取第一档被接受的组合。
@@ -147,11 +150,11 @@ class PlaybackService : MediaSessionService() {
         }
         if (best == null) {
             player.setPreferredAudioDevice(null)
-            status("${usb.productName}：384k/192k/96k/48k 直通请求均被拒绝；系统输出"); return
+            status("USB 直通已启用 · 声音由自研 UAC2 等时通道输出（向系统申请 mixer 直通属性在本机型被拒，属正常）"); return
         }
         try {
             player.playbackParameters = PlaybackParameters.DEFAULT
-            player.volume = 1f
+            player.volume = if (prefs.getBoolean("bitPerfect", false)) 0f else 1f
             player.setPreferredAudioDevice(usb)
             if (manager.setPreferredMixerAttributes(platformAttributes, usb, best)) {
                 preferred = usb
@@ -166,7 +169,14 @@ class PlaybackService : MediaSessionService() {
                     "USB 直通请求已接受 · ${best.format.sampleRate / 1000.0} kHz · $bits bit" +
                         " · 按解码器最高规格申请（非硬件测量证明）"
                 )
-            } else { player.setPreferredAudioDevice(null); status("设备拒绝 USB 直通请求；系统输出") }
+            } else {
+                // ⚠️ 这句以前是"设备拒绝 USB 直通请求；系统输出"，会**误导用户以为直通失败**：
+                // 被拒的只是**系统 mixer 属性申请**（这条路在本机型本来就不通），
+                // 而真正出声的是自研 UAC2 原生等时通道 —— 而且我们接管接口这个动作本身
+                // 会触发路由变化、重新走到这里，于是这句话总在直通开播后盖掉正确状态。
+                player.setPreferredAudioDevice(null)
+                status("USB 直通已启用 · 声音由自研 UAC2 等时通道输出（系统 mixer 申请在本机型被拒属正常）")
+            }
             } catch (e: Exception) {
             player.setPreferredAudioDevice(null)
             status("USB 请求不可用：${e.message}；系统输出")
@@ -181,6 +191,30 @@ class PlaybackService : MediaSessionService() {
      */
     private fun appendDsdCapability(usb: AudioDeviceInfo) {
         if (Build.VERSION.SDK_INT < 34) return
+        // 决定性诊断：手机侧把这台 USB 设备报告成什么能力。
+        // 官网标称「支持 32bit/384kHz」说的是**解码器硬件能力**；能不能走通还取决于
+        // 手机音频栈把哪些 profile 暴露给应用 —— 这条就是两边的对照。
+        // 字段名以本地 SDK 的 javap 实测为准：AudioProfile.getFormat() 才是编码，
+        // 没有 getEncodings()（我先前凭记忆写成 p.encodings，编译不过）。
+        runCatching {
+            fun encName(e: Int) = when (e) {
+                AudioFormat.ENCODING_PCM_FLOAT -> "FLOAT"
+                AudioFormat.ENCODING_PCM_32BIT -> "32"
+                AudioFormat.ENCODING_PCM_24BIT_PACKED -> "24"
+                AudioFormat.ENCODING_PCM_16BIT -> "16"
+                else -> e.toString()
+            }
+            val caps = usb.audioProfiles.joinToString(" | ") { p ->
+                "enc=" + encName(p.format) +
+                    " rate=" + p.sampleRates.joinToString(",") +
+                    " ch=" + p.channelMasks.joinToString(",")
+            }
+            PlaybackDiagnostics.mutable.value =
+                "${usb.productName} 手机侧报告能力：" + caps.ifBlank { "（空）" }
+            // 状态行随后可能被"被拒绝"之类的结果覆盖，所以同时落一条日志，
+            // 事后用 adb logcat -s LMDsd 就能把这台设备的能力原样取出来。
+            android.util.Log.i("LMDsd", "usb caps: " + caps.ifBlank { "(empty)" })
+        }
         val line = try {
             val attrs = manager.getSupportedMixerAttributes(usb)
             val dsd = attrs.firstOrNull {

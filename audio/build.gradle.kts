@@ -7,8 +7,25 @@ android {
     namespace = "com.localmusic.audio"
     compileSdk = 37
 
+    // USB 等时输出必须走原生层：Android 的 Java USB API（UsbRequest）不支持等时传输，
+    // 实测对等时端点调用 initialize 直接返回 false。原生层用 usbfs 的
+    // USBDEVFS_SUBMITURB / REAPURB 直接提交等时 URB。
+    ndkVersion = "28.2.13676358"
+
     defaultConfig {
         minSdk = 33
+        externalNativeBuild {
+            cmake {
+                // 只依赖 NDK 自带的 linux/usbdevice_fs.h 与 log
+                arguments += listOf("-DANDROID_STL=none")
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 
     compileOptions {
