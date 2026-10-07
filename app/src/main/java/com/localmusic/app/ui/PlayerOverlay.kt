@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -183,6 +185,9 @@ fun PlayerPage(
     val scheme = MiuixTheme.colorScheme
     // 主题色：优先取当前歌曲封面的鲜艳色，取不到再回落默认主题色
     val accent = rememberPlayerAccent(song) ?: scheme.primary
+    // 文字随背景明暗自适应：背景偏亮用深色字，偏暗用浅色字
+    // （accent 就是封面的平均色，也正是播放页背景的兜底色，可代表背景明暗）
+    val onBackdrop = if (accent.luminance() > 0.68f) Color.Black else Color.White
     val context = LocalContext.current
     // 播放进度在播放页内部收集：只有这一屏会跟着 400ms 的进度重组，曲库网格不受影响
     val livePosition by positionFlow.collectAsState()
@@ -263,7 +268,7 @@ fun PlayerPage(
                         refractionAmount = 30.dp,
                         modifier = Modifier.fillMaxSize().clickable { middle = Middle.Cover },
                     ) {
-                        LyricsPane(lyrics = lyrics, loaded = lyricsLoaded, positionMs = livePosition)
+                        LyricsPane(accent = accent, lyrics = lyrics, loaded = lyricsLoaded, positionMs = livePosition)
                     }
                     Middle.Queue -> GlassPanel(
                         backdrop = backdrop,
@@ -300,8 +305,8 @@ fun PlayerPage(
                     Modifier.fillMaxWidth().padding(horizontal = LiquidSpacing.card, vertical = LiquidSpacing.item),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(player.title, style = MiuixTheme.textStyles.title4, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(player.title, style = MiuixTheme.textStyles.title4, color = onBackdrop, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = onBackdrop.copy(alpha = 0.72f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         song?.let {
                             LiquidPill(it.format.uppercase())
@@ -446,7 +451,9 @@ private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: (
 }
 
 @Composable
-private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positionMs: Long) {
+private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positionMs: Long, accent: Color) {
+    // 当前歌词行的高亮色：封面色偏暗，直接当高亮看不清 -> 与白/黑混合提亮（保留色相）
+    val highlight = if (accent.luminance() > 0.68f) lerp(accent, Color.Black, 0.45f) else lerp(accent, Color.White, 0.55f)
     val scheme = MiuixTheme.colorScheme
     when {
         !loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -480,7 +487,7 @@ private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positi
                         Text(
                             text = line.text.ifBlank { "♪" },
                             style = if (index == current) MiuixTheme.textStyles.title4 else MiuixTheme.textStyles.body1,
-                            color = if (index == current) scheme.primary else scheme.onSurface.copy(alpha = if (lyrics.timed) 0.75f else 1f),
+                            color = if (index == current) highlight else scheme.onSurface.copy(alpha = if (lyrics.timed) 0.75f else 1f),
                         )
                     }
                 }
