@@ -26,6 +26,7 @@
 液态玻璃界面使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)（已内置在 `third_party/`），
 `.ncm` 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)。
 
+![FEATURES](docs/sections/features.png)
 ## 功能
 
 ### 音频格式
@@ -61,6 +62,7 @@
 | 更新检查 | 「关于 → 检查更新」手动触发，读取仓库里的 `version.json`（GitHub raw，不占用 REST API 配额）；发现新版本时显示下载进度并交给系统安装器 |
 | 关于页 | 独立页面：点阵标识与版本、源码 / 检查更新 / 项目说明 / 捐赠入口，以及产品、社区、法律三组信息 |
 
+![SCREENSHOTS](docs/sections/screenshots.png)
 ## 截图
 
 | 主页 | 曲库 | 播放页 |
@@ -77,6 +79,7 @@
 
 </details>
 
+![BUILDING](docs/sections/building.png)
 ## 构建
 
 ### 环境要求
@@ -111,6 +114,7 @@ gradle :audio:testDebugUnitTest    # :audio 的单元测试
 
 </details>
 
+![STRUCTURE](docs/sections/structure.png)
 ## 项目结构
 
 ```
@@ -130,6 +134,7 @@ version.json                应用内更新检查读取的清单
 NOTICE                      授权边界说明
 ```
 
+![USB DAC](docs/sections/usb.png)
 ## USB 直通
 
 Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt，对等时端点调用
@@ -154,6 +159,7 @@ Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt�
 - **未完成硬件端到端验证**：代码能确认的只是系统与设备接受了请求，没有用测量设备核对模拟输出，
   因此界面文案按「请求已被接受」措辞，而不是「已测得位完美」。
 
+![LIMITATIONS](docs/sections/limitations.png)
 ## 已知限制
 
 - **USB 直通缺少测量级验证**：没有测量设备核对 DAC 的模拟输出，界面与文档都只声明「请求被接受」；
@@ -173,6 +179,7 @@ Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt�
 - **本地化范围**：界面文案覆盖四种语言；数据层的诊断与日志文案仍为中文。
 - **Android 版本**：应用最低 Android 13（API 33）；USB bit-perfect 相关的系统级请求需要 Android 14（API 34）及以上。
 
+![LICENCE](docs/sections/licence.png)
 ## 许可
 
 - **代码**：以 **GNU GPL-3.0** 授权（见 [LICENSE](LICENSE)）。播放内核移植自同样以 GPL-3.0 发布的 AURALIS，
@@ -187,6 +194,7 @@ Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt�
 - 「`.ncm` 转换」与「在线刮削」功能仅用于用户自己合法拥有的本地音乐，请遵守相关服务条款与当地法律。
 - 全文见 [NOTICE](NOTICE)。
 
+![THIRD PARTY](docs/sections/third-party.png)
 ## 第三方
 
 | 项目 | 用途 | 许可 / 说明 |

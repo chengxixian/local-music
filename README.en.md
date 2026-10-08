@@ -28,6 +28,7 @@ liquid glass UI uses [chengxixian/liquid-miuix](https://github.com/chengxixian/l
 under `third_party/`); `.ncm` decoding is ported from
 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump).
 
+![FEATURES](docs/sections/features.png)
 ## Features
 
 ### Audio formats
@@ -63,6 +64,7 @@ under `third_party/`); `.ncm` decoding is ported from
 | Updates | "About → Check for updates" is triggered manually and reads `version.json` from the repository (GitHub raw, so it does not consume the REST API quota); a new version shows download progress and is handed to the system installer |
 | About page | A dedicated page: dot-matrix mark and version, entries for source / check for updates / project notes / donate, and product, community and legal groups |
 
+![SCREENSHOTS](docs/sections/screenshots.png)
 ## Screenshots
 
 | Home | Library | Player |
@@ -79,6 +81,7 @@ under `third_party/`); `.ncm` decoding is ported from
 
 </details>
 
+![BUILDING](docs/sections/building.png)
 ## Building
 
 ### Requirements
@@ -118,6 +121,7 @@ gradle :audio:testDebugUnitTest    # unit tests for :audio
 
 </details>
 
+![STRUCTURE](docs/sections/structure.png)
 ## Project layout
 
 ```
@@ -140,6 +144,7 @@ version.json                manifest read by the in-app update check
 NOTICE                      licence boundaries
 ```
 
+![USB DAC](docs/sections/usb.png)
 ## USB passthrough
 
 Android's Java USB API (`UsbRequest`) supports control, bulk and interrupt transfers only — calling
@@ -167,6 +172,7 @@ The project therefore ships a minimal USB Audio Class 2 output implementation of
   accepted the request; the analogue output has not been checked with measurement equipment, so both the
   UI and this document say "request accepted" rather than "measured bit-perfect".
 
+![LIMITATIONS](docs/sections/limitations.png)
 ## Known limitations
 
 - **USB passthrough lacks measurement-grade verification**: no measurement equipment was used to check
@@ -197,6 +203,7 @@ The project therefore ships a minimal USB Audio Class 2 output implementation of
 - **Android versions**: the app needs Android 13 (API 33) or newer; the system-level requests behind USB
   bit-perfect require Android 14 (API 34) or newer.
 
+![LICENCE](docs/sections/licence.png)
 ## Licence
 
 - **Code**: licensed under the **GNU GPL-3.0** (see [LICENSE](LICENSE)). The playback core is ported from
@@ -215,6 +222,7 @@ The project therefore ships a minimal USB Audio Class 2 output implementation of
   the relevant services and local law still apply.
 - The full text is in [NOTICE](NOTICE).
 
+![THIRD PARTY](docs/sections/third-party.png)
 ## Third-party
 
 | Project | Used for | Licence / notes |
