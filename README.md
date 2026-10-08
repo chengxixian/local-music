@@ -1,11 +1,12 @@
 ﻿<p align="center">
-  <img src="docs/banner.png" width="100%" alt="local music — 本地优先的 Android HiFi 播放器">
+  <img src="docs/banner.png" width="100%" alt="local music — 本地优先的 Android 高解析播放器">
 </p>
 
 <h1 align="center">local music</h1>
 
 <p align="center">
-  <b>本地优先</b> · 点阵 Lm 图标 · 全套液态玻璃 · bit-perfect 直通
+  本地优先的 Android 高解析音乐播放器：曲库来自设备上的本地文件，<code>.ncm</code> 在设备内转成 FLAC，
+  PCM 按文件原始采样率送往 USB DAC。
 </p>
 
 <p align="center">
@@ -13,231 +14,187 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/chengxixian/local-music?color=blue" alt="License"></a>
-  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/github/v/release/chengxixian/local-music?label=release" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android">
-  <img src="https://img.shields.io/badge/Kotlin-2.4.20-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin">
-  <img src="https://img.shields.io/badge/Compose-Jetpack-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose">
-  <img src="https://img.shields.io/badge/Media3-1.10.0-F4A261" alt="Media3">
-  <img src="https://img.shields.io/badge/DSD-DSF%20%2F%20DFF-9C27B0" alt="DSD">
-  <img src="https://img.shields.io/badge/DXD-24bit%2F352.8kHz-2E7D32" alt="DXD">
-  <img src="https://img.shields.io/badge/USB-bit--perfect-000000" alt="bit-perfect">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.7.0-blue" alt="Latest release: v0.7.0"></a>
+  <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android 13+ (API 33)">
+  <img src="https://img.shields.io/badge/USB%20passthrough-Android%2014%2B%20(API%2034)-3DDC84?logo=android&logoColor=white" alt="USB passthrough: Android 14+ (API 34)">
+  <img src="https://img.shields.io/badge/language-Kotlin%20%2B%20C-7F52FF" alt="Kotlin + C">
+  <img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20%2B%20liquid--miuix-4285F4" alt="Jetpack Compose + liquid-miuix">
 </p>
 
-> 扫描你自己的存储、把网易云 `.ncm` 转成 FLAC/MP3、自动刮削封面与歌词；播放内核支持 float PCM
-> 直通（bit-perfect），界面是全套液态玻璃 + 一个 iPod 式滚轮。
+播放内核移植自 [Rueded/AURALIS](https://github.com/Rueded/AURALIS)（GPL-3.0），
+液态玻璃界面使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)（已内置在 `third_party/`），
+`.ncm` 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)。
 
-安卓本地 HiFi 音乐播放器。**播放内核移植自 [Rueded/AURALIS](https://github.com/Rueded/AURALIS)**，
-**前端使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)**，
-**ncm 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)**。
+## 功能
 
-### 截图
-
-| 曲库（卡片直接标出真实规格） | 播放页（封面模糊背景 + 规格行） | 乐单（两列卡片） |
-|---|---|---|
-| ![曲库](docs/screenshots/library-hires.png) | ![播放页](docs/screenshots/player-glass.png) | ![乐单](docs/screenshots/playlists.png) |
-
-> 前端库引用的是工作区里已 clone 的 `liquid-miuix-repo/library`（`projectDir` 直接指过去，没有复制代码）；
-> 单独 clone 本仓库时，把 `settings.gradle.kts` 里 `:liquid-miuix` 的路径指到你自己那份库即可。
-
----
-
-## 项目介绍
-
-一个**本地优先**的 Android HiFi 播放器：扫描你自己的存储、把网易云 `.ncm` 转成 FLAC/MP3、自动刮削封面与歌词，播放内核支持 float PCM 直通（bit-perfect），界面是全套液态玻璃 + 一个 iPod 式滚轮。
-
-**面向高品质音源**：曲库卡片与播放页直接标出每首歌的真实规格（格式 / 位深 / 采样率 / 声道），高解析 PCM 一路送到 USB DAC 走 bit-perfect 直通。
-
-### 支持的音频格式
+### 音频格式
 
 | 类别 | 格式 | 说明 |
 |---|---|---|
-| 无损 / 高解析 PCM | **FLAC、WAV、ALAC(m4a)** | 曲库识别并展示真实规格，实测 **24bit/96kHz**（截图里的徽章就是曲库自己读出来的） |
-| 高采样率 PCM | **最高 384kHz / 32bit** | 含 **DXD（24bit/352.8kHz）**——它本质是 PCM，走 FLAC/WAV 通道即可播放 |
-| 有损 | MP3、AAC(m4a)、OGG、Opus | 常规播放 |
-| **DSD** | `.dsf` / `.dff` | ✅ **支持播放（转码为 PCM）**：自己解析 DSF/DFF 文件头（DSD64/128/256、位率、声道、时长），用两级 4:1 箱式平均（16 点三角窗）抽成 **176.4kHz/24bit PCM** 再送播放链，结果缓存（首次转码，之后直读）；转好的 PCM 能继续走 USB bit-perfect 直通。**不是**原生 DSD / DoP 直通 —— Android 公开 API 没有等时 USB 音频，做不到 |
-
-> 关于 bit-perfect：**输出优先指定给 USB DAC**（`setPreferredAudioDevice`），并在 Android 14+ 按源规格申请 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)`；直通时绕开系统混音，均衡器自动旁路。更低版本或设备不支持时回落系统混音（能听，但不再"位完美"）。**蓝牙链路本身有损并会重采样，高解析必须走 USB。** USB DAC 直通**没有 DAC 可测**，这条只有实现、没有实测证据。
-
-
-- 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
-- 许可 **GPL-3.0**（因为播放内核移植自 GPLv3 的 AURALIS）
-- **多语言**：界面文案全部走资源文件，支持 **English / 简体中文 / 日本語 / Русский** 四种语言（未翻译的键回落英文）；设置页「语言 / Language」用液态玻璃弹窗切换，也支持 Android 13+ 的按应用语言。数据层的诊断/日志文案仍是中文。
-- **品牌标识保留所有权利**：`docs/` 下的图标与横幅、`app/src/main/res/` 里的应用图标（`mipmap-*`、`drawable-nodpi/ic_launcher_foreground.png`）与应用内的点阵 `Lm` 标记是本项目**自主设计的标识**，**不属于 GPL 授权范围**。欢迎 fork 代码，但请不要使用同款图标与横幅。详见 [**NOTICE**](NOTICE)。© 2026 chengxixian
+| 无损 / 高解析 PCM | FLAC、WAV、ALAC(m4a) | 扫描阶段读文件头取得真实位深与采样率（系统媒体库接口常把 96kHz 报成 48kHz），曲库卡片与播放页按曲目展示 |
+| 有损 | MP3、AAC(m4a)、OGG Vorbis、Opus、AMR | 由 Media3 ExoPlayer 解码 |
+| DSD | `.dsf` / `.dff` | 设备内解码：自研 DSF/DFF 头解析（DSD64/128/256）+ 两级 4:1 箱式平均（等价 16 点三角窗），抽取为 **176.4kHz/24bit PCM**，首次转换后缓存；转出的 PCM 可继续走 USB 直通。**不是**原生 DSD / DoP 直通 |
+| 网易云容器 | `.ncm` | 设备内解密与转换，不联网；见下方「功能一览」中的 `.ncm` 转换 |
 
 ### 功能一览
 
 | 模块 | 说明 |
 |---|---|
-| 曲库 | 两列竖卡片网格（上半正方形封面、下半歌名信息）；MediaStore + SAF 授权文件夹 + 应用私有目录，按真实路径去重 |
-| 播放 | Media3 ExoPlayer + `DefaultAudioSink(enableFloatOutput)`，`MediaSessionService`；USB DAC 在 Android 14+ 按源 PCM 规格申请 **bit-perfect**，不支持时自动回落系统混音 |
-| 播放列表 | 点行跳播、↑↓ 调序、✕ 删除；曲库卡片左下角 `+` 追加到当前队列 |
-| ncm 转换 | 输出阶梯：FLAC 校验通过→`.flac`；校验失败→仍发布并标记 `flac-unverified-raw`；MP3 载荷转 FLAC 失败→直接落原始 `.mp3`。可导出到自选文件夹（SAF），文件名取「艺术家 - 歌名」 |
-| 自动刮削 | 封面：网易云音乐 → iTunes → Deezer；歌词：网易云音乐 → LRCLIB。只补缺、分批节流；**不覆盖歌曲自带的封面**（读文件内嵌图判定），并可一键"恢复自带封面" |
-| 歌词 | 带时间戳 LRC 逐行高亮 + 自动滚动；优先刮削缓存，其次同目录 `.lrc`，最后内嵌注释 |
-| 均衡器 | 系统 audiofx（均衡 / 低音增强 / 响度增强），绑定播放会话 |
-| 滚轮 | 转环选上一项/下一项（环上弧长计步、每帧最多一格、45ms 触感节流）；**单击**中间键按 曲库→设置→喜欢 循环切页，**双击**确认（播放选中歌曲 / 执行选中设置项） |
-| 有色玻璃 | 滚轮圆环可换有色玻璃：7 个预设 + 调色盘（色相 / 饱和度 / 透光率），按真实"吸光"模型实现 |
-| 播放页背景 | 当前封面放大 + 高斯模糊（20dp、饱和度降到 42%），画在**采集层之内**，因此封面光环 / 控件面板 / dock 的玻璃折射到的就是这层模糊封面 |
-| 关于页 | 设置里只留一个入口，点进去是独立一页：居中点阵 logo + 版本、动作行（源码 / 检查更新 / 项目说明 / 捐赠）、产品 / 社区 / 法律信息三组清单；捐赠点开才弹出支付宝二维码 |
-| 应用图标 | 本项目**自有**的点阵 `Lm` 标识：`mipmap-anydpi-v26/` 自适应（无红点）+ `mipmap-<dpi>/` 原始 PNG 兜底（带红点）；字形由 `scripts/make-dotmatrix-icon.py` 生成 |
-| 自动更新 | 启动 3s 后查 `version.json`（GitHub raw，免 API 限流）；有新版本弹玻璃面板，一键下载（显示百分比 / 已下载 · 总大小）并拉起系统安装 |
-| 乐单 | dock 第二栏进入，两列竖卡片（封面 / 名称 / 曲目数）；新建、重命名、换封面、删除。未自选封面时**自动用乐单第一首歌的封面**，空乐单回落点阵标记 |
-| 加入乐单 | 曲库与喜欢页的卡片**左上角**（与右上角的心形成一对）：点一下弹出玻璃面板，勾选即加/去，也能现场新建并加入 |
+| 曲库 | 两列竖卡片网格（上半正方形封面，下半歌名与规格行），卡片角上有喜欢 / 加入乐单 / 播放按钮；来源为 MediaStore 各存储卷、用户授权的 SAF 目录、应用私有目录，按真实路径去重 |
+| 搜索 | 顶栏搜索框按标题 / 艺术家 / 专辑过滤当前列表；播放页队列面板同样可搜索。播放队列跟随过滤后的列表，不会跳到搜索结果之外 |
+| 播放 | Media3 ExoPlayer + `DefaultAudioSink(enableFloatOutput = true)`；`MediaSessionService` 提供后台播放与系统媒体通知（上一项 / 播放 / 下一项） |
+| 播放队列 | 点行跳播、调整顺序、移除；卡片上的 `+` 追加到当前队列；队列取自当前页面显示的列表（曲库 / 乐单 / 喜欢），点歌保留乱序设置；播放完一轮回到第一首（默认列表循环，可切换 关 / 列表 / 单曲） |
+| USB 直通 | 自研 UAC2 等时输出（JNI + usbfs），按文件原始采样率设置 DAC 时钟并读取设备异步反馈调速；详见 [USB 直通](#usb-直通) |
+| `.ncm` 转换 | 内封装 FLAC → 逐字节还原，无损、零重编码；内封装 MP3 → 解码后写成合法 FLAC 流，侧车 JSON 以 `payloadFormat` 如实标注；FLAC 校验不通过时仍发布但标记 `flac-unverified-raw`，MP3 转 FLAC 失败时直接落原始 `.mp3`；可发布到自选的 SAF 文件夹，文件名取「艺术家 - 歌名」 |
+| 封面 | 优先用户自选图片 → 系统缩略图 → 文件内嵌封面；自选图片复制进应用私有目录，与原始文件解耦；缩略图按尺寸落盘缓存 |
+| 歌词 | 带时间戳 LRC 逐行高亮 + 自动滚动（当前行取当前歌曲封面的主题色）；来源顺序为刮削缓存 → 同目录 `.lrc` → 文件内嵌歌词 |
+| 自动刮削 | 封面：网易云音乐 → iTunes → Deezer；歌词：网易云音乐 → LRCLIB。只补缺、分批节流、不覆盖歌曲自带的封面，并可一键恢复自带封面 |
+| 乐单 | dock 第二栏进入，两列竖卡片；新建 / 重命名 / 换封面 / 删除；未自选封面时用乐单第一首歌的封面，空乐单回落点阵标记 |
+| 喜欢 | 曲库与播放页的心形按钮，独立的喜欢列表与其对应的播放队列 |
+| 均衡器 | 系统 `android.media.audiofx`（均衡 / 低音增强 / 响度增强），挂在当前播放会话上；频段数由设备决定（多数 5 段）；USB 直通开启时系统混音被旁路，面板会明确提示当前不生效 |
+| 液态玻璃界面 | 采集层 + 玻璃层结构：玻璃顶栏、dock 悬浮胶囊、迷你播放条、播放页封面光环与控件面板；播放页背景是当前封面放大 + 高斯模糊，画在采集层之内，因此各处玻璃折射到的就是这层模糊封面 |
+| 滚轮 | iPod 式点击轮：转环选上一项 / 下一项（环上弧长计步、每帧最多一格、短震反馈节流），单击中间键按 曲库 → 乐单 → 喜欢 → 设置 循环切页，双击确认（播放选中歌曲 / 执行选中设置项） |
+| 有色玻璃滚轮 | 滚轮圆环可换色：8 个预设（无色 + 7 个色相）与自定义（色相 / 饱和度 / 透光率），按吸光模型实现，只影响滚轮圆环 |
+| 多语言 | English / 简体中文 / 日本語 / Русский，界面文案全部走资源文件（英文为默认兜底）；设置页可切换，也支持 Android 13+ 的按应用语言 |
+| 应用图标 | 自有设计的点阵 `Lm` 标识：`mipmap-anydpi-v26/` 自适应图标（无红点）+ `mipmap-<dpi>/` PNG 兜底（带红点） |
+| 更新检查 | 「关于 → 检查更新」手动触发，读取仓库里的 `version.json`（GitHub raw，不占用 REST API 配额）；发现新版本时显示下载进度并交给系统安装器 |
+| 关于页 | 独立页面：点阵标识与版本、源码 / 检查更新 / 项目说明 / 捐赠入口，以及产品、社区、法律三组信息 |
 
-### 快速开始
+## 截图
+
+| 主页 | 曲库 | 播放页 |
+|---|---|---|
+| <img src="docs/screenshots/home.png" width="250" alt="主页"><br><sub>曲库概览与最近添加</sub> | <img src="docs/screenshots/library-hires.png" width="250" alt="曲库"><br><sub>两列卡片，标出真实格式与位深 / 采样率</sub> | <img src="docs/screenshots/player-glass.png" width="250" alt="播放页"><br><sub>封面模糊背景与玻璃控件</sub> |
+| <img src="docs/screenshots/playlists.png" width="250" alt="乐单"><br><sub>乐单：两列卡片</sub> | <img src="docs/screenshots/equalizer-glass.png" width="250" alt="均衡器"><br><sub>均衡器玻璃面板</sub> | <img src="docs/screenshots/export-folder.png" width="250" alt="导出目录"><br><sub>`.ncm` 导出目录提示</sub> |
+
+<details>
+<summary>更多截图（音乐库列表）</summary>
+
+| 音乐库（搜索与喜欢筛选） |
+|---|
+| <img src="docs/screenshots/library-favorites.png" width="260" alt="音乐库列表"> |
+
+</details>
+
+## 构建
+
+### 环境要求
+
+| 项 | 要求 |
+|---|---|
+| JDK | 17（`sourceCompatibility` / `jvmTarget` 均为 17） |
+| Android SDK | `compileSdk 37`、`targetSdk 36`、`minSdk 33`（Android 13+） |
+| Gradle | 9.4.1 及以上（仓库内含 wrapper） |
+| Android Gradle Plugin | 9.2.1（AGP 9 起已内置 Kotlin 支持，不要再声明 `org.jetbrains.kotlin.android`） |
+| Kotlin / Compose 插件 | 2.4.20 |
+| NDK | 28.2.13676358（仅 `:audio` 的原生 USB 等时模块需要） |
+
+### 构建与安装
 
 ```bash
 gradle :app:assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
-gradle :audio:testDebugUnitTest    # ncm 解码 / 逐帧 CRC / 真实坏文件回归
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+gradle :audio:testDebugUnitTest    # :audio 的单元测试
 ```
 
----
+<details>
+<summary>依赖、测试样本与构建说明</summary>
 
-## 一、需求对照
+- 依赖全部来自 Google Maven 与 Maven Central；`:liquid-miuix` 由仓库内的 `third_party/liquid-miuix` 提供，构建不需要额外拉取该 UI 库。
+- `settings.gradle.kts` 的仓库列表把镜像排在前面，海外环境可以删掉镜像行。
+- wrapper 的 `distributionUrl` 指向镜像地址，可自行改为官方 Gradle 发行地址。
+- release 构建未配置独立签名，本项目的 Release 使用 debug 构建产物。
+- NCM 回归测试使用的 `test.ncm` 来自上游 ncmdump、属第三方版权内容，不随仓库分发（见 `.gitignore`）：需要时从
+  `taurusxin/ncmdump` 取 `test/test.ncm` 放到 `audio/src/test/resources/ncm/test.ncm`，未提供时相关用例自动跳过。
+- 真实文件回归用例需要环境变量 `LM_NCM_REAL_FILE` 指向一个 `.ncm` 文件，未设置时跳过。
 
-| # | 需求 | 落点 |
-|---|---|---|
-| 1 | 用 AURALIS 作后端做 HiFi 播放器，支持 mp3 / aac 等主流格式 | `audio/.../playback/PlaybackService.kt`：Media3 ExoPlayer + `DefaultAudioSink(enableFloatOutput=true)`；Android 14+ 接 USB DAC 时按源 PCM 规格申请 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)`；格式覆盖面由 ExoPlayer 决定：mp3 / aac(m4a) / flac / wav / ogg-vorbis / opus / alac / amr |
-| 2 | liquid-miuix 实现莫奈取色主页 + 液态玻璃播放控件与 dock | `app/.../MainActivity.kt`（采集层/玻璃层结构）、`ui/Glass.kt`（玻璃面板 / 玻璃圆钮）、`ui/PlayerOverlay.kt`（封面玻璃光环 + 控件面板 + 玻璃图标钮）、`ui/Pages.kt`、`ui/EqualizerSheet.kt`。主题走 `LiquidTheme()` 默认的 **Monet 动态取色**（跟随壁纸） |
-| 3 | 自动扫描存储器里的歌曲 | `app/.../data/LibraryRepository.kt`：MediaStore 各存储卷 + 用户授权的 SAF 目录树 + 应用私有目录；`ContentObserver` 监听媒体库变化，进入应用扫一次并每 60s 复查 |
-| 4 | ncmdump 把网易云下载的音乐自动转 FLAC，存到**用户选择的**目录 | `audio/.../ncm/`：`NcmDecoder`（算法移植）、`NcmFileStore`（校验+原子落盘）、`NcmExport`（发布到用户选的 SAF 文件夹）、`NcmNaming`（文件名取「艺术家 - 歌名」）；首次打开弹**液态玻璃**提示窗让用户新建/选择导出文件夹 |
-| 5 | 软件名 local music | `app/src/main/AndroidManifest.xml` 的 `android:label="local music"` |
-| 6 | 我喜欢的音乐（收藏） | `app/.../data/FavoritesStore.kt` + `MusicDatabase.favorites`；曲库页「全部 / 我喜欢的」筛选、每行心形按钮、播放页心形按钮、主页入口 |
-| 7 | 封面用缩略图、可自定义封面 | `ui/Artwork.kt`（系统缩略图 → 降采样 → 磁盘/内存两级缓存）+ `data/CoverStore.kt`（自选图片复制进私有目录并记录映射） |
-| 8 | 点封面显示歌词 | `ui/PlayerOverlay.kt` 的歌词面板 + `data/LyricsRepository.kt`（同名 `.lrc` 或内嵌歌词，带时间戳则自动滚动高亮） |
-| 9 | 均衡器 | `audio/.../playback/EqualizerController.kt`（系统 audiofx：Equalizer / BassBoost / LoudnessEnhancer，按播放会话绑定）+ `ui/EqualizerSheet.kt`（液态玻璃面板；设置页与播放页均有入口） |
+</details>
 
-### 关于「ncm 转 FLAC」的两点实话
+## 项目结构
 
-1. **内封装 FLAC 的**（网易云无损下载）：逐字节还原，**无损、零重编码**，只是去掉 NCM 外壳。
-2. **内封装 MP3 的**：解码成 PCM 后写成**合法 FLAC 流**——是真正的转码，不是改后缀。
-   但**有损音源转成 FLAC 不会恢复丢失的音质**，这点在侧车 JSON 的 `payloadFormat` 字段里明确标注。
-
-### 封面与歌词的来源（都不是"偷偷联网"）
-
-- **封面**：优先用户自选的图片 → 系统缩略图（`ContentResolver.loadThumbnail`）→ 音频内嵌封面。
-  自选图片会被**复制进应用私有目录**，原图删了、SAF 授权被回收了也不影响。
-- **歌词**：只读本地来源 —— 与音频**同目录同名**的 `.lrc`，或音频文件里**内嵌**的歌词（ID3 USLT / Vorbis LYRICS）。
-  不请求任何在线歌词接口。
-  ⚠️ 同名 `.lrc` 属于"非媒体文件"，Android 11+ 下**只有在用户授权的目录里才读得到**
-  （媒体库里的歌想读旁边那个 .lrc，需要「所有文件访问权限」，本项目不申请）。
-  所以：把 `.lrc` 放进你授权过的音乐目录（例如网易云那个目录，或 FLAC 导出目录）最稳。
-
-### 均衡器的边界
-
-- 走系统 `android.media.audiofx`，挂在**当前播放会话**上，不是自研 DSP；所有解码路径自动生效。
-- **开启 USB 直通时系统混音被绕过，均衡器不生效**——界面会明确提示"当前不生效"，而不是假装有效。
-- 频段数量由设备决定（多数 5 段）；调节立即生效并保存，重启后自动恢复。
-
----
-
-## 二、构建
-
-构建需要：JDK 17、Android SDK（compileSdk 37，含 targetSdk 36 / minSdk 33 对应的平台与构建工具）、Gradle，以及原生 USB 模块所需的 NDK。
-
-```bash
-gradle :app:assembleDebug --console=plain          # 产物 app/build/outputs/apk/debug/app-debug.apk
-gradle :audio:testDebugUnitTest --console=plain    # NCM 解码器的真实样本回归测试
+```
+app/                        Android 应用模块（:app）
+  src/main/java/com/localmusic/app/
+    MainActivity.kt         采集层 / 玻璃层结构、dock、滚轮与页面切换
+    data/                   曲库扫描、数据库、封面缓存、歌词、刮削、乐单、喜欢、更新检查、DSD 解码
+    ui/                     液态玻璃组件、播放页、设置与各玻璃面板、点击轮
+audio/                      音频模块（:audio）
+  src/main/java/com/localmusic/audio/ncm/        .ncm 解密、FLAC 校验、导出与命名
+  src/main/java/com/localmusic/audio/playback/   Media3 播放服务、均衡器、UAC2 控制与等时流、PCM 解码
+  src/main/cpp/usbisoc.c                         原生 USB 等时输出（usbfs URB 提交 / 回收 + 异步反馈调速）
+third_party/liquid-miuix/   内置的液态玻璃 Compose 库，以 :liquid-miuix 引入
+docs/                       横幅、图标与截图
+scripts/                    图标生成与素材渲染脚本（Python）
+version.json                应用内更新检查读取的清单
+NOTICE                      授权边界说明
 ```
 
-版本约束（不要随意改，会被 miuix 0.9.4 的 AAR 元数据拦下）：
-AGP 9.2.1 · Gradle 9.4.1+ · Kotlin 2.4.20 · compileSdk 37 · minSdk 33 · material3 1.5.0-alpha22。
+## USB 直通
 
----
+Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt，对等时端点调用
+`initialize()` 直接失败；而音频流必须是等时传输。因此本项目自带一层最薄的 USB Audio Class 2 输出实现。
 
-## 三、存储与权限（这部分是 Android 的限制，不是实现偷懒）
-
-- **MediaStore**：授权 `READ_MEDIA_AUDIO` 后可读全部共享存储音频（`app/.../data/LibraryRepository.kt`）。
-- **SAF 授权目录**：Android 11+ 起，**任何应用都无法直接读取 `Android/data/<其它应用>/`**，
-  网易云的下载目录（`Android/data/com.netease.cloudmusic/...`）对第三方应用不可见。
-  所以 ncm 的自动转换作用于**用户在设置里授权的文件夹**（`ACTION_OPEN_DOCUMENT_TREE`，
-  持久化读权限）。请把网易云下载的 `.ncm` 放到 `Music/` 或 `Download/` 后再授权该目录。
-- **应用私有目录**：转换结果落在 `filesDir/music/ncm/`（=`/data/data/com.localmusic.app/files/music/ncm`），
-  这是应用自己的 data 目录，不需要任何存储权限，随应用卸载一起清除。
-- **网易云下载的 ncm 在哪**：一般在 `Download/netease/cloudmusic/Music/`；
-  写在 `Android/data/com.netease.cloudmusic/` 里的那部分受系统保护，任何第三方应用都读不到。
-  另外 **Download 根目录本身被系统禁止授权**（选择器会提示"无法使用此文件夹"），
-  所以要授权它的**子目录**。授权成功一次后权限会持久化，之后每次扫描都会自动转换新出现的 ncm。
-
----
-
-## 四、已知限制
-
-- **DSD（.dsf/.dff）不能播放**：ExoPlayer 没有 DSD 解码器；这类文件会被扫描元数据但无法出声。
-  AURALIS 上游同样只能标注、不能解码。
-- **USB Bit-perfect 是"请求已接受"而非硬件测量证明**：界面文案按此措辞。
-  仅 Android 14+ 且外接 DAC 且 DAC 支持与源一致的采样率/编码组合时才会申请直通；
-  条件不满足一律回落系统混音，不做"抬到最高采样率"这种假直通。
-- **未在模拟器上验证**：目前的验证是在实体 Android 设备上完成的，模拟器上的行为可能不同。
-- **USB Bit-perfect 未在有 DAC 的场景下验证**：没有 USB DAC，无法确认"请求被接受后确实走了直通"。
-  代码在无 DAC 时会明确显示"等待连接兼容 USB DAC"，不会假装已开启。
-
----
-
-## 五、实机验证记录
-
-| 项 | 结果 | 证据 |
-|---|---|---|
-| 安装启动 | 通过，无崩溃 | `adb install` 成功；进程存活；logcat 无 `FATAL/AndroidRuntime` |
-| 自动扫描存储器 | 通过 | 曲库 131→134 首；DB 中 `media:external_primary` 132 首 |
-| 真实位深/采样率 | 通过 | 列表显示 `FLAC 24bit/96.0kHz`（系统 API 常误报 48kHz，这里是 jaudiotagger/STREAMINFO 的结果） |
-| 播放链路 | 通过 | `dumpsys audio` 中音频输出归属 `package:com.localmusic.app` 的 `android.media.AudioTrack`，`sampleRate=96000`、格式为 PCM_FLOAT |
-| 后台播放 | 通过 | media3 `MediaSessionService`，系统通知带"上一项/播放/下一项"三个按钮 |
-| SAF 授权目录 | 通过 | DB 出现 `tree/primary%3ADownload%2Flocal%20music` 来源的歌曲 |
-| ncm → 真 FLAC | 通过 | 私有目录产出 `.flac`（155,727 B）+ 侧车 JSON；按规范独立解析结果：`16bit 44100Hz 2ch samples=176400` |
-| 转换结果入库命名 | 通过 | 曲库条目显示「艺术家 - 歌名 · FLAC 16bit/44.1kHz」——名字来自侧车元数据，不是哈希文件名 |
-| 原文件保留 | 通过 | 授权目录里的原始 `.ncm` 文件仍在 |
-| 界面 | 通过 | 莫奈取色主页、玻璃 dock（滑动高亮胶囊）、玻璃迷你播放条、全屏玻璃播放器均正常显示 |
-| USB Bit-perfect | **未验证** | 无 USB DAC 设备 |
-
----
-
-## 六、第二轮改动（2026-09-28，按使用反馈）
-
-| 反馈 | 处理 |
+| 环节 | 做法 |
 |---|---|
-| 深色模式下歌名是黑的，看不清 | 根因：Material3 的 `Text` 取 `LocalContentColor`，而它默认是**黑色**；我们的文字大量放在 miuix `Card` 里（不是 material3 `Surface`，没人给它赋值），于是深色下黑字黑底。现在在 `AppShell` 顶层统一 `LocalContentColor provides MiuixTheme.colorScheme.onSurface` → 浅色黑、深色白，跟随主题 |
-| 「local music」那个顶部色块也要液态玻璃 | 顶栏从 Scaffold 的 `topBar` 槽移出来，做成**采集层之外**的玻璃浮层（`GlassTopBar`）；页面内容不再为它留高度，而是从它下面滚过去，玻璃才有东西可折射。细长条的折射量单独调小（16/26dp），否则整条糊成一团 |
-| 用提供的图当图标 | `design/app-icon-source.jpg` → `scripts/make-app-icon.py`（Pillow）→ 自适应图标：前景缩到安全区 56%，背景取源图四角底色 `#001830`；`mipmap-anydpi-v26/ic_launcher(.round).xml` |
-| 点击「开始聆听」的播放按钮没反应 | 根因：没选中曲目时 `player.id == null`，回调里 `if (playback.id != null)` 直接吞掉了点击。现在：有当前曲目→打开播放器；没有→**真的开始播第一首**并打开播放器；按钮图标也随之切换（播放/波形） |
-| 封面别用原图、用缩略图；滑动卡顿 | 重写 `Artwork`：① 先问系统要缩略图（`ContentResolver.loadThumbnail`，比解内嵌图快一个量级）；② 拿不到才用 `MediaMetadataRetriever` 且**立刻按目标尺寸降采样**（`inSampleSize` + RGB_565）；③ 按「URI+目标尺寸」落盘到 `cacheDir/artwork`（48MB 预算，超了按时间淘汰）；④ 列表 160px、全屏播放器 900px，是不同缓存条目 |
-| 曲库里有重复歌 | 同一个物理文件既被 MediaStore 收录、又在授权目录里，会出现两条。现在按**真实路径**去重（MediaStore 那趟记 `_data`，SAF 那趟把 `documentId` 还原成路径比对）：394 首 → **282 首** |
+| fd | Kotlin 侧用 `UsbDeviceConnection.getFileDescriptor()` 取得 usbfs 原始 fd |
+| 传输 | 原生层（`audio/src/main/cpp/usbisoc.c`，编成 `libusbisoc.so`）用 `USBDEVFS_SUBMITURB` / `USBDEVFS_REAPURB` 提交与回收等时 URB，每个 URB 带 1 个 iso packet（USB 高速 125µs 一帧），固定保持若干 URB 在飞以避免 underflow |
+| 设备能力 | 解析 UAC2 类描述符：时钟源、各 alt setting 的位深与采样率表；设备的可用采样率取自系统 `AudioDeviceInfo` 的音频配置 |
+| 时钟 | 用 `SET_CUR` 把 DAC 时钟设到**文件原始采样率**（不做重采样），再用 `GET_CUR` 读回校验；激活 alt setting 之后再设一次 |
+| 码率 | 每帧字节数 = 采样率 × 4 字节（32bit 子帧）× 声道数 ÷ 8000 帧每秒，并对齐到整采样帧，避免左右声道错位 |
+| 异步反馈 | 若设备带反馈端点，原生层解析其 Q16.16 速率并据此微调每帧字节数（保留完整小数部分累加），防止周期性丢样 / 重复 |
+| 数据通路 | `MediaCodec` 解码 → 统一转成 32bit 小端 PCM → 管道 → 原生等时写出 → DAC；发送前有垃圾数据安全闸，接近满量程的样本占比异常时主动中止，避免把噪音送进 DAC |
+| 会话 | 同一时刻只允许一条直通；停止时关闭管道写端，让原生 `read` 返回 0 后释放接口；只有仍是当前所有者的会话才允许释放接口，避免并发会话互相抢接口 |
+| 界面 | 设置页「USB 直通」开关；曲库点歌即直通；直通期间 ExoPlayer 被静音但仍负责界面、队列与进度 |
 
-### 实测数据（同机、同曲库）
+### 直通的两条边界
 
-| 项 | 结果 |
-|---|---|
-| 滑动帧统计（冷缓存第一轮，1130 帧） | **Janky frames 5（0.44%）**，50th 12ms / 90th 29ms / 95th 32ms，Missed Vsync 2 |
-| 缩略图缓存 | `cache/artwork` 23 个文件 348KB；其中 **22 个**能精确对应到真实歌曲的 `sha1(uri@160)` 键 |
-| 去重效果 | 授权目录来源的音频条目 0 条（全部与媒体库重复，已合并）；`private`（ncm 转出）149 条 |
+- **DAC 不支持的采样率直接拒绝**：设备只上报自己支持的采样率（例如只有 48kHz 家族而没有 44.1kHz），
+  文件采样率不在其中时不做直通、也不重采样，而是明确提示。
+- **未完成硬件端到端验证**：代码能确认的只是系统与设备接受了请求，没有用测量设备核对模拟输出，
+  因此界面文案按「请求已被接受」措辞，而不是「已测得位完美」。
 
-### ncm 校验器的一处放宽（附一个真实反例）
+## 已知限制
 
-规范说「比 STREAMINFO 里 `minBlockSize` 更短的帧只能是最后一帧」。实测有网易云资源不满足这一点。
-原先直接判死，现在改为**只计数不判死**——因为真正的完整性由三件事守住：逐帧 header CRC8 + 帧 CRC16、
-采样序号连续、总采样数与 STREAMINFO 完全相等（截断文件过不了这一关）。
+- **USB 直通缺少测量级验证**：没有测量设备核对 DAC 的模拟输出，界面与文档都只声明「请求被接受」；
+  未连接兼容 DAC 时会显示等待连接，不会假装直通已生效。
+- **只对部分 UAC2 设备验证过**：采样率能力完全取自所连设备上报的信息，DAC 不支持的采样率会被拒绝
+  （宁可不出声，也不硬播走调或噪音）。
+- **DSD 不是原生直通**：`.dsf` / `.dff` 解码为 PCM 后播放；Android 公开 API 没有等时 USB 音频，
+  原生 DSD / DoP 需要单独的驱动实现。对 DAC 是否支持 bit-perfect DSD 只做能力探测，
+  结果如实写在诊断日志里（logcat 标签 `LMDsd`）。
+- **高解析必须走 USB**：蓝牙链路本身有损且会重采样；不满足直通条件时回落到系统混音（能听，但不再位完美）。
+- **元数据刮削使用非官方接口**：网易云音乐接口未公开、无需账号，可能被限流、随地区不同或直接失效
+  （失效时回落到 iTunes / Deezer / LRCLIB）；接口返回内容的版权归原服务方，仅限本地个人使用。
+- **`.ncm` 转 FLAC 不提升音质**：内封装 MP3 的有损音源转成 FLAC 只是容器变化，侧车 JSON 的
+  `payloadFormat` 会如实标注；校验不通过的载荷标记为 `flac-unverified-raw`。
+- **均衡器依赖系统 audiofx**：设备没有实现时，面板只说明不可用；USB 直通开启时系统混音被旁路，均衡器不生效。
+- **更新走应用内下载**：需要 `REQUEST_INSTALL_PACKAGES` 权限，APK 下载后交给系统安装器；Release 使用 debug 签名。
+- **本地化范围**：界面文案覆盖四种语言；数据层的诊断与日志文案仍为中文。
+- **Android 版本**：应用最低 Android 13（API 33）；USB bit-perfect 相关的系统级请求需要 Android 14（API 34）及以上。
 
-同一批文件里也确实有**真的坏**的：`宇多田ヒカル - Distance.ncm`（40,895,197 B）能正常解密
-（载荷 `fLaC` 开头、元数据与声明时长都读得出），但帧流中途失同步 → 校验器拒绝、UI 如实报错、
-**不产出半成品 FLAC**。这条行为已固化成回归测试（`NcmRealFileRegressionTest`，用环境变量指向该文件）：
+## 许可
 
-```powershell
-$env:LM_NCM_REAL_FILE = "<坏文件路径>"
-gradle :audio:testDebugUnitTest --tests "*NcmRealFileRegressionTest*"
-# -> 校验器按预期拒绝：Invalid FLAC frame sync
-```
+- **代码**：以 **GNU GPL-3.0** 授权（见 [LICENSE](LICENSE)）。播放内核移植自同样以 GPL-3.0 发布的 AURALIS，
+  因此衍生作品同样需要以 GPL-3.0 发布并保留版权声明。
+- **品牌标识**：应用图标（`app/src/main/res/mipmap-*`、`mipmap-anydpi-v26/`、`drawable-nodpi/ic_launcher_foreground.png`）、
+  `docs/banner.png`、`docs/app-icon.png`、`docs/screenshots/` 下的全部截图，以及应用内的点阵 `Lm` 标记，
+  是本项目自主设计的标识，**不在上述 GPL 授权范围内，保留所有权利**：可以 fork 代码、修改并自行发行，
+  在文章或评测中引用这些图形时注明来源即可；但请不要把同款或高度近似的图标 / 横幅用作自研应用的标识，
+  也不要借此暗示与本项目存在关联或得到本项目作者背书。
+- 项目名称 "local music" 与上述图形标识目前**未申请商标注册**；NOTICE 中的「保留所有权利」是基于著作权的主张，
+  不构成商标注册。
+- 「`.ncm` 转换」与「在线刮削」功能仅用于用户自己合法拥有的本地音乐，请遵守相关服务条款与当地法律。
+- 全文见 [NOTICE](NOTICE)。
 
-### 本轮测试
+## 第三方
 
-```
-:audio:testDebugUnitTest  →  7 个用例，0 失败
-  NcmDecoderTest 5/5（真实样本 test.ncm：16bit 44.1kHz，逐帧 CRC 通过）
-  NcmRealFileRegressionTest 1/1（上面那个真实坏文件，断言"必须拒绝"）
-  NcmDumpToolTest 1（默认跳过，需 LM_NCM_FILE/LM_NCM_DUMP 环境变量）
-```
-
-### 顺带说明（未改动代码的两点）
-
-- 「自动转换 ncm → FLAC」开关的代码默认值是**开**（`settings.xml` 的 `autoNcm`）。不需要自动转换时，在「设置」里关掉即可。
-- 授权目录与 `files/music/ncm` 里已经有 **149 个转换产物、约 4.7GB**（内部存储）。
+| 项目 | 用途 | 许可 / 说明 |
+|---|---|---|
+| [Rueded/AURALIS](https://github.com/Rueded/AURALIS) | 播放内核来源 | GPL-3.0；`:audio` 的解码链路、输出与真实规格解析移植自此 |
+| [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix) | 液态玻璃界面库 | 已内置在 `third_party/liquid-miuix`，以 `:liquid-miuix` 引入 |
+| [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump) | `.ncm` 解码 | 移植；许可文本见 [LICENSE-ncmdump.txt](LICENSE-ncmdump.txt) 与 `audio/.../ncm/LICENSE.ncmdump.txt` |
+| Media3 / ExoPlayer 1.10.0 | 解码与播放 | Apache-2.0 |
+| Miuix | Compose 组件 | Apache-2.0 |
+| jaudiotagger 3.0.1 | 读取真实位深 / 采样率 | 见 [NOTICE](NOTICE) 与 `app/build.gradle.kts` |
+| kotlinx-coroutines | 并发 | 见 `app/build.gradle.kts` |

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.audio.playback
 
 import android.content.Context
@@ -260,7 +260,7 @@ object UsbUac2Stream {
         // 这台 DAC **真正支持哪些采样率**，由系统报告。
         // 注意：能力挂在 AudioDeviceInfo 上（AudioManager 的设备列表），不是 UsbDevice ——
         // UsbDevice 没有 audioProfiles 这个 API（我先前写错过一次，编译直接报 Unresolved）。
-        // 实测 Moondrop Old Fashioned：48000, 88200, 96000, 176400, 192000, 352800, 384000
+        // 实测 测试用 USB DAC：48000, 88200, 96000, 176400, 192000, 352800, 384000
         // —— **没有 44100**，所以随便挑一首 44.1k 的歌，SET_CUR 设不进去 → 没声音。
         val am0 = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
         val supported: Set<Int> = am0?.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
@@ -305,7 +305,7 @@ object UsbUac2Stream {
         emit("流：准备播放 " + chosen.absolutePath + "  采样率=$fileRate DAC支持=${fileRate in supported}")
 
         // ⚠️ 采样率必须是 DAC 支持的，否则宁可拒绝也不能硬播。
-        // 实测这台 Moondrop Old Fashioned 的时钟**不支持 44100**；
+        // 实测这台 测试用 USB DAC 的时钟**不支持 44100**；
         // 而用户曲库 462 首里 306 首是 44.1k（占 66%）。
         // 硬发的话设备会按别的时钟播 → 走调/噪音（又是糟糕体验）。这里明确拦住并说明原因。
         if (supported.isNotEmpty() && fileRate !in supported) {

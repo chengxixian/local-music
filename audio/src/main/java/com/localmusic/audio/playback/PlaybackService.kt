@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 // Derived from Rueded/AURALIS PlaybackService.kt (GPLv3).
 // Changes: single player, supported mixer matching, route lifecycle, no DSP/network.
 package com.localmusic.audio.playback
@@ -118,7 +118,7 @@ class PlaybackService : MediaSessionService() {
         // 阶段 0 探针：枚举接口/alt/端点参数；若该 USB 设备已授权，再尝试
         // claimInterface(force=true) 抢掉内核的 snd-usb-audio —— 这是自研 UAC 驱动的 go/no-go。
         UsbAudioProbe.probe(this) { PlaybackDiagnostics.mutable.value = it }
-        // 设备不一定上报 bit-perfect 组合（实测 Moondrop Old Fashioned 什么都没报），
+        // 设备不一定上报 bit-perfect 组合（实测 测试用 USB DAC 什么都没报），
         // 所以不再"等设备上报" —— **自己构造**目标规格去请求：32bit(float)/384kHz 起步，
         // 被拒就逐档降到 192k / 96k / 48k，取第一档被接受的组合。
         fun buildMixer(rate: Int, encoding: Int): AudioMixerAttributes {
