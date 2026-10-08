@@ -206,7 +206,7 @@ private fun nextPage(current: Page): Page = when (current) {
 }
 
 private val BarMargin = 16.dp
-private val BarHeight = 64.dp
+private val BarHeight = 60.dp
 private val BarPressedScale = 1.04f
 private val TopBarHeight = 56.dp
 private val TopBarMargin = 8.dp
@@ -540,7 +540,7 @@ private fun AppShell() {
                 )
                 // 页面内容的顶部留白 = 状态栏 + 玻璃顶栏高度。顶栏浮在内容之上，
                 // 列表滚动时会从它下面穿过去（那正是玻璃能折射到的东西）。
-                val pageTopPadding = contentPadding.calculateTopPadding() + TopBarHeight + TopBarMargin + 12.dp
+                val pageTopPadding = contentPadding.calculateTopPadding() + TopBarHeight + TopBarMargin + 8.dp
                 // 滚轮在设置页能做的事，顺序就是转动顺序；标题显示在中间键下方。
                 // 放在这里是因为要用到上面定义的 SAF launcher（局部声明必须先于使用）。
                 val wheelActions: List<Pair<Int, () -> Unit>> = listOf(
@@ -625,7 +625,10 @@ private fun AppShell() {
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
-                                        onPlay = { song -> playSong(songs, song) },
+                                        // 同理：队列用页面上显示的 libraryList（含搜索过滤），
+                                        // 不传未过滤的 songs —— 否则"搜索结果里点歌 → 下一曲"
+                                        // 会跑到搜索条件之外的歌上。
+                                        onPlay = { song -> playSong(libraryList, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
@@ -642,7 +645,10 @@ private fun AppShell() {
                                         onToggleFavorite = { song ->
                                             com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
                                         },
-                                        onPlay = { song -> playSong(songs, song) },
+                                        // ⚠️ 队列必须用**页面上显示的那个列表**（favoriteList），
+                                        // 以前这里传的是 songs（全曲库）→ 在"喜欢"里点歌后按"下一曲"
+                                        // 会跳到曲库里的歌（常常不是喜欢的歌）——用户实测就是这个现象。
+                                        onPlay = { song -> playSong(favoriteList, song) },
                                         onAddToQueue = { song ->
                                             player.appendToQueue(listOf(song))
                                             android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
@@ -791,7 +797,7 @@ private fun AppShell() {
                                 player = playback,
                                 favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
                                 topPadding = 8.dp,
-                                bottomPadding = BarHeight + BarMargin + 12.dp,
+                                bottomPadding = BarHeight + BarMargin + 28.dp,
                                 positionFlow = player.position,
                                 onToggle = { player.toggle() },
                                 onNext = { player.next() },
@@ -947,10 +953,15 @@ private fun AppShell() {
                             // 迷你播放条留着 —— 它算播放控制，不算导航。
                             if (!showAbout) {
                                 Box(
-                                    // dock 只有两栏了，不必占满整屏：收窄一点更像悬浮胶囊，
-                                    // 而且玻璃要模糊的面积也小了（滚动时每帧都要重新采样）
+                                    // 设计说明（按设计规范修正）：dock 是**悬浮胶囊**，宜窄于内容宽度，
+                                    // 且应比顶栏窄一档才有层次。
+                                    // 我先前把它加宽到 0.90 是**把每项宽度算错了** —— 411dp 屏上
+                                    // 0.78 已经约 73dp/项，点击区完全够，加宽反而丢掉了胶囊感。
+                                    // 现取 0.72 且不超过 320dp：每项约 74dp，四周留白均衡。
                                     Modifier.align(Alignment.CenterHorizontally)
-                                        .fillMaxWidth(0.78f).height(BarHeight).graphicsLayer {
+                                        .fillMaxWidth(0.72f)
+                                        .widthIn(max = 320.dp)
+                                        .height(BarHeight).graphicsLayer {
                                         scaleX = barScale; scaleY = barScale
                                     }
                                 ) {
@@ -974,6 +985,10 @@ private fun AppShell() {
                                     )
                                 }
                             }
+                            // 设计说明：Scaffold 的 contentPadding 只把内容抬到系统手势栏之上，
+                            // 于是 dock **紧贴**手势栏、没有呼吸空间（悬浮感被压掉）。
+                            // 这里补 14dp：dock 与手势栏之间形成明确的"悬浮层"间距。
+                            Spacer(Modifier.height(14.dp))
                         }
                     }
 

@@ -509,13 +509,13 @@ fun GlassNavBarContent(
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = tint,
                     )
                     Text(
                         text = label,
                         color = tint,
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp),

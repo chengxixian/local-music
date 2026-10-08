@@ -126,13 +126,13 @@ fun MiniPlayerBar(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    GlassPanel(backdrop, RoundedCornerShape(28.dp), modifier.height(64.dp).fillMaxWidth()) {
+    GlassPanel(backdrop, RoundedCornerShape(24.dp), modifier.height(56.dp).fillMaxWidth()) {
         Row(
             Modifier.fillMaxSize().clickable(onClick = onOpen).padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline),
         ) {
-            Artwork(song, Modifier.size(44.dp), radius = 14)
+            Artwork(song, Modifier.size(40.dp), radius = 14)
             Column(Modifier.weight(1f)) {
                 Text(player.title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)

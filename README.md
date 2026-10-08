@@ -37,7 +37,6 @@
 |---|---|---|
 | ![曲库](docs/screenshots/library-hires.png) | ![播放页](docs/screenshots/player-glass.png) | ![乐单](docs/screenshots/playlists.png) |
 
-> 工程位置（开发机）：`D:\dsh work region\local-music`
 > 前端库引用的是工作区里已 clone 的 `liquid-miuix-repo/library`（`projectDir` 直接指过去，没有复制代码）；
 > 单独 clone 本仓库时，把 `settings.gradle.kts` 里 `:liquid-miuix` 的路径指到你自己那份库即可。
 
@@ -58,7 +57,7 @@
 | 有损 | MP3、AAC(m4a)、OGG、Opus | 常规播放 |
 | **DSD** | `.dsf` / `.dff` | ✅ **支持播放（转码为 PCM）**：自己解析 DSF/DFF 文件头（DSD64/128/256、位率、声道、时长），用两级 4:1 箱式平均（16 点三角窗）抽成 **176.4kHz/24bit PCM** 再送播放链，结果缓存（首次转码，之后直读）；转好的 PCM 能继续走 USB bit-perfect 直通。**不是**原生 DSD / DoP 直通 —— Android 公开 API 没有等时 USB 音频，做不到 |
 
-> 关于 bit-perfect：**输出优先指定给 USB DAC**（`setPreferredAudioDevice`），并在 Android 14+ 按源规格申请 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)`；直通时绕开系统混音，均衡器自动旁路。更低版本或设备不支持时回落系统混音（能听，但不再"位完美"）。**蓝牙链路本身有损并会重采样，高解析必须走 USB。** USB DAC 直通我在真机上**没有 DAC 可测**，这条只有实现、没有实测证据。
+> 关于 bit-perfect：**输出优先指定给 USB DAC**（`setPreferredAudioDevice`），并在 Android 14+ 按源规格申请 `AudioMixerAttributes(MIXER_BEHAVIOR_BIT_PERFECT)`；直通时绕开系统混音，均衡器自动旁路。更低版本或设备不支持时回落系统混音（能听，但不再"位完美"）。**蓝牙链路本身有损并会重采样，高解析必须走 USB。** USB DAC 直通**没有 DAC 可测**，这条只有实现、没有实测证据。
 
 
 - 包名 `com.localmusic.app`，Android 13+（compileSdk 37 / targetSdk 36 / minSdk 33）
@@ -135,13 +134,9 @@ gradle :audio:testDebugUnitTest    # ncm 解码 / 逐帧 CRC / 真实坏文件�
 
 ## 二、构建
 
-本机工具链在 `D:\tool`（JDK 17 / Android SDK compileSdk 37 / Gradle 9.4.1 / NDK）。
+构建需要：JDK 17、Android SDK（compileSdk 37，含 targetSdk 36 / minSdk 33 对应的平台与构建工具）、Gradle，以及原生 USB 模块所需的 NDK。
 
-```powershell
-# 载入工具链环境（本机执行策略为 Restricted，必须用 ScriptBlock 方式）
-$sb = [ScriptBlock]::Create((Get-Content "D:\tool\env.ps1" -Raw)); & $sb
-
-cd "D:\dsh work region\local-music"
+```bash
 gradle :app:assembleDebug --console=plain          # 产物 app/build/outputs/apk/debug/app-debug.apk
 gradle :audio:testDebugUnitTest --console=plain    # NCM 解码器的真实样本回归测试
 ```
@@ -174,29 +169,27 @@ AGP 9.2.1 · Gradle 9.4.1+ · Kotlin 2.4.20 · compileSdk 37 · minSdk 33 · mat
 - **USB Bit-perfect 是"请求已接受"而非硬件测量证明**：界面文案按此措辞。
   仅 Android 14+ 且外接 DAC 且 DAC 支持与源一致的采样率/编码组合时才会申请直通；
   条件不满足一律回落系统混音，不做"抬到最高采样率"这种假直通。
-- **未在模拟器上验证**：本机没有安装 emulator 系统镜像；验证是在真机（小米 25019PNF3C / Android 17 / HyperOS）上做的，记录见下节。
-- **USB Bit-perfect 未在有 DAC 的场景下验证**：手头没有 USB DAC，无法确认"请求被接受后确实走了直通"。
+- **未在模拟器上验证**：目前的验证是在实体 Android 设备上完成的，模拟器上的行为可能不同。
+- **USB Bit-perfect 未在有 DAC 的场景下验证**：没有 USB DAC，无法确认"请求被接受后确实走了直通"。
   代码在无 DAC 时会明确显示"等待连接兼容 USB DAC"，不会假装已开启。
 
 ---
 
-## 五、真机验证记录（2026-09-28，小米 25019PNF3C / Android 17）
+## 五、实机验证记录
 
 | 项 | 结果 | 证据 |
 |---|---|---|
-| 安装启动 | 通过，无崩溃 | `adb install` Success；pid 存活；logcat 无 `FATAL/AndroidRuntime` |
+| 安装启动 | 通过，无崩溃 | `adb install` 成功；进程存活；logcat 无 `FATAL/AndroidRuntime` |
 | 自动扫描存储器 | 通过 | 曲库 131→134 首；DB 中 `media:external_primary` 132 首 |
 | 真实位深/采样率 | 通过 | 列表显示 `FLAC 24bit/96.0kHz`（系统 API 常误报 48kHz，这里是 jaudiotagger/STREAMINFO 的结果） |
-| 播放链路 | 通过 | `dumpsys audio`：`package:com.localmusic.app type:android.media.AudioTrack`、`format update:FormatInfo{sampleRate=96000}`、HAL `sample_rate 96000, format 0x5`(PCM_FLOAT) |
+| 播放链路 | 通过 | `dumpsys audio` 中音频输出归属 `package:com.localmusic.app` 的 `android.media.AudioTrack`，`sampleRate=96000`、格式为 PCM_FLOAT |
 | 后台播放 | 通过 | media3 `MediaSessionService`，系统通知带"上一项/播放/下一项"三个按钮 |
 | SAF 授权目录 | 通过 | DB 出现 `tree/primary%3ADownload%2Flocal%20music` 来源的歌曲 |
-| ncm → 真 FLAC | 通过 | `files/music/ncm/ncm-a1586b….flac`（155,727 B）+ 侧车 JSON；用独立 Python 脚本按规范解析：`16bit 44100Hz 2ch samples=176400`，文件 sha256 `973bb281…` |
-| 转换结果入库命名 | 通过 | 曲库出现「贝贝 / 李荣浩 · 耳朵 / FLAC 16bit/44.1kHz 0:04」——名字来自侧车元数据，不是哈希文件名 |
-| 原文件保留 | 通过 | 授权目录里的 `贝贝.ncm` 仍在 |
-| 界面 | 通过 | 见 `shots/local-music/`：莫奈取色主页、玻璃 dock（滑动高亮胶囊）、玻璃迷你播放条、全屏玻璃播放器 |
+| ncm → 真 FLAC | 通过 | 私有目录产出 `.flac`（155,727 B）+ 侧车 JSON；按规范独立解析结果：`16bit 44100Hz 2ch samples=176400` |
+| 转换结果入库命名 | 通过 | 曲库条目显示「艺术家 - 歌名 · FLAC 16bit/44.1kHz」——名字来自侧车元数据，不是哈希文件名 |
+| 原文件保留 | 通过 | 授权目录里的原始 `.ncm` 文件仍在 |
+| 界面 | 通过 | 莫奈取色主页、玻璃 dock（滑动高亮胶囊）、玻璃迷你播放条、全屏玻璃播放器均正常显示 |
 | USB Bit-perfect | **未验证** | 无 USB DAC 设备 |
-
-截图目录：`D:\dsh work region\shots\local-music\`。
 
 ---
 
@@ -206,7 +199,7 @@ AGP 9.2.1 · Gradle 9.4.1+ · Kotlin 2.4.20 · compileSdk 37 · minSdk 33 · mat
 |---|---|
 | 深色模式下歌名是黑的，看不清 | 根因：Material3 的 `Text` 取 `LocalContentColor`，而它默认是**黑色**；我们的文字大量放在 miuix `Card` 里（不是 material3 `Surface`，没人给它赋值），于是深色下黑字黑底。现在在 `AppShell` 顶层统一 `LocalContentColor provides MiuixTheme.colorScheme.onSurface` → 浅色黑、深色白，跟随主题 |
 | 「local music」那个顶部色块也要液态玻璃 | 顶栏从 Scaffold 的 `topBar` 槽移出来，做成**采集层之外**的玻璃浮层（`GlassTopBar`）；页面内容不再为它留高度，而是从它下面滚过去，玻璃才有东西可折射。细长条的折射量单独调小（16/26dp），否则整条糊成一团 |
-| 用提供的图当图标 | `design/app-icon-source.jpg` → `scripts/make-app-icon.py`（Pillow）→ 自适应图标：前景缩到安全区 56%，背景取源图四角底色 `#001830`；`mipmap-anydpi-v26/ic_launcher(.round).xml`。圆形/方形裁切预览见 `shots/local-music/icon-preview.png` |
+| 用提供的图当图标 | `design/app-icon-source.jpg` → `scripts/make-app-icon.py`（Pillow）→ 自适应图标：前景缩到安全区 56%，背景取源图四角底色 `#001830`；`mipmap-anydpi-v26/ic_launcher(.round).xml` |
 | 点击「开始聆听」的播放按钮没反应 | 根因：没选中曲目时 `player.id == null`，回调里 `if (playback.id != null)` 直接吞掉了点击。现在：有当前曲目→打开播放器；没有→**真的开始播第一首**并打开播放器；按钮图标也随之切换（播放/波形） |
 | 封面别用原图、用缩略图；滑动卡顿 | 重写 `Artwork`：① 先问系统要缩略图（`ContentResolver.loadThumbnail`，比解内嵌图快一个量级）；② 拿不到才用 `MediaMetadataRetriever` 且**立刻按目标尺寸降采样**（`inSampleSize` + RGB_565）；③ 按「URI+目标尺寸」落盘到 `cacheDir/artwork`（48MB 预算，超了按时间淘汰）；④ 列表 160px、全屏播放器 900px，是不同缓存条目 |
 | 曲库里有重复歌 | 同一个物理文件既被 MediaStore 收录、又在授权目录里，会出现两条。现在按**真实路径**去重（MediaStore 那趟记 `_data`，SAF 那趟把 `documentId` 还原成路径比对）：394 首 → **282 首** |
@@ -230,7 +223,7 @@ AGP 9.2.1 · Gradle 9.4.1+ · Kotlin 2.4.20 · compileSdk 37 · minSdk 33 · mat
 **不产出半成品 FLAC**。这条行为已固化成回归测试（`NcmRealFileRegressionTest`，用环境变量指向该文件）：
 
 ```powershell
-$env:LM_NCM_REAL_FILE = "...\宇多田ヒカル - Distance.ncm"
+$env:LM_NCM_REAL_FILE = "<坏文件路径>"
 gradle :audio:testDebugUnitTest --tests "*NcmRealFileRegressionTest*"
 # -> 校验器按预期拒绝：Invalid FLAC frame sync
 ```
@@ -246,6 +239,5 @@ gradle :audio:testDebugUnitTest --tests "*NcmRealFileRegressionTest*"
 
 ### 顺带说明（未改动代码的两点）
 
-- 本机上「自动转换 ncm → FLAC」开关**已被我关掉**（`settings.xml` 里 `autoNcm=false`），
-  免得它接着把剩下 100 多个 ncm 也转掉；代码里的默认值仍是**开**。要用时在「设置」里打开即可。
+- 「自动转换 ncm → FLAC」开关的代码默认值是**开**（`settings.xml` 的 `autoNcm`）。不需要自动转换时，在「设置」里关掉即可。
 - 授权目录与 `files/music/ncm` 里已经有 **149 个转换产物、约 4.7GB**（内部存储）。

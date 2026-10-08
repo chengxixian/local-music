@@ -50,7 +50,7 @@ The playback core is ported from [Rueded/AURALIS](https://github.com/Rueded/AURA
 > source format. When granted, the system mixer is bypassed and the equalizer is bypassed with
 > it. Otherwise playback falls back to the system mixer (audible, but no longer bit-perfect).
 > **Bluetooth is lossy and resamples, so hi-res has to go over USB.** The USB path is
-> implemented but **not verified on real hardware** — I have no DAC to test with.
+> implemented but **not verified on real hardware** — no USB DAC was available for testing.
 
 ### Features
 
@@ -99,8 +99,8 @@ NOTICE          License boundaries: code is GPL-3.0, brand assets are All Rights
 - **No real DSD passthrough.** DSD is decimated to PCM (see above); native DSD/DoP would
   require a USB Audio Class driver over the fd from `UsbDeviceConnection`, which is a
   separate, much larger project.
-- **DSD over USB is not verified end-to-end** — the code path exists, but I have no DSD
-  material and no DAC to test with. The app can *probe* whether a connected DAC advertises
+- **DSD over USB is not verified end-to-end** — the code path exists, but it has not been
+  exercised with DSD material or a DAC. The app can *probe* whether a connected DAC advertises
   bit-perfect DSD (`AudioFormat.ENCODING_DSD` + `MIXER_BEHAVIOR_BIT_PERFECT`) and reports the
   result honestly in the playback diagnostics (logcat tag `LMDsd`).
 - **Localization covers four languages** (English, Simplified Chinese, Japanese, Russian): every user-facing string lives in `res/values*/strings.xml`, and the language can be changed in Settings (glass dialog) or via the Android 13+ per-app language setting. Diagnostic and log strings in the data layer are still Chinese.

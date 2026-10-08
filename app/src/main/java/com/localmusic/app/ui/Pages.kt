@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import androidx.compose.foundation.Image
@@ -220,7 +220,7 @@ fun LibraryPage(
         columns = GridCells.Fixed(2),
         state = gridState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
+        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 240.dp),
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
@@ -230,14 +230,24 @@ fun LibraryPage(
         }
         if (songs.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                LiquidEmptyState(
-                    when {
-                        favoritesOnly -> stringResource(R.string.empty_favorites)
-                        filtering -> stringResource(R.string.empty_no_match)
-                        else -> stringResource(R.string.empty_library)
-                    },
-                    hint = if (favoritesOnly) stringResource(R.string.empty_favorites_hint) else stringResource(R.string.empty_library_hint),
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    // 品牌元素：把 App 图标的"点阵 Lm"放进空状态。
+                    // 放在这里是有理由的 —— 空白页面本来只剩一句话，此时它承担"这是我的 App"
+                    // 的识别作用（属于内容，不是装饰）；尺寸克制：约占卡片面积 20% 以内。
+                    DotMatrixMark(Modifier.size(96.dp, 62.dp), cell = 7.5.dp, accent = true)
+                    Spacer(Modifier.height(16.dp))
+                    LiquidEmptyState(
+                        when {
+                            favoritesOnly -> stringResource(R.string.empty_favorites)
+                            filtering -> stringResource(R.string.empty_no_match)
+                            else -> stringResource(R.string.empty_library)
+                        },
+                        hint = if (favoritesOnly) stringResource(R.string.empty_favorites_hint) else stringResource(R.string.empty_library_hint),
+                    )
+                }
             }
         } else {
             itemsIndexed(songs, key = { _, song -> song.uri }) { index, song ->
@@ -304,16 +314,16 @@ private fun LibraryGridCard(
                 Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
                 // 左上角：加入乐单（和右上角的心形成一对，操作逻辑一致 —— 点一下即加/去）
                 Box(
-                    Modifier.align(Alignment.TopStart).padding(6.dp).size(32.dp)
-                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                    Modifier.align(Alignment.TopStart).padding(6.dp).size(28.dp)
+                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
                         .clickable { playlistState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.QueueMusic, stringResource(R.string.pl_add_title), tint = Color.White, modifier = Modifier.size(18.dp))
                 }
                 Box(
-                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(32.dp)
-                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp)
+                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
                         .clickable { favoriteState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -325,16 +335,16 @@ private fun LibraryGridCard(
                     )
                 }
                 Box(
-                    Modifier.align(Alignment.BottomStart).padding(6.dp).size(32.dp)
-                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                    Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp)
+                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
                         .clickable { queueState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Rounded.Add, stringResource(R.string.card_add_queue), modifier = Modifier.size(20.dp), tint = Color.White)
                 }
                 Box(
-                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(32.dp)
-                        .clip(CircleShape).background(Color.Black.copy(alpha = 0.34f))
+                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)
+                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
                         .clickable { playState.value(song) },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -876,7 +886,7 @@ fun PlaylistPage(
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 220.dp),
+        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 240.dp),
         horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
