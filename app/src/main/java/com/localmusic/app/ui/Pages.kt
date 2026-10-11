@@ -495,6 +495,10 @@ fun SettingsPage(
     wheelIndex: Int = 0,
     onGlassTint: (WheelTintState) -> Unit = {},
     topPadding: Dp = LiquidSpacing.page,
+    /** 当前播放页风格（只影响播放页那一屏）。 */
+    playerStyle: com.localmusic.app.data.PlayerStyle = com.localmusic.app.data.PlayerStyle.GLASS,
+    /** 点一下"播放页风格"那一行：在两套播放页之间切换（即时生效 + 落盘）。 */
+    onCyclePlayerStyle: () -> Unit = {},
 ) {
     val scheme = MiuixTheme.colorScheme
     val listState = rememberLazyListState()
@@ -505,7 +509,7 @@ fun SettingsPage(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 200.dp),
+        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 260.dp),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
         item {
@@ -716,6 +720,16 @@ fun SettingsPage(
                     subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + stringResource(R.string.settings_lang_tap),
                     leading = Icons.Rounded.Settings,
                     onClick = onOpenLanguage,
+                )
+                // 播放页风格：点一下在「液态玻璃 / 波浪」之间切换。
+                // ⚠️ 这一行**加在最后一张卡里**（不是新开一张卡）—— 滚轮的
+                //    `SETTINGS_CARD_OF_WHEEL` 映射按下标认卡片，插一张新卡会让后面所有
+                //    下标错位；加行不动卡片数量，映射保持有效。
+                LiquidListItem(
+                    title = stringResource(R.string.settings_player_style),
+                    subtitle = stringResource(playerStyle.labelRes) + stringResource(R.string.settings_lang_tap),
+                    leading = Icons.Rounded.PlayArrow,
+                    onClick = onCyclePlayerStyle,
                 )
             }
         }

@@ -205,4 +205,10 @@
     <string name="update_download_service_unavailable">系统下载服务不可用</string>
     <string name="update_download_done">下载完成，正在拉起安装…</string>
     <string name="about_play_animation">播放点阵动画</string>
+    <string name="player_close">收起播放页</string>
+    <string name="lyrics_missing_short">没有找到歌词</string>
+    <string name="lyrics_missing_hint_short">支持与音频同目录同名的 .lrc 文件，或文件内嵌歌词。点一下回到封面。</string>
+    <string name="settings_player_style">播放页风格</string>
+    <string name="player_style_glass">液态玻璃</string>
+    <string name="player_style_wave">波浪</string>
 </resources>

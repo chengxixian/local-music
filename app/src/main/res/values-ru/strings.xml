@@ -209,4 +209,10 @@
     <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
     <string name="update_found_long">Доступна новая версия %1$s (текущая %2$s)</string>
     <string name="about_play_animation">Воспроизвести анимацию</string>
+    <string name="player_close">Закрыть плеер</string>
+    <string name="lyrics_missing_short">Текст не найден</string>
+    <string name="lyrics_missing_hint_short">Поддерживается файл .lrc с тем же именем рядом с аудио или встроенный текст. Нажмите, чтобы вернуться.</string>
+    <string name="settings_player_style">Стиль экрана плеера</string>
+    <string name="player_style_glass">Жидкое стекло</string>
+    <string name="player_style_wave">Волна</string>
 </resources>

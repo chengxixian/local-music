@@ -209,4 +209,10 @@
     <string name="wheel_usb_bitperfect">USB Bit-perfect</string>
     <string name="update_found_long">新しいバージョン %1$s があります（現在 %2$s）</string>
     <string name="about_play_animation">ドットマトリクスアニメを再生</string>
+    <string name="player_close">プレイヤーを閉じる</string>
+    <string name="lyrics_missing_short">歌詞が見つかりません</string>
+    <string name="lyrics_missing_hint_short">同名の .lrc、またはファイルに埋め込まれた歌詞に対応しています。タップで戻ります。</string>
+    <string name="settings_player_style">プレイヤー画面のスタイル</string>
+    <string name="player_style_glass">リキッドグラス</string>
+    <string name="player_style_wave">ウェーブ</string>
 </resources>

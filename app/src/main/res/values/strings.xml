@@ -200,4 +200,10 @@
     <string name="update_download_service_unavailable">System download service unavailable</string>
     <string name="update_download_done">Download finished, launching the installer…</string>
     <string name="about_play_animation">Play animation</string>
+    <string name="player_close">Close player</string>
+    <string name="lyrics_missing_short">No lyrics found</string>
+    <string name="lyrics_missing_hint_short">Supports a same-named .lrc beside the audio file, or lyrics embedded in the file. Tap to go back.</string>
+    <string name="settings_player_style">Player page style</string>
+    <string name="player_style_glass">Liquid glass</string>
+    <string name="player_style_wave">Wave</string>
 </resources>

@@ -63,6 +63,10 @@ class MainActivity : ComponentActivity() {
         // 套用上次选择的界面语言（跟随系统时不设置）
     com.localmusic.app.data.LanguagePref.applyStored(this)
 
+    // 套用上次选择的播放页风格（液态玻璃 / 波浪）。PlayerStyleState 是 Compose 可观察的，
+    // 播放页那两个分支读它来分叉；只读偏好不写这里的话，冷启动会回到默认（玻璃）那套。
+    com.localmusic.app.data.PlayerStyleState.load(this)
+
     setContent { LiquidTheme { AppShell() } }
 
     // 自研 UAC 驱动的阶段 0 探针：先申请该 USB 设备权限（系统弹一次窗），
@@ -763,6 +767,8 @@ private fun AppShell() {
                                         wheelIndex = wheelIndex,
                                         onGlassTint = { saveTint(it) },
                                         topPadding = pageTopPadding,
+                                        playerStyle = com.localmusic.app.data.PlayerStyleState.current,
+                                        onCyclePlayerStyle = { com.localmusic.app.data.PlayerStyleState.cycleAndWrite(context) },
                                     )
                                 }
                             }
@@ -791,7 +797,35 @@ private fun AppShell() {
                         // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
                         // 顶栏让位给页面自己的那行玻璃圆钮。
                         PopIn(visible = playerOpen) {
-                            PlayerPage(
+                            if (com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE) {
+                                WavePlayerPage(
+                                backdrop = backdrop,
+                                song = nowPlaying,
+                                player = playback,
+                                favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
+                                topPadding = 8.dp,
+                                bottomPadding = BarMargin + 16.dp,
+                                positionFlow = player.position,
+                                onToggle = { player.toggle() },
+                                onNext = { player.next() },
+                                onPrev = { player.previous() },
+                                onSeek = { player.seek(it) },
+                                onShuffle = { player.shuffle() },
+                                onRepeat = { player.repeat() },
+                                onClose = { playerOpen = false },
+                                onFavorite = {
+                                    nowPlaying?.let { song ->
+                                        com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
+                                    }
+                                },
+                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
+                                onOpenEq = { showEq = true },
+                                onJumpTo = { player.jumpTo(it) },
+                                onMoveInQueue = { from, to -> player.moveInQueue(from, to) },
+                                onRemoveFromQueue = { player.removeFromQueue(it) },
+                                )
+                            } else {
+                                PlayerPage(
                                 backdrop = backdrop,
                                 song = nowPlaying,
                                 player = playback,
@@ -816,7 +850,8 @@ private fun AppShell() {
                                 onJumpTo = { player.jumpTo(it) },
                                 onMoveInQueue = { from, to -> player.moveInQueue(from, to) },
                                 onRemoveFromQueue = { player.removeFromQueue(it) },
-                            )
+                                )
+                            }
                         }
                         // 乐单详情：顶部玻璃工具栏（浮层 → 真玻璃；同时这个状态收起滚轮）
                         openPlaylist?.let { opened ->
@@ -949,9 +984,11 @@ private fun AppShell() {
                                 )
                                 Spacer(Modifier.height(12.dp))
                             }
-                            // 关于页是独立一页：下面不挂 dock（导航栏）。
+                            // 关于页 / 播放页：下面都不挂 dock（导航栏）。
+                            // 播放页自己的控件已经占满底部，再叠一条导航栏只会挡住它 ——
+                            // 用户要求"播放页去掉 dock，把按钮疏散"，所以这里也收起来。
                             // 迷你播放条留着 —— 它算播放控制，不算导航。
-                            if (!showAbout) {
+                            if (!showAbout && !playerOpen) {
                                 Box(
                                     // 设计说明（按设计规范修正）：dock 是**悬浮胶囊**，宜窄于内容宽度，
                                     // 且应比顶栏窄一档才有层次。
