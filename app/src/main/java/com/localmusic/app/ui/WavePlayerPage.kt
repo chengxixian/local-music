@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -60,6 +61,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,17 +71,20 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -89,12 +94,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.localmusic.app.PlaybackUi
 import com.localmusic.app.QueueItem
 import com.localmusic.app.R
+import com.localmusic.app.data.CoverStore
 import com.localmusic.app.data.LyricsRepository
 import com.localmusic.app.data.Song
 import com.localmusic.app.data.formatTime
@@ -162,6 +167,21 @@ fun WavePlayerPage(
     val context = LocalContext.current
     val livePosition by positionFlow.collectAsState()
 
+    // 封面位图**提到页面层**。原因：切到歌词页时 CoverPane 会被销毁，再切回封面时重建 ——
+    // 如果位图状态跟着 CoverPane 一起重建，就会先闪一帧 `Artwork` 的**默认唱片占位图**，
+    // 然后才异步换成真封面（用户实测到的"先弹一下默认封面"）。
+    // 页面层不随 middle 变化，所以这里的 state 一直活着，切回来直接就是真封面。
+    val coverRevision by CoverStore.revision.collectAsState()
+    val cover by produceState<ImageBitmap?>(null, song?.uri, coverRevision) {
+        value = withContext(Dispatchers.IO) {
+            song?.let { s ->
+                val bmp = CoverStore.decode(context.applicationContext, s.uri, CoverPx)
+                    ?: ArtworkStore.load(context.applicationContext, s, CoverPx)
+                bmp?.asImageBitmap()
+            }
+        }
+    }
+
     var middle by remember(song?.uri) { mutableStateOf(WaveMiddle.Cover) }
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
@@ -208,6 +228,7 @@ fun WavePlayerPage(
             when (middle) {
                 WaveMiddle.Cover -> CoverPane(
                     song = song,
+                    cover = cover,
                     onOpenLyrics = { middle = WaveMiddle.Lyrics },
                 )
                 WaveMiddle.Lyrics -> LyricsPane(
@@ -232,6 +253,7 @@ fun WavePlayerPage(
         // ③ 信息行：封面页是大标题 + 艺术家；歌词页前面多一张小方封面（参考图那样）。
         InfoRow(
             song = song,
+            cover = cover,
             title = player.title,
             artist = player.artist,
             compact = middle != WaveMiddle.Cover,
@@ -352,9 +374,12 @@ private val PlayKeyHeight: Dp = 64.dp
 private val ChipSize: Dp = 44.dp
 private val ChipIcon: Dp = 20.dp
 
+/** 封面解码的目标边长。900 是播放页大图档；小方封面复用同一张，避免二次解码与闪图。 */
+private const val CoverPx = 900
+
 /** 封面页：大圆角封面（点一下去歌词）。 */
 @Composable
-private fun CoverPane(song: Song?, onOpenLyrics: () -> Unit) {
+private fun CoverPane(song: Song?, cover: ImageBitmap?, onOpenLyrics: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         // 竖屏按宽度取 0.94 屏宽；横屏按高度取 —— 否则正方形封面在横屏会溢出，
         // 把下面的标题/控件整片盖掉。
@@ -365,7 +390,17 @@ private fun CoverPane(song: Song?, onOpenLyrics: () -> Unit) {
                 .clip(RoundedCornerShape(22.dp))
                 .clickable(onClick = onOpenLyrics),
         ) {
-            Artwork(song, Modifier.matchParentSize(), radius = 22, requestPx = 900)
+            if (cover != null) {
+                Image(
+                    bitmap = cover,
+                    contentDescription = song?.album,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+            } else {
+                // 只有真的还没解码出来（或这首歌根本没有封面）才走占位画法
+                Artwork(song, Modifier.matchParentSize(), radius = 22, requestPx = CoverPx)
+            }
         }
     }
 }
@@ -474,6 +509,7 @@ private fun lyricFade(distance: Int): Float = when (distance) {
 @Composable
 private fun InfoRow(
     song: Song?,
+    cover: ImageBitmap?,
     title: String,
     artist: String,
     compact: Boolean,
@@ -487,7 +523,17 @@ private fun InfoRow(
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (compact) {
             Box(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp))) {
-                Artwork(song, Modifier.matchParentSize(), radius = 10, requestPx = 200)
+                // 同一张位图（页面层已经解码好）—— 歌词页的小方封面也不会闪占位图。
+                if (cover != null) {
+                    Image(
+                        bitmap = cover,
+                        contentDescription = song?.album,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                } else {
+                    Artwork(song, Modifier.matchParentSize(), radius = 10, requestPx = 200)
+                }
             }
             Spacer(Modifier.width(12.dp))
         }
