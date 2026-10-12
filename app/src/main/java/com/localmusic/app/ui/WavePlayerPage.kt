@@ -78,7 +78,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -340,38 +339,6 @@ fun WavePlayerPage(
             )
         }
     }
-}
-
-
-
-/**
- * 把颜色沿白/黑方向推到"在背景上看得清"的亮度区间（保留色相）。
- * 深底要够亮（>=0.72），浅底要够暗（<=0.30）—— 这是"图标不能糊在背景里"的硬约束。
- */
-private fun readable(color: Color, darkBackdrop: Boolean): Color {
-    // 关键：只推 HSV 的**明度**，饱和度留着 —— 往白/黑插值会把颜色洗掉，
-    // 结果就是"看得见但没颜色"（之前那版图标发灰、看不清就是这个原因）。
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    if (darkBackdrop) {
-        hsv[2] = hsv[2].coerceAtLeast(0.94f)   // 深底：明度拉满
-        hsv[1] = hsv[1].coerceAtLeast(0.40f)   // 但保留颜色，不许变白
-    } else {
-        hsv[2] = hsv[2].coerceAtMost(0.56f)    // 浅底：压暗
-        hsv[1] = hsv[1].coerceAtLeast(0.55f)
-    }
-    return Color(android.graphics.Color.HSVToColor(hsv))
-}
-
-/**
- * 把封面平均色往"更像主题色"的方向推：饱和度至少抬到 [minSaturation]，明度不动。
- * 浅色封面的平均色往往接近白灰 —— 不提饱和的话，图标看着就是"没上色"。
- */
-private fun vivid(color: Color, minSaturation: Float = 0.45f): Color {
-    val hsv = FloatArray(3)
-    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    hsv[1] = hsv[1].coerceAtLeast(minSaturation)
-    return Color(android.graphics.Color.HSVToColor(hsv))
 }
 
 /** 中间区域的三种状态。 */
