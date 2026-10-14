@@ -277,7 +277,17 @@ private fun AppShell() {
      * 再把转好的那份交给播放链 —— 这样它也能继续走 USB bit-perfect。
      */
     val uiScope = rememberCoroutineScope()
-    val playSong: (List<com.localmusic.app.data.Song>, com.localmusic.app.data.Song) -> Unit = { list, song ->
+    val playSong: (List<com.localmusic.app.data.Song>, com.localmusic.app.data.Song) -> Unit = play@{ list, song ->
+        // ── 点的就是**当前这首**：不要重头再播 ──
+        // 之前的代码无条件走 `player.play(list, song)`，而 PlayerConnection.play 会重建
+        // 媒体项并 prepare → 正在听的歌被"从 0:00 重来"。用户明确要求：点当前这首不要重启。
+        // 现在的语义：暂停中就继续播，正在播就什么都不做，两种都把播放页打开。
+        if (song.uri == playback.id) {
+            playerOpen = true
+            if (!playback.playing) player.toggle()
+            return@play
+        }
+
         // ── 点歌即 USB 直通 ──────────────────────────────────────────────
         // 只有当设置里的「USB Bit-perfect」打开时才走这条路（默认关闭，
         // 因此正常播放完全不受影响）。这条路不经过 ExoPlayer：

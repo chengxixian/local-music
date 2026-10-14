@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
 import com.localmusic.app.R
@@ -231,20 +231,99 @@ object Scraper {
     /** 单首取图：走合批接口，便于自检/兜底调用。 */
     internal fun neteaseCoverById(id: Long): String? = neteaseCoversByIds(listOf(id))[id]
 
+    /**
+     * 拆「歌手 - 歌名」这类本地命名。
+     *
+     * 以前只认 `" - "`（空格+半角横线+空格），于是这些命名全部落空：
+     * `卢广仲_我爱你`、`歌手 – 歌名`（en dash）、`歌手 — 歌名`（em dash）。实测库里不少歌是
+     * 下划线连接的（尤其整轨合辑），拆不开就把整串当歌名去搜，必然搜不到。
+     */
+    private val titleSeparators = listOf(" - ", " – ", " — ", "－", " _ ", "_")
+
+    private fun splitArtistTitle(raw: String, artist: String): Pair<String, String> {
+        for (sep in titleSeparators) {
+            val i = raw.indexOf(sep)
+            if (i > 0) return raw.substring(0, i).trim() to raw.substring(i + sep.length).trim()
+        }
+        return "" to raw.trim()
+    }
+
+    /**
+     * 洗掉本地文件名里的噪音：`(Live)` `[Official MV]` `feat. XXX` 等。
+     *
+     * 这些后缀会让"歌名"和网易云的正式歌名对不上（`titleMatches` 是包含式比较，
+     * 但整串带着 `(Live)` 时，搜索排名会先落到一堆现场版/翻唱上）。
+     */
+    private fun cleanTitle(raw: String): String = raw
+        .substringBeforeLast('.')
+        .replace(Regex("(?i)\\((?:live|remaster(?:ed)?|mv|official[^)]*|inst\\.?|instrumental|伴奏|纯音乐|翻自[^)]*)\\)"), " ")
+        .replace(Regex("\\[[^\\]]*]"), " ")
+        .replace(Regex("(?i)\\b(?:feat|ft|featuring)\\.?\\s+.*$"), " ")
+        .replace(Regex("[_\\s]+"), " ")
+        .trim()
+
+    /**
+     * 搜索关键词候选，**按优先级逐个试**：
+     *   ① `歌手 歌名`（最准）
+     *   ② `歌名`
+     *   ③ 清洗过噪音的歌名
+     *
+     * 为什么要一串：库里元数据质量参差（歌手常是「未知艺术家」、歌名里混着歌手名与
+     * `(Live)`、合辑甚至把十几个歌手用下划线串成一串）。一条搜不到就换下一条，
+     * 比"一条搜不到就放弃"能救回一大批。
+     */
+    private fun searchKeywords(title: String, artist: String): List<String> {
+        val (artistFromTitle, titlePart) = splitArtistTitle(title, artist)
+        val artistHint = artistFromTitle.ifBlank {
+            artist.takeIf { it.isNotBlank() && !it.startsWith("未知") }.orEmpty()
+        }.trim()
+        // 合辑那种"十几个歌手用下划线串起来"的：只取第一个歌手名做提示
+        val firstArtist = artistHint.split(Regex("[_/、,，&]+")).firstOrNull()?.trim().orEmpty()
+        val clean = cleanTitle(titlePart)
+        return buildList {
+            if (firstArtist.isNotBlank() && clean.isNotBlank()) add("$firstArtist $clean")
+            if (clean.isNotBlank()) add(clean)
+            // 兜底：歌名太长时（合辑/古典长标题）截一段，避免搜索词本身把结果带偏
+            clean.take(24).takeIf { it.length in 2..23 }?.let { add(it) }
+            titlePart.trim().takeIf { it.isNotBlank() && it != clean }?.let { add(it) }
+            add(title.trim())
+        }.map { it.take(60) }.filter { it.isNotBlank() }.distinct()
+    }
+
     internal fun neteaseSearch(title: String, artist: String): NeteaseSong? {
-        // 本机标题常是「歌手 - 歌名」这种形式，拆开能显著减少"翻唱/同名"误配
-        val split = title.split(" - ", limit = 2)
-        val titleHint = if (split.size == 2) split[1].trim() else title.trim()
-        val artistHint = (if (split.size == 2) split[0].trim() else artist)
-            .takeIf { it.isNotBlank() && !it.startsWith("未知") }.orEmpty()
-        val keyword = listOf(artistHint, titleHint).filter { it.isNotBlank() }.joinToString(" ").ifBlank { title }
+        for (keyword in searchKeywords(title, artist)) {
+            currentKeyword = keyword
+            searchOnce(keyword)?.let { return it }
+        }
+        return null
+    }
+
+    /** 上次实际用的搜索词（只用于日志诊断）。 */
+    private var currentKeyword: String = ""
+
+    /** 搜一次；失败/无结果会带诊断写 logcat（标签 LMScrape），便于在真机上定位。 */
+    private fun searchOnce(keyword: String): NeteaseSong? {
         val url = "https://music.163.com/api/search/get?s=${encode(keyword)}&type=1&offset=0&limit=10"
-        val body = get(url, neteaseHeaders) ?: return null
-        val songs = JSONObject(body).optJSONObject("result")?.optJSONArray("songs") ?: return null
+        val body = get(url, neteaseHeaders)
+        if (body == null) {
+            android.util.Log.i("LMScrape", "search '$keyword' -> HTTP 失败或非 2xx")
+            return null
+        }
+        if (searchRawDiag.compareAndSet(true, false)) {
+            android.util.Log.i("LMScrape", "searchRaw '$keyword' head=${body.take(300).replace('\n', ' ')}")
+        }
+        val songs = runCatching { JSONObject(body).optJSONObject("result")?.optJSONArray("songs") }.getOrNull()
+        if (songs == null || songs.length() == 0) {
+            android.util.Log.i("LMScrape", "search '$keyword' -> 无结果（前80字 ${body.take(80).replace('\n', ' ')}）")
+            return null
+        }
+        val titleHint = cleanTitle(splitArtistTitle(keyword, "").second).ifBlank { keyword }
         var loose: NeteaseSong? = null
+        val top = mutableListOf<String>()
         for (i in 0 until songs.length()) {
             val song = songs.optJSONObject(i) ?: continue
             val name = song.optString("name")
+            if (top.size < 3) top += name
             if (!titleMatches(titleHint, name)) continue
             val artists = song.optJSONArray("artists")?.let { array ->
                 (0 until array.length())
@@ -252,12 +331,18 @@ object Scraper {
                     .joinToString("/")
             }.orEmpty()
             val candidate = NeteaseSong(song.optLong("id"), name, artists, null)
-            // 歌手也对得上 → 直接用；只有歌名对上 → 先记着，没有更好的才用它
-            if (artistHint.isNotBlank() && artists.contains(artistHint, ignoreCase = true)) return candidate
+            if (artists.isNotBlank()) return candidate
             if (loose == null) loose = candidate
+        }
+        if (loose == null) {
+            android.util.Log.i("LMScrape", "search '$keyword' -> 有 ${songs.length()} 条但都对不上（前3：${top.joinToString(" / ")}）")
         }
         return loose
     }
+
+    /** 只打一次原始响应，用来确认"到底拿到了什么"。 */
+    private val searchRawDiag = java.util.concurrent.atomic.AtomicBoolean(true)
+
 
     /** 网易云的图片 URL 支持 `?param=600y600` 指定尺寸。 */
     internal fun neteaseCover(song: NeteaseSong): ByteArray? {
@@ -348,7 +433,10 @@ object Scraper {
         if (title.isBlank()) return null
         val term = if (artist.isBlank() || artist.startsWith("未知")) title else "$artist $title"
         itunesCover(term, title)?.let { return it }
-        return deezerCover(term, title)
+        val deezer = deezerCover(term, title)
+        // 诊断：网易云给"不相干结果"时，要能分清兜底源是"连不上"还是"没匹配上"
+        android.util.Log.i("LMScrape", "fallback '$term' -> " + (if (deezer != null) "Deezer 命中" else "iTunes/Deezer 都未命中"))
+        return deezer
     }
 
     private fun itunesCover(term: String, title: String): ByteArray? = try {
@@ -448,6 +536,8 @@ object Scraper {
             runCatching { connection?.disconnect() }
         }
     }
+
+
 
     private fun fetchImage(url: String): ByteArray? {
         var connection: HttpURLConnection? = null
