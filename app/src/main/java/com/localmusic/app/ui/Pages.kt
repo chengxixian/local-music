@@ -177,6 +177,8 @@ fun LibraryPage(
     onAddToPlaylist: (Song) -> Unit = {},
     header: (@Composable () -> Unit)? = null,
     topPadding: Dp = LiquidSpacing.page,
+    /** 空曲库时那个「选择音乐文件夹」按钮：由调用点拉起系统的目录选择器。 */
+    onPickFolder: () -> Unit = {},
 ) {
     val favoriteSongs = emptyList<Song>() // 过滤已在顶层完成，这里只负责画
     // 两列网格：每格是一张竖长方形卡片 —— 上半正方形封面铺满，下半放歌名与信息
@@ -247,6 +249,16 @@ fun LibraryPage(
                         },
                         hint = if (favoritesOnly) stringResource(R.string.empty_favorites_hint) else stringResource(R.string.empty_library_hint),
                     )
+                    // 曲库现在只扫用户选定的文件夹：空曲库时直接给一个入口，
+                    // 否则新用户会盯着"曲库为空"不知道下一步该干什么。
+                    if (!favoritesOnly && !filtering) {
+                        Spacer(Modifier.height(12.dp))
+                        TextButton(onClick = onPickFolder) {
+                            Icon(Icons.Rounded.CreateNewFolder, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.library_pick_folder))
+                        }
+                    }
                 }
             }
         } else {
@@ -539,29 +551,16 @@ fun SettingsPage(
             }
         }
         item {
+            // 这张卡从"网易云 ncm 导入"升级成「本地音乐文件夹」的主入口：
+            // 曲库现在**只扫这里添加的文件夹**，所以把"添加 / 管理文件夹"提到最前面，
+            // ncm 自动转换与导出位置随后。（卡片数量不变 —— 滚轮映射按下标认卡。）
             LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 2..4, scheme.primary)) {
-                Text(stringResource(R.string.settings_ncm_import), style = MiuixTheme.textStyles.title4)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_auto_convert2), style = MiuixTheme.textStyles.title4)
-                        Text(stringResource(R.string.set_ncm_auto_long),
-                            style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
-                    }
-                    Switch(checked = autoNcm, onCheckedChange = onAutoNcm)
-                }
+                Text(stringResource(R.string.settings_local_folders), style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.set_local_folders_note),
+                    style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                 TextButton(onClick = onPickTree) { Icon(Icons.Rounded.CreateNewFolder, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.set_add_folder)) }
-                LiquidListItem(
-                    title = stringResource(R.string.settings_export_dir),
-                    subtitle = exportLabel?.let { stringResource(R.string.set_export_at, it) }
-                        ?: stringResource(R.string.settings_export_none),
-                    leading = Icons.Rounded.DriveFileMove,
-                    onClick = onPickExport,
-                    showDivider = true,
-                )
                 if (trees.isEmpty()) {
-                    Text(stringResource(R.string.set_no_tree_a) +
-                        stringResource(R.string.set_no_tree_b) +
-                        stringResource(R.string.set_no_tree_c),
+                    Text(stringResource(R.string.set_no_folder_yet),
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 } else trees.forEach { tree ->
                     LiquidListItem(
@@ -572,6 +571,24 @@ fun SettingsPage(
                         trailing = { TextButton(onClick = { onRemoveTree(tree) }) { Text(stringResource(R.string.settings_remove)) } },
                     )
                 }
+                Spacer(Modifier.height(LiquidSpacing.item))
+                Text(stringResource(R.string.settings_ncm_import), style = MiuixTheme.textStyles.title4)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_auto_convert2), style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.set_ncm_auto_long),
+                            style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                    }
+                    Switch(checked = autoNcm, onCheckedChange = onAutoNcm)
+                }
+                LiquidListItem(
+                    title = stringResource(R.string.settings_export_dir),
+                    subtitle = exportLabel?.let { stringResource(R.string.set_export_at, it) }
+                        ?: stringResource(R.string.settings_export_none),
+                    leading = Icons.Rounded.DriveFileMove,
+                    onClick = onPickExport,
+                    showDivider = true,
+                )
             }
         }
         item {

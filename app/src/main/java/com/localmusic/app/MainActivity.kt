@@ -118,8 +118,10 @@ class MainActivity : ComponentActivity() {
     }
     }
     private fun askForPermissions() {
+        // 曲库只读用户通过系统目录选择器授权的文件夹（SAF），所以**不再申请**
+        // READ_MEDIA_AUDIO —— 那是"读取整机媒体库"的权限，与现在的取用范围不符。
+        // 仍然需要通知权限（前台播放通知）。
         val wanted = buildList {
-            add(Manifest.permission.READ_MEDIA_AUDIO)
             if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
         }.filter { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
         if (wanted.isNotEmpty()) permissions.launch(wanted.toTypedArray())
@@ -421,7 +423,9 @@ private fun AppShell() {
         com.localmusic.app.data.PlaylistStore.songIds(context, pl.id).mapNotNull { byUri[it] }
     }
 
-    // 自动扫描：进入应用扫一次，之后定期复查（MediaStore 变更也会触发 ContentObserver 重扫）。
+    // 自动扫描：进入应用扫一次，之后每分钟复查一次。
+    // 曲库**只扫用户在设置里选定的文件夹**（SAF 目录），不再扫整机媒体库；
+    // SAF 目录没有系统级变更通知，所以靠这个周期扫描兜住"用户往文件夹里拷了新歌"。
     LaunchedEffect(Unit) {
         library.scan()
         while (true) { kotlinx.coroutines.delay(60_000); library.scan() }
@@ -639,6 +643,8 @@ private fun AppShell() {
                                         },
                                         onAddToPlaylist = { song -> pickerSong = song },
                                         topPadding = pageTopPadding,
+                                        // 空曲库时那个「选择音乐文件夹」按钮：拉起系统目录选择器
+                                        onPickFolder = { pickFolder.launch(NeteaseTreeUri) },
                                     )
                                     Page.Favorites -> LibraryPage(
                                         songs = favoriteList, nowPlaying = playback.id,

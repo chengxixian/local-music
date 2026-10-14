@@ -142,7 +142,7 @@
     <string name="settings_auto_convert">Автоконвертация</string>
     <string name="settings_rescan_library">Пересканировать библиотеку</string>
     <string name="empty_favorites_hint">Нажмите сердечко на карточке или в плеере</string>
-    <string name="empty_library_hint">Поддержка mp3 / aac(m4a) / flac / wav / ogg / opus и др.</string>
+    <string name="empty_library_hint">Библиотека пуста. Добавьте папку с музыкой в настройках — сканируются только выбранные папки.</string>
     <string name="player_error">Ошибка воспроизведения: %1$s</string>
     <string name="queue_title">Очередь · %1$d треков</string>
     <string name="player_search_hint">Поиск: название / исполнитель / альбом</string>
@@ -215,4 +215,10 @@
     <string name="settings_player_style">Стиль экрана плеера</string>
     <string name="player_style_glass">Жидкое стекло</string>
     <string name="player_style_wave">Волна</string>
+    <string name="settings_local_folders">Локальные папки с музыкой</string>
+    <string name="set_local_folders_note">Сканируются только добавленные здесь папки — общесистемная медиатека не читается. Добавьте папку с музыкой, чтобы наполнить библиотеку.</string>
+    <string name="set_no_folder_yet">Папка ещё не добавлена. Нажмите кнопку выше и выберите папку с музыкой (и файлами .ncm).</string>
+    <string name="library_pick_folder">Выбрать папку с музыкой</string>
+    <string name="scan_no_folder">Папка с музыкой не выбрана — добавьте её в настройках</string>
+    <string name="scan_migrated">Избранное / плейлисты / обложки для %1$d треков перенесены на папковые записи</string>
 </resources>

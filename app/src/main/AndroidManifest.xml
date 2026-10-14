@@ -1,6 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- 曲库只读取用户在设置里选定的文件夹（系统目录选择器授权的 SAF 目录），
+         所以**不声明** READ_MEDIA_AUDIO —— 那是"读取整机媒体库"的权限。 -->
     <!-- 自动刮削（iTunes/Deezer 取封面、LRCLIB 取歌词）需要联网 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

@@ -56,14 +56,68 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
         db.execSQL("CREATE TABLE IF NOT EXISTS playlist_songs (playlist INTEGER NOT NULL, uri TEXT NOT NULL, added INTEGER NOT NULL, PRIMARY KEY(playlist, uri))")
     }
 
-    fun all(): List<Song> = readableDatabase.rawQuery("SELECT * FROM songs ORDER BY title COLLATE NOCASE", null).use { c ->
-        buildList { while (c.moveToNext()) {
-            fun s(name: String) = c.getString(c.getColumnIndexOrThrow(name)).orEmpty()
-            fun l(name: String) = c.getLong(c.getColumnIndexOrThrow(name))
-            add(Song(s("uri"), s("title"), s("artist"), s("album"), l("duration"), l("size"), l("modified"), s("format"),
-                l("sampleRate").toInt(), l("bitDepth").toInt(), l("channels").toInt(), s("origin"), s("artwork").ifBlank { null }))
-        } }
+    /**
+     * 曲库里的歌（界面用这份）。
+     *
+     * **排除 `media:%` 来源**：那是旧版"整机媒体库"扫描留下的条目，现在已经不再扫描它。
+     * 这些行会短暂留在库里当"迁移素材"（收藏/乐单/封面还按老 URI 记着），但对用户**不可见** ——
+     * 等用户选定文件夹、扫描能匹配上之后再改键并删除（见 [LibraryRepository.doScan]）。
+     */
+    fun all(): List<Song> = readSongs(
+        "SELECT * FROM songs WHERE origin NOT LIKE 'media:%' ORDER BY title COLLATE NOCASE", null,
+    )
+
+    /**
+     * 某个来源前缀下的全部行。
+     *
+     * 用途：曲库来源从「整机媒体库」改成「用户选定的文件夹」后，老的 `media:*` 行要
+     * 一次性对账/迁移（把收藏、乐单、自选封面改键到新的文件夹条目上），迁完就删掉。
+     */
+    fun songsByOriginPrefix(prefix: String): List<Song> =
+        readSongs("SELECT * FROM songs WHERE origin LIKE ?", arrayOf("$prefix%"))
+
+    private fun readSongs(sql: String, args: Array<String>?): List<Song> =
+        readableDatabase.rawQuery(sql, args).use { c ->
+            buildList { while (c.moveToNext()) {
+                fun s(name: String) = c.getString(c.getColumnIndexOrThrow(name)).orEmpty()
+                fun l(name: String) = c.getLong(c.getColumnIndexOrThrow(name))
+                add(Song(s("uri"), s("title"), s("artist"), s("album"), l("duration"), l("size"), l("modified"), s("format"),
+                    l("sampleRate").toInt(), l("bitDepth").toInt(), l("channels").toInt(), s("origin"), s("artwork").ifBlank { null }))
+            } }
+        }
+
+    /** 删除某个来源前缀的所有行（例如已经不再使用的 `media:` 整机媒体库条目）。 */
+    fun deleteOriginsLike(prefix: String) {
+        writableDatabase.delete("songs", "origin LIKE ?", arrayOf("$prefix%"))
     }
+
+    /**
+     * 把「用户数据」里按 uri 记录的三张表从 [oldUri] 改键到 [newUri]。
+     *
+     * 只影响收藏 / 自选封面 / 乐单成员；`playlist_songs` 逐乐单处理，避免把新 uri
+     * 从"本来就有它"的乐单里误删。
+     */
+    fun rekey(oldUri: String, newUri: String) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete("favorites", "uri = ?", arrayOf(newUri))
+            db.execSQL("UPDATE favorites SET uri = ? WHERE uri = ?", arrayOf(newUri, oldUri))
+
+            db.delete("covers", "uri = ?", arrayOf(newUri))
+            db.execSQL("UPDATE covers SET uri = ? WHERE uri = ?", arrayOf(newUri, oldUri))
+
+            // 只在"老 uri 所在的那几个乐单"里改键，避免波及同名的其它乐单
+            db.delete(
+                "playlist_songs",
+                "uri = ? AND playlist IN (SELECT playlist FROM playlist_songs WHERE uri = ?)",
+                arrayOf(newUri, oldUri),
+            )
+            db.execSQL("UPDATE playlist_songs SET uri = ? WHERE uri = ?", arrayOf(newUri, oldUri))
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
 
     // Replace ONLY successfully traversed origins. Permission errors must never wipe the catalog.
     fun merge(songs: List<Song>, completeOrigins: Set<String>) {

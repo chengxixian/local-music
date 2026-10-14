@@ -72,7 +72,7 @@
     <string name="empty_no_match">No matching songs</string>
     <string name="empty_library">Library is empty</string>
     <string name="empty_favorites_hint">Tap the heart on a song card or in the player to add it</string>
-    <string name="empty_library_hint">Supports mp3 / aac(m4a) / flac / wav / ogg / opus and more</string>
+    <string name="empty_library_hint">Library is empty. Add a music folder in Settings — only folders you pick are scanned.</string>
     <string name="player_error">Playback error: %1$s</string>
     <string name="queue_title">Queue · %1$d tracks</string>
     <string name="player_search_hint">Search title / artist / album</string>
@@ -206,4 +206,10 @@
     <string name="settings_player_style">Player page style</string>
     <string name="player_style_glass">Liquid glass</string>
     <string name="player_style_wave">Wave</string>
+    <string name="settings_local_folders">Local music folders</string>
+    <string name="set_local_folders_note">Only the folders you add here are scanned — the whole-device media library is not read. Add your music folder(s) to build the library.</string>
+    <string name="set_no_folder_yet">No folder added yet. Tap the button above to pick the folder that holds your music (and .ncm files).</string>
+    <string name="library_pick_folder">Choose music folder</string>
+    <string name="scan_no_folder">No music folder selected yet — add one in Settings</string>
+    <string name="scan_migrated">Moved favorites / playlists / covers for %1$d tracks onto their folder entries</string>
 </resources>

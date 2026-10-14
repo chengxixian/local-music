@@ -142,7 +142,7 @@
     <string name="settings_auto_convert">自動変換</string>
     <string name="settings_rescan_library">ライブラリを再スキャン</string>
     <string name="empty_favorites_hint">カードかプレーヤーのハートをタップして追加</string>
-    <string name="empty_library_hint">mp3 / aac(m4a) / flac / wav / ogg / opus などに対応</string>
+    <string name="empty_library_hint">ライブラリが空です。設定で音楽フォルダを追加してください（選んだフォルダのみスキャンします）。</string>
     <string name="player_error">再生エラー: %1$s</string>
     <string name="queue_title">再生キュー · %1$d 曲</string>
     <string name="player_search_hint">タイトル / アーティスト / アルバムを検索</string>
@@ -215,4 +215,10 @@
     <string name="settings_player_style">プレイヤー画面のスタイル</string>
     <string name="player_style_glass">リキッドグラス</string>
     <string name="player_style_wave">ウェーブ</string>
+    <string name="settings_local_folders">ローカル音楽フォルダ</string>
+    <string name="set_local_folders_note">ここで追加したフォルダだけをスキャンします（端末全体のメディアライブラリは読みません）。音楽フォルダを追加するとライブラリに表示されます。</string>
+    <string name="set_no_folder_yet">フォルダが未追加です。上のボタンから、音楽（と .ncm ファイル）が入っているフォルダを選んでください。</string>
+    <string name="library_pick_folder">音楽フォルダを選ぶ</string>
+    <string name="scan_no_folder">音楽フォルダが未選択です — 設定から追加してください</string>
+    <string name="scan_migrated">%1$d 曲のお気に入り / プレイリスト / カバーをフォルダ項目に移行しました</string>
 </resources>

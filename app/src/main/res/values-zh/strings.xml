@@ -77,7 +77,7 @@
     <string name="empty_no_match">没有匹配的歌曲</string>
     <string name="empty_library">曲库为空</string>
     <string name="empty_favorites_hint">在曲库或播放页点心形按钮加入</string>
-    <string name="empty_library_hint">支持 mp3 / aac(m4a) / flac / wav / ogg / opus 等</string>
+    <string name="empty_library_hint">曲库是空的。请到「设置」里添加音乐文件夹 —— 只会扫描你选定的文件夹。</string>
     <string name="player_error">播放错误：%1$s</string>
     <string name="queue_title">播放列表 · %1$d 首</string>
     <string name="player_search_hint">搜索标题 / 艺术家 / 专辑</string>
@@ -211,4 +211,10 @@
     <string name="settings_player_style">播放页风格</string>
     <string name="player_style_glass">液态玻璃</string>
     <string name="player_style_wave">波浪</string>
+    <string name="settings_local_folders">本地音乐文件夹</string>
+    <string name="set_local_folders_note">只扫描你在这里添加的文件夹，不读取整机媒体库。添加你的音乐文件夹后曲库才会出现内容。</string>
+    <string name="set_no_folder_yet">还没有添加文件夹。点上面的按钮，选择放着音乐（和 .ncm 文件）的那个文件夹。</string>
+    <string name="library_pick_folder">选择音乐文件夹</string>
+    <string name="scan_no_folder">还没有选择音乐文件夹 —— 请到设置里添加</string>
+    <string name="scan_migrated">已把 %1$d 首歌的收藏 / 乐单 / 封面迁移到文件夹条目上</string>
 </resources>

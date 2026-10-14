@@ -1,18 +1,11 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
-// MediaStore + cached true audio specifications adapted from Rueded/AURALIS.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Folder-scoped scan (user-picked SAF trees) + cached true audio specifications adapted from Rueded/AURALIS.
 package com.localmusic.app.data
 
 import com.localmusic.app.R
-import android.Manifest
-import android.content.ContentUris
 import android.content.Context
-import android.content.pm.PackageManager
-import android.database.ContentObserver
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.provider.DocumentsContract as Doc
-import android.provider.MediaStore
 import com.localmusic.audio.ncm.NcmImport
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -22,6 +15,17 @@ import java.util.Locale
 
 data class ScanStatus(val running: Boolean = false, val message: String = "等待扫描", val imported: Int = 0, val failures: List<String> = emptyList())
 
+/**
+ * 曲库来源：**只扫用户手动选定的文件夹**（SAF 目录授权）+ 本应用自己产出的 ncm 转换结果。
+ *
+ * ⚠️ 这里**故意不查 MediaStore**：
+ * 旧版会先把整机媒体库（`MediaStore.Audio`）全量灌进曲库，等于读取用户设备上所有音频目录。
+ * 现在改为"用户选哪个文件夹才读哪个" —— 没选文件夹就是空曲库，并在设置里提示去添加。
+ *
+ * 历史条目的处理：老版本的歌曲身份是 `content://media/...`，现在是文件夹的文档 URI。
+ * [doScan] 里有一次性的对账迁移：按 (文件大小, 格式) **唯一**匹配，把收藏/乐单/自选封面
+ * 改键到新条目上，然后把老的 `media:` 行删掉（宁可少迁，也不张冠李戴）。
+ */
 class LibraryRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val db = MusicDatabase(context)
@@ -32,17 +36,10 @@ class LibraryRepository(private val context: Context) {
     private val _status = MutableStateFlow(ScanStatus())
     val status: StateFlow<ScanStatus> = _status.asStateFlow()
     private var scanJob: Job? = null
-    private var refreshJob: Job? = null
-    private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            refreshJob?.cancel()
-            refreshJob = scope.launch { delay(1800); scan() }
-        }
-    }
     init {
         scope.launch { _songs.value = db.all() }
-        context.contentResolver.registerContentObserver(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true, observer)
     }
+
     /** 导出物可能已经在用户自己的文件夹里（content://），也可能还在私有暂存（file://）。 */
     private fun exists(location: String): Boolean = try {
         if (location.startsWith("content://")) {
@@ -79,41 +76,13 @@ class LibraryRepository(private val context: Context) {
             val cached = db.all().associateBy { it.uri }
             val found = mutableListOf<Song>()
             val complete = mutableSetOf<String>()
-            // 同一个物理文件既可能被 MediaStore 收录、又落在用户授权的目录里（授权目录通常包含
-            // 已经在媒体库里的 mp3/flac），那样列表里会出现两条一模一样的歌。这里按真实路径去重：
-            // MediaStore 那趟记下 _data，SAF 那趟把 documentId 还原成路径再比对。
-            val mediaPaths = mutableSetOf<String>()
-            val primaryRoot = android.os.Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
             fun enrich(base: Song, file: File? = null): Song {
                 val old = cached[base.uri]
                 return if (old != null && old.modified == base.modified && old.size == base.size && base.modified > 0) old
                     else MetadataReader.read(context, base, file)
             }
-            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                for (volume in MediaStore.getExternalVolumeNames(context)) {
-                    currentCoroutineContext().ensureActive()
-                    val origin = "media:$volume"
-                    try {
-                        val uri = MediaStore.Audio.Media.getContentUri(volume)
-                        val columns = arrayOf("_id", "title", "artist", "album", "duration", "_size", "date_modified", "_display_name", "_data", "album_id")
-                        val cursor = context.contentResolver.query(uri, columns, "is_pending=0 AND _size>0", null, null)
-                            ?: error("媒体索引暂不可用")
-                        cursor.use { c -> while (c.moveToNext()) {
-                            currentCoroutineContext().ensureActive()
-                            fun str(i: Int) = c.getString(i).orEmpty()
-                            val source = ContentUris.withAppendedId(uri, c.getLong(0))
-                            val ext = str(7).substringAfterLast('.', "").lowercase(Locale.ROOT)
-                            val artwork = ContentUris.withAppendedId(Uri.parse("content://media/$volume/audio/albumart"), c.getLong(9)).toString()
-                            val base = Song(source.toString(), str(1).ifBlank { str(7) }, str(2).replace("<unknown>", "未知艺术家"), str(3),
-                                c.getLong(4), c.getLong(5), c.getLong(6), ext, origin = origin, artwork = artwork)
-                            found += enrich(base, str(8).takeIf { it.isNotBlank() }?.let(::File))
-                            str(8).takeIf { it.isNotBlank() }?.let { mediaPaths += it }
-                        } }
-                        complete += origin
-                    } catch (e: CancellationException) { throw e } catch (e: Exception) { warnings += "存储卷 $volume：${e.message}" }
-                }
-            } else warnings += "未授权读取音频；仍可使用已授权文件夹和已导入音乐。"
 
+            // ── 只扫用户手动选定的文件夹（SAF 授权目录）──
             for (tree in treeUris()) {
                 currentCoroutineContext().ensureActive()
                 try {
@@ -152,12 +121,6 @@ class LibraryRepository(private val context: Context) {
                                     }
                                 } catch (e: CancellationException) { throw e } catch (e: Exception) { warnings += "${entry.name}：${e.message}" }
                             } else if (ext in MetadataReader.extensions) {
-                                // documentId 形如 "primary:Download/x.mp3" → /storage/emulated/0/Download/x.mp3
-                                val path = entry.id.removePrefix("raw:")
-                                    .takeIf { it.startsWith("primary:") }
-                                    ?.removePrefix("primary:")
-                                    ?.let { "$primaryRoot/$it" }
-                                if (path != null && path in mediaPaths) continue // 媒体库里已经有了，别重复
                                 found += enrich(Song(source.toString(), entry.name.substringBeforeLast('.'), "未知艺术家", "未知专辑", 0, entry.size, entry.modified, ext, origin = tree))
                             }
                         }
@@ -184,9 +147,34 @@ class LibraryRepository(private val context: Context) {
                 found += enrich(base, file)
             }
             complete += "private"
+
+            // ── 一次性迁移：老版本用"整机媒体库"URI 当歌曲身份，现在换成文件夹文档 URI。
+            //    按 (大小, 格式) **唯一**匹配把收藏 / 乐单 / 自选封面改键过来，然后删掉老行。
+            //    匹配不唯一就跳过 —— 宁可少迁几首，也不能把 A 的收藏记到 B 头上。
+            //
+            //    ⚠️ 只有"用户已经选了文件夹"时才做这一步：没选文件夹时 `found` 里根本没有候选，
+            //    此时删掉老行等于白白丢掉收藏 / 封面。所以那种情况下老行**继续留在库里**
+            //    当迁移素材（对用户不可见，见 MusicDatabase.all()），等第一次真正扫到文件夹再迁。
+            val legacy = db.songsByOriginPrefix("media:")
+            if (legacy.isNotEmpty() && treeUris().isNotEmpty()) {
+                val byKey = found
+                    .groupBy { it.size to it.format }
+                    .filterValues { it.size == 1 }
+                    .mapValues { it.value.first() }
+                var migrated = 0
+                legacy.forEach { old ->
+                    val target = byKey[old.size to old.format] ?: return@forEach
+                    if (target.uri != old.uri) { runCatching { db.rekey(old.uri, target.uri) }; migrated++ }
+                }
+                db.deleteOriginsLike("media:")
+                if (migrated > 0) warnings += context.getString(R.string.scan_migrated, migrated)
+            }
+
             db.merge(found.distinctBy { it.uri }, complete)
             _songs.value = db.all()
-            _status.value = ScanStatus(false, "扫描完成 · ${_songs.value.size} 首歌曲", imported, warnings.takeLast(20))
+            val done = if (treeUris().isEmpty()) context.getString(R.string.scan_no_folder)
+                else "扫描完成 · ${_songs.value.size} 首歌曲"
+            _status.value = ScanStatus(false, done, imported, warnings.takeLast(20))
         } catch (e: CancellationException) {
             _status.value = ScanStatus(false, "扫描已停止，原文件保持不变", imported, warnings.takeLast(20))
             throw e
