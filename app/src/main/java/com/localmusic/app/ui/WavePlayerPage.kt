@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -203,6 +204,18 @@ fun WavePlayerPage(
     Column(
         Modifier
             .fillMaxSize()
+            // 播放页是**全屏浮层**：它和曲库页是同一层 Box 里的兄弟节点（画在上面）。
+            // 这里给整页加一个"什么都不做"的可点层，作用是**把落在空白处的触摸吃掉**，
+            // 不让它穿到下面那层页面去 —— 下面那层是曲库网格，**每张卡片都可点**
+            //（点歌 / ♥ / ≡ / ▶），穿透过去就表现为"新 UI 没有按钮的位置还能触发旧功能"。
+            //
+            // 为什么这样安全：Compose 里父节点的 clickable 与子节点互不干扰 ——
+            // 子节点（拖动条、各个圆钮、歌词区）先拿到事件并消费，父节点只兜住没人要的。
+            // indication = null：不显示涟漪（工业化的"没有反馈"在这里也成立）。
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { /* 空白处点击：故意什么都不做 */ }
             .graphicsLayer {
                 alpha = stage
                 val s = 0.96f + 0.04f * stage
