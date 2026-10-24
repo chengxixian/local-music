@@ -13,6 +13,8 @@ data class Song(
     val duration: Long, val size: Long, val modified: Long, val format: String,
     val sampleRate: Int = 0, val bitDepth: Int = 0, val channels: Int = 0,
     val origin: String = "media", val artwork: String? = null,
+    /** ReplayGain track gain in dB, read from the audio tags when available. */
+    val replayGainDb: Float? = null,
 ) {
     val lossless: Boolean get() = format.lowercase(Locale.ROOT) in setOf("flac", "wav", "alac", "aiff")
     val spec: String get() = listOfNotNull(
@@ -26,6 +28,7 @@ data class Song(
             .apply { artwork?.let { setArtworkUri(Uri.parse(it)) } }
             .setExtras(Bundle().apply {
                 putInt("sampleRate", sampleRate); putInt("bitDepth", bitDepth); putInt("channels", channels)
+                replayGainDb?.let { putFloat("replayGainDb", it) }
             }).build()).build()
 }
 

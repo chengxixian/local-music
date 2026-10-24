@@ -43,6 +43,9 @@ object MetadataReader {
                     duration = h.trackLength.toLong() * 1000,
                     sampleRate = h.sampleRateAsNumber.coerceAtLeast(0),
                     bitDepth = if (base.lossless) h.bitsPerSample.coerceAtLeast(0) else 0,
+                    replayGainDb = parseReplayGain(t?.getFirst("REPLAYGAIN_TRACK_GAIN"))
+                        ?: parseReplayGain(t?.getFirst("REPLAYGAIN_TRACK_GAIN_DB"))
+                        ?: base.replayGainDb,
                 )
             } catch (_: Exception) { /* provider-only files use Android below */ }
         }
@@ -93,4 +96,11 @@ object MetadataReader {
         } catch (_: Exception) { }
         return result
     }
+
+    private fun parseReplayGain(raw: String?): Float? = raw
+        ?.replace(',', '.')
+        ?.trim()
+        ?.substringBefore("dB", "")
+        ?.trim()
+        ?.toFloatOrNull()
 }

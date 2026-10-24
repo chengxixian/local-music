@@ -511,6 +511,21 @@ fun SettingsPage(
     playerStyle: com.localmusic.app.data.PlayerStyle = com.localmusic.app.data.PlayerStyle.GLASS,
     /** 点一下"播放页风格"那一行：在两套播放页之间切换（即时生效 + 落盘）。 */
     onCyclePlayerStyle: () -> Unit = {},
+    fadeDurationMs: Long = 900L,
+    normalizeVolume: Boolean = true,
+    floatingLyrics: Boolean = false,
+    pcWiredSpeaker: Boolean = false,
+    neteaseCookie: String = "",
+    sleepTimerEnd: Long = 0L,
+    onFadeDuration: (Long) -> Unit = {},
+    onNormalizeVolume: (Boolean) -> Unit = {},
+    onFloatingLyrics: (Boolean) -> Unit = {},
+    onPcWiredSpeaker: (Boolean) -> Unit = {},
+    onNeteaseCookie: (String) -> Unit = {},
+    onSleepTimer: (Long) -> Unit = {},
+    onImportLrc: () -> Unit = {},
+    onBackupExport: () -> Unit = {},
+    onBackupRestore: () -> Unit = {},
 ) {
     val scheme = MiuixTheme.colorScheme
     val listState = rememberLazyListState()
@@ -548,6 +563,16 @@ fun SettingsPage(
                     leading = Icons.Rounded.GraphicEq,
                     onClick = onOpenEq,
                 )
+                LiquidListItem(
+                    title = "淡入淡出",
+                    subtitle = if (fadeDurationMs <= 0) "关闭" else "切歌时 ${fadeDurationMs}ms 淡入",
+                    leading = Icons.Rounded.Tune,
+                    onClick = { onFadeDuration(if (fadeDurationMs <= 0) 900L else 0L) },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("音量标准化（ReplayGain）", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Switch(checked = normalizeVolume, onCheckedChange = onNormalizeVolume, enabled = !bitPerfect)
+                }
             }
         }
         item {
@@ -589,6 +614,59 @@ fun SettingsPage(
                     onClick = onPickExport,
                     showDivider = true,
                 )
+                LiquidListItem(
+                    title = "批量导入 LRC",
+                    subtitle = "选择多个 .lrc，按文件名匹配曲库并离线保存",
+                    leading = Icons.Rounded.QueueMusic,
+                    onClick = onImportLrc,
+                )
+            }
+        }
+        item {
+            LiquidCard {
+                Text("连接与同步", style = MiuixTheme.textStyles.title4)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("悬浮歌词", style = MiuixTheme.textStyles.title4)
+                        Text("在曲库页面显示当前歌词行，点击可打开播放页", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                    }
+                    Switch(checked = floatingLyrics, onCheckedChange = onFloatingLyrics)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("PC 有线音箱", style = MiuixTheme.textStyles.title4)
+                        Text("监听 TCP 8899，接收 44.1kHz/16bit/立体声 PCM", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                    }
+                    Switch(checked = pcWiredSpeaker, onCheckedChange = onPcWiredSpeaker)
+                }
+                LiquidListItem(
+                    title = "睡眠定时器",
+                    subtitle = if (sleepTimerEnd > System.currentTimeMillis()) "${((sleepTimerEnd - System.currentTimeMillis()) / 60_000L).coerceAtLeast(1)} 分钟后暂停" else "未设置",
+                    leading = Icons.Rounded.Bedtime,
+                    onClick = {
+                        val now = System.currentTimeMillis()
+                        val left = sleepTimerEnd - now
+                        onSleepTimer(when {
+                            left <= 0L -> now + 30 * 60_000L
+                            left <= 45 * 60_000L -> now + 60 * 60_000L
+                            left <= 75 * 60_000L -> now + 90 * 60_000L
+                            else -> 0L
+                        })
+                    },
+                )
+                Text("网易云授权 Cookie（可选）", style = MiuixTheme.textStyles.title4)
+                Text("粘贴 MUSIC_U / NMTID 等 Cookie；只保存在本机，用于需要登录的接口。", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                BasicTextField(
+                    value = neteaseCookie,
+                    onValueChange = onNeteaseCookie,
+                    singleLine = true,
+                    textStyle = MiuixTheme.textStyles.body2.copy(color = scheme.onSurface),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onBackupExport) { Text("导出云备份") }
+                    TextButton(onClick = onBackupRestore) { Text("恢复云备份") }
+                }
             }
         }
         item {

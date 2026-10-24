@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Derived from Rueded/AURALIS PlaybackService.kt (GPLv3).
 // Changes: single player, supported mixer matching, route lifecycle, no DSP/network.
 package com.localmusic.audio.playback
@@ -14,6 +14,7 @@ import android.media.AudioMixerAttributes
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.media3.common.*
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -25,6 +26,7 @@ import androidx.media3.session.MediaSessionService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.pow
 
 object PlaybackDiagnostics {
     internal val mutable = MutableStateFlow("系统音频输出 · 未请求 USB 直通")
@@ -39,11 +41,20 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var preferred: AudioDeviceInfo? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var fadeGeneration = 0
+    private var sleepTimerEnd = 0L
+    private var fadeOutIndex = -1
     private val platformAttributes = android.media.AudioAttributes.Builder()
         .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build()
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "bitPerfect") handler.post { updateRoute() }
+        if (key == "bitPerfect" || key == "fadeDurationMs" || key == "normalizeVolume") handler.post {
+            if (key == "bitPerfect") updateRoute() else applyPlaybackVolume(fadeIn = false)
+        }
+        if (key == "sleepTimerEnd") handler.post { refreshSleepTimer() }
+        if (key == "pcWiredSpeaker") handler.post {
+            if (prefs.getBoolean("pcWiredSpeaker", false)) PcWiredSpeakerServer.start() else PcWiredSpeakerServer.stop()
+        }
     }
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) { updateRoute() }
@@ -73,8 +84,15 @@ class PlaybackService : MediaSessionService() {
                     // 否则用户会看到"打开了但没效果"。
                     EqualizerController.attach(this@PlaybackService, sessionId)
                 }
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { updateRoute() }
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    fadeOutIndex = -1
+                    updateRoute()
+                    applyPlaybackVolume(fadeIn = true)
+                }
                 override fun onTracksChanged(tracks: Tracks) { updateRoute() }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY && player.playWhenReady) applyPlaybackVolume(fadeIn = true)
+                }
                 override fun onPlayerError(error: PlaybackException) {
                     PlaybackDiagnostics.mutable.value = "播放失败：${error.errorCodeName} · ${error.message.orEmpty()}"
                 }
@@ -92,6 +110,9 @@ class PlaybackService : MediaSessionService() {
         session = builder.build()
         prefs.registerOnSharedPreferenceChangeListener(listener)
         manager.registerAudioDeviceCallback(deviceCallback, handler)
+        refreshSleepTimer()
+        scheduleFadeMonitor()
+        if (prefs.getBoolean("pcWiredSpeaker", false)) PcWiredSpeakerServer.start()
         updateRoute()
     }
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -109,7 +130,11 @@ class PlaybackService : MediaSessionService() {
         clearMixer()
         player.setPreferredAudioDevice(null)
         fun status(text: String) { PlaybackDiagnostics.mutable.value = text }
-        if (!prefs.getBoolean("bitPerfect", false)) { status("系统音频输出 · USB 直通关闭"); return }
+        if (!prefs.getBoolean("bitPerfect", false)) {
+            status("系统音频输出 · USB 直通关闭")
+            applyPlaybackVolume(fadeIn = false)
+            return
+        }
         if (Build.VERSION.SDK_INT < 34) { status("USB Bit-perfect 需要 Android 14 及以上"); return }
         val usb = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
@@ -154,7 +179,7 @@ class PlaybackService : MediaSessionService() {
         }
         try {
             player.playbackParameters = PlaybackParameters.DEFAULT
-            player.volume = if (prefs.getBoolean("bitPerfect", false)) 0f else 1f
+            player.volume = 0f
             player.setPreferredAudioDevice(usb)
             if (manager.setPreferredMixerAttributes(platformAttributes, usb, best)) {
                 preferred = usb
@@ -181,6 +206,73 @@ class PlaybackService : MediaSessionService() {
             player.setPreferredAudioDevice(null)
             status("USB 请求不可用：${e.message}；系统输出")
         }
+    }
+
+    /** Apply ReplayGain track gain and optionally ramp the track in. USB passthrough stays bit-perfect. */
+    private fun applyPlaybackVolume(fadeIn: Boolean) {
+        if (!::player.isInitialized) return
+        if (prefs.getBoolean("bitPerfect", false)) { player.volume = 0f; return }
+        val gain = if (prefs.getBoolean("normalizeVolume", true)) {
+            player.currentMediaItem?.mediaMetadata?.extras?.getFloat("replayGainDb", 0f) ?: 0f
+        } else 0f
+        // A conservative ceiling prevents a tagged +6 dB track from clipping the mixer.
+        val target = (10.0.pow((gain.coerceIn(-18f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.25f, 1f)
+        val duration = prefs.getLong("fadeDurationMs", 900L).coerceIn(0L, 10_000L)
+        fadeGeneration++
+        val generation = fadeGeneration
+        handler.removeCallbacksAndMessages("volumeFade")
+        if (!fadeIn || duration == 0L) { player.volume = target; return }
+        player.volume = 0f
+        val started = System.currentTimeMillis()
+        val tick = object : Runnable {
+            override fun run() {
+                if (generation != fadeGeneration || !::player.isInitialized) return
+                val p = ((System.currentTimeMillis() - started).toFloat() / duration).coerceIn(0f, 1f)
+                player.volume = target * p
+                if (p < 1f) handler.postAtTime(this, "volumeFade", SystemClock.uptimeMillis() + 16L)
+            }
+        }
+        handler.post(tick)
+    }
+
+    private fun scheduleFadeMonitor() {
+        val monitor = object : Runnable {
+            override fun run() {
+                if (!::player.isInitialized) return
+                val fade = prefs.getLong("fadeDurationMs", 900L).coerceIn(0L, 10_000L)
+                if (fade > 0 && !prefs.getBoolean("bitPerfect", false) && player.isPlaying &&
+                    player.duration > 0 && player.hasNextMediaItem()
+                ) {
+                    val remaining = player.duration - player.currentPosition
+                    if (remaining in 1..fade && fadeOutIndex != player.currentMediaItemIndex) {
+                        fadeOutIndex = player.currentMediaItemIndex
+                        val gain = if (prefs.getBoolean("normalizeVolume", true)) player.currentMediaItem?.mediaMetadata?.extras?.getFloat("replayGainDb", 0f) ?: 0f else 0f
+                        val target = (10.0.pow((gain.coerceIn(-18f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.25f, 1f)
+                        player.volume = target * (remaining.toFloat() / fade)
+                    }
+                }
+                handler.postDelayed(this, 100L)
+            }
+        }
+        handler.post(monitor)
+    }
+
+    private fun refreshSleepTimer() {
+        sleepTimerEnd = prefs.getLong("sleepTimerEnd", 0L)
+        handler.removeCallbacksAndMessages("sleepTimer")
+        if (sleepTimerEnd <= 0L) return
+        val check = object : Runnable {
+            override fun run() {
+                if (!::player.isInitialized) return
+                val remaining = sleepTimerEnd - System.currentTimeMillis()
+                if (remaining <= 0L) {
+                    player.pause()
+                    prefs.edit().remove("sleepTimerEnd").apply()
+                    PlaybackDiagnostics.mutable.value = "睡眠定时器已结束 · 播放已暂停"
+                } else handler.postAtTime(this, "sleepTimer", SystemClock.uptimeMillis() + minOf(remaining, 1000L))
+            }
+        }
+        handler.post(check)
     }
     /**
      * DSD 直通能力探测（**只查、只上报，不改播放路径**）。
@@ -247,6 +339,7 @@ class PlaybackService : MediaSessionService() {
     }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        PcWiredSpeakerServer.stop()
         if (::prefs.isInitialized) prefs.unregisterOnSharedPreferenceChangeListener(listener)
         if (::manager.isInitialized) { manager.unregisterAudioDeviceCallback(deviceCallback); clearMixer() }
         session?.release(); session = null

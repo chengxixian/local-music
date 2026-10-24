@@ -26,9 +26,9 @@ object CoverSource {
 /** 一个乐单。`cover` 是本地图片路径（用户自选的封面），为空则用第一首歌的封面。 */
 data class Playlist(val id: Long, val name: String, val cover: String?, val count: Int)
 
-class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", null, 5) {
+class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", null, 6) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE songs (uri TEXT PRIMARY KEY, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL, duration INTEGER NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL, format TEXT NOT NULL, sampleRate INTEGER NOT NULL, bitDepth INTEGER NOT NULL, channels INTEGER NOT NULL, origin TEXT NOT NULL, artwork TEXT)")
+        db.execSQL("CREATE TABLE songs (uri TEXT PRIMARY KEY, title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL, duration INTEGER NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL, format TEXT NOT NULL, sampleRate INTEGER NOT NULL, bitDepth INTEGER NOT NULL, channels INTEGER NOT NULL, origin TEXT NOT NULL, artwork TEXT, replayGainDb REAL)")
         db.execSQL("CREATE INDEX song_origin ON songs(origin)")
         createCovers(db)
         createFavorites(db)
@@ -41,6 +41,7 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
         // v4：区分"用户自己设的封面"和"自动刮削下载的封面"，前者永远不许被自动清理
         if (oldVersion < 4) runCatching { db.execSQL("ALTER TABLE covers ADD COLUMN source TEXT NOT NULL DEFAULT 'scraped'") }
         if (oldVersion < 5) createPlaylists(db)
+        if (oldVersion < 6) runCatching { db.execSQL("ALTER TABLE songs ADD COLUMN replayGainDb REAL") }
     }
 
     private fun createCovers(db: SQLiteDatabase) {
@@ -82,7 +83,8 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
                 fun s(name: String) = c.getString(c.getColumnIndexOrThrow(name)).orEmpty()
                 fun l(name: String) = c.getLong(c.getColumnIndexOrThrow(name))
                 add(Song(s("uri"), s("title"), s("artist"), s("album"), l("duration"), l("size"), l("modified"), s("format"),
-                    l("sampleRate").toInt(), l("bitDepth").toInt(), l("channels").toInt(), s("origin"), s("artwork").ifBlank { null }))
+                    l("sampleRate").toInt(), l("bitDepth").toInt(), l("channels").toInt(), s("origin"), s("artwork").ifBlank { null },
+                    c.getString(c.getColumnIndexOrThrow("replayGainDb"))?.toFloatOrNull()))
             } }
         }
 
@@ -130,6 +132,7 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
                 put("duration", s.duration); put("size", s.size); put("modified", s.modified); put("format", s.format)
                 put("sampleRate", s.sampleRate); put("bitDepth", s.bitDepth); put("channels", s.channels)
                 put("origin", s.origin); put("artwork", s.artwork)
+                if (s.replayGainDb == null) putNull("replayGainDb") else put("replayGainDb", s.replayGainDb)
             }, SQLiteDatabase.CONFLICT_REPLACE) }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }

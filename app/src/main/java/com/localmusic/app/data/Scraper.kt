@@ -128,10 +128,10 @@ object Scraper {
                         // 头一次 miss 时做一次接口对照：旧 detail 接口 vs v3 接口，看是"没图"还是"被限流"
                         if (netease != null && !coverDiagDone) {
                             coverDiagDone = true
-                            val old = probeGet("https://music.163.com/api/song/detail?ids=%5B${netease.id}%5D", neteaseHeaders)
+                            val old = probeGet("https://music.163.com/api/song/detail?ids=%5B${netease.id}%5D", neteaseHeaders())
                             val v3 = probeGet(
                                 "https://music.163.com/api/v3/song/detail?c=%5B%7B%22id%22%3A${netease.id}%7D%5D",
-                                neteaseHeaders,
+                                neteaseHeaders(),
                             )
                             android.util.Log.i("LMScrape", "diag id=${netease.id}")
                             android.util.Log.i("LMScrape", "diag old ${old.summary}")
@@ -173,11 +173,17 @@ object Scraper {
 
     // ── 网易云音乐（非官方接口，不需要 key；随时可能被限流或改动）──
 
-    private val neteaseHeaders = mapOf(
-        "Referer" to "https://music.163.com/",
-        "User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36",
-        "Accept" to "*/*",
-    )
+    @Volatile private var authCookie: String = ""
+
+    /** Optional user supplied MUSIC_U / NMTID cookie for account-only endpoints. */
+    fun setNeteaseCookie(cookie: String?) { authCookie = cookie.orEmpty().trim() }
+
+    private fun neteaseHeaders(): Map<String, String> = buildMap {
+        put("Referer", "https://music.163.com/")
+        put("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+        put("Accept", "*/*")
+        if (authCookie.isNotBlank()) put("Cookie", authCookie)
+    }
 
     internal data class NeteaseSong(val id: Long, val name: String, val artist: String, val cover: String?)
 
@@ -200,7 +206,7 @@ object Scraper {
             var throttled = false
             repeat(2) { attempt ->
                 if (ok) return@repeat
-                val body = runCatching { get(url, neteaseHeaders) }.getOrNull()
+                val body = runCatching { get(url, neteaseHeaders()) }.getOrNull()
                 if (body != null && !body.contains("操作频繁")) {
                     if (!diagLogged) { diagLogged = true; android.util.Log.i("LMScrape", "v3 head=${body.take(600).replace('\n', ' ')}") }
                     ok = true
@@ -304,7 +310,7 @@ object Scraper {
     /** 搜一次；失败/无结果会带诊断写 logcat（标签 LMScrape），便于在真机上定位。 */
     private fun searchOnce(keyword: String): NeteaseSong? {
         val url = "https://music.163.com/api/search/get?s=${encode(keyword)}&type=1&offset=0&limit=10"
-        val body = get(url, neteaseHeaders)
+        val body = get(url, neteaseHeaders())
         if (body == null) {
             android.util.Log.i("LMScrape", "search '$keyword' -> HTTP 失败或非 2xx")
             return null
@@ -363,16 +369,16 @@ object Scraper {
         val keyword = encode(sample)
         val searchUrl = "https://music.163.com/search/m/?s=$keyword&type=1"
         // 用 probeGet：把"HTTP 状态码 / 异常类型"也打出来，才能分清是"连不上"还是"被拒"。
-        val searchResult = probeGet(searchUrl, neteaseHeaders)
+        val searchResult = probeGet(searchUrl, neteaseHeaders())
         android.util.Log.i("LMNetease", "search(html) $searchResult")
         // 网页搜索会是 302（要 cookie），所以直接以 API 搜索为准；这里把三件事都验一遍
-        val apiResult = probeGet("https://music.163.com/api/search/get?s=$keyword&type=1&limit=2", neteaseHeaders)
+        val apiResult = probeGet("https://music.163.com/api/search/get?s=$keyword&type=1&limit=2", neteaseHeaders())
         android.util.Log.i("LMNetease", "apiSearch ${apiResult.summary}")
         val search = apiResult.body ?: return@withContext
         // 用真实搜索结果走一遍完整链路（含默认占位图过滤），另附一首固定歌曲做对照
         android.util.Log.i("LMNetease", "probe title=卢广仲 - 我爱你 match=${neteaseSearch("卢广仲 - 我爱你", "未知艺术家")}")
         android.util.Log.i("LMNetease", "probe albumCover(186016)=${neteaseCoverById(186016)}")
-        android.util.Log.i("LMNetease", "lyricApi " + probeGet("https://music.163.com/api/song/lyric?id=186016&lv=-1&kv=-1&tv=-1", neteaseHeaders))
+        android.util.Log.i("LMNetease", "lyricApi " + probeGet("https://music.163.com/api/song/lyric?id=186016&lv=-1&kv=-1&tv=-1", neteaseHeaders()))
     }
 
     private data class Probe(val summary: String, val body: String?)
@@ -422,7 +428,7 @@ object Scraper {
 
     /** 取带时间戳的歌词（`lrc.lyric`）。 */
     internal fun neteaseLyrics(id: Long): String? = try {
-        val body = get("https://music.163.com/api/song/lyric?id=$id&lv=-1&kv=-1&tv=-1", neteaseHeaders) ?: return null
+        val body = get("https://music.163.com/api/song/lyric?id=$id&lv=-1&kv=-1&tv=-1", neteaseHeaders()) ?: return null
         val lrc = JSONObject(body).optJSONObject("lrc")?.optString("lyric")
         pick(lrc)
     } catch (_: Exception) { null }

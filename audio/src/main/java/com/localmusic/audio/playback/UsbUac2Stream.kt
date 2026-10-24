@@ -10,8 +10,11 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.hardware.usb.UsbRequest
 import android.util.Log
+import android.net.Uri
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.io.File
+import java.security.MessageDigest
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -246,6 +249,7 @@ object UsbUac2Stream {
         ),
     ) {
         fun emit(s: String) { Log.i(TAG, s) }
+        val resolvedPath = resolveSourcePath(context, path)
         // ⚠️ 同一时刻只允许一条直通。
         // 用户在播放中点了另一首歌（或反复拨开关）时，上一条直通仍在跑 —— 两条流会去抢
         // 同一个 USB 接口，结果不可预期（可能又是一次噪音）。所以先停掉上一条，
@@ -282,8 +286,8 @@ object UsbUac2Stream {
         // 否则按"优先 DAC 支持的采样率"从目录里挑一个。
         val chosen: java.io.File
         val fileRate: Int
-        if (path != null) {
-            val f = java.io.File(path)
+        if (resolvedPath != null) {
+            val f = java.io.File(resolvedPath)
             val r = if (f.isFile) UsbPcmDecoder.probe(f.absolutePath)?.first ?: 0 else 0
             if (!f.isFile || r <= 0) return emit("流：指定文件不可用（$path）")
             chosen = f
@@ -393,6 +397,7 @@ object UsbUac2Stream {
             // 32bit 立体声：每帧字节数 = 采样率 × 4 字节 × 2 声道 / 8000 帧每秒
             val fb2 = fileRate * 8 / 8000
             emit("流：OUT 0x${outEp.address.toString(16)} maxPacket=${outEp.maxPacketSize}；每帧=$fb2 字节；反馈=${fb?.address?.toString(16) ?: "无"}")
+            if (fb2 > outEp.maxPacketSize) return emit("流：拒绝直通 —— 每帧 $fb2 字节超过端点上限 ${outEp.maxPacketSize}")
 
             if (!UsbIsoNative.available) return emit("流：原生库不可用")
             val pipe = android.os.ParcelFileDescriptor.createPipe()
@@ -416,7 +421,7 @@ object UsbUac2Stream {
             activeWriteEnd = writeEnd
             val rc = UsbIsoNative.nativePlayPipe(
                 conn.fileDescriptor, outEp.address, fb2, fileRate,
-                8_000_000,                       // 上限约 16 分钟；解码结束（管道 EOF）会自动停
+                Int.MAX_VALUE,                   // 由管道 EOF 收尾，不再截断超过 16 分钟的长曲目
                 fb?.address ?: -1, readEnd.fd,
             )
             runCatching { readEnd.close() }
@@ -441,6 +446,24 @@ object UsbUac2Stream {
                 runCatching { conn.close() }
             }
         }
+    }
+
+    /** SAF-backed songs use content:// URIs; the native decoder needs a seekable local file. */
+    private fun resolveSourcePath(context: Context, path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        val uri = runCatching { Uri.parse(path) }.getOrNull()
+        if (uri?.scheme == "file") return uri.path
+        if (uri?.scheme != "content") return if (File(path).isFile) path else path
+        val digest = MessageDigest.getInstance("SHA-1").digest(path.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        val ext = uri.lastPathSegment.orEmpty().substringAfterLast('.', "bin").take(8)
+        val target = File(File(context.cacheDir, "usb-source"), "$digest.$ext")
+        if (target.isFile && target.length() > 0L) return target.absolutePath
+        return runCatching {
+            target.parentFile?.mkdirs()
+            context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
+            target.takeIf { it.isFile && it.length() > 0L }?.absolutePath
+        }.getOrNull()
     }
 
     private fun isAudio(d: UsbDevice) = (0 until d.interfaceCount).any {

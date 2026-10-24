@@ -306,11 +306,13 @@ private fun AppShell() {
             if (rawPath.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "无法解析文件路径", android.widget.Toast.LENGTH_SHORT).show()
             } else {
-                Thread {
-                    runCatching {
-                        com.localmusic.audio.playback.UsbUac2Stream.playFile(context, rawPath)
-                    }
-                }.start()
+                // The DAC may have been plugged in after app launch; request USB permission
+                // again here so direct playback works without an adb-only setup step.
+                com.localmusic.app.data.UsbAudioPermission.ensure(context) { granted ->
+                    if (granted) Thread {
+                        runCatching { com.localmusic.audio.playback.UsbUac2Stream.playFile(context, rawPath) }
+                    }.start()
+                }
             }
         } else if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
@@ -364,6 +366,12 @@ private fun AppShell() {
     var scrapeLyrics by remember { mutableStateOf(prefs.getBoolean("scrapeLyrics", true)) }
     // 刮削是否使用网易云音乐源（非官方接口，默认开）
     var neteaseSource by remember { mutableStateOf(prefs.getBoolean("neteaseSource", true)) }
+    var neteaseCookie by remember { mutableStateOf(prefs.getString("neteaseCookie", "") ?: "") }
+    var fadeDurationMs by remember { mutableLongStateOf(prefs.getLong("fadeDurationMs", 900L)) }
+    var normalizeVolume by remember { mutableStateOf(prefs.getBoolean("normalizeVolume", true)) }
+    var floatingLyrics by remember { mutableStateOf(prefs.getBoolean("floatingLyrics", false)) }
+    var pcWiredSpeaker by remember { mutableStateOf(prefs.getBoolean("pcWiredSpeaker", false)) }
+    var sleepTimerEnd by remember { mutableLongStateOf(prefs.getLong("sleepTimerEnd", 0L)) }
     // 滚轮圆环的玻璃颜色：预设下标（-1 = 自定义）+ 色相/饱和度/透光率
     var tintState by remember {
         mutableStateOf(
@@ -437,9 +445,11 @@ private fun AppShell() {
     // 曲库**只扫用户在设置里选定的文件夹**（SAF 目录），不再扫整机媒体库；
     // SAF 目录没有系统级变更通知，所以靠这个周期扫描兜住"用户往文件夹里拷了新歌"。
     LaunchedEffect(Unit) {
+        com.localmusic.app.data.Scraper.setNeteaseCookie(neteaseCookie)
         library.scan()
         while (true) { kotlinx.coroutines.delay(60_000); library.scan() }
     }
+    LaunchedEffect(neteaseCookie) { com.localmusic.app.data.Scraper.setNeteaseCookie(neteaseCookie) }
 
     // 自动刮削：按批次慢慢补齐（每批 40 首，批间 3 分钟），关掉开关就完全不发请求。
     // 首次启动等 20 秒再开始，避免和扫描/首帧抢网络与 IO。
@@ -494,6 +504,31 @@ private fun AppShell() {
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
+
+    val pickLrcFiles = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) scrapeScope.launch {
+            val n = com.localmusic.app.data.LrcImporter.importFiles(context, songs, uris)
+            android.widget.Toast.makeText(context, "已导入 $n 个 LRC", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    val createBackup = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            val ok = com.localmusic.app.data.BackupManager.export(context, uri)
+            android.widget.Toast.makeText(context, if (ok) "备份已导出" else "备份导出失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    val restoreBackup = androidx.activity.compose.rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val ok = com.localmusic.app.data.BackupManager.restore(context, uri)
+            android.widget.Toast.makeText(context, if (ok) "备份已恢复，重启应用后生效" else "备份恢复失败", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
             }
             val label = android.provider.DocumentsContract.getTreeDocumentId(uri).substringAfter(':')
             prefs.edit().putString("exportTree", uri.toString()).putString("exportLabel", label).apply()
@@ -785,6 +820,21 @@ private fun AppShell() {
                                         topPadding = pageTopPadding,
                                         playerStyle = com.localmusic.app.data.PlayerStyleState.current,
                                         onCyclePlayerStyle = { com.localmusic.app.data.PlayerStyleState.cycleAndWrite(context) },
+                                        fadeDurationMs = fadeDurationMs,
+                                        normalizeVolume = normalizeVolume,
+                                        floatingLyrics = floatingLyrics,
+                                        pcWiredSpeaker = pcWiredSpeaker,
+                                        neteaseCookie = neteaseCookie,
+                                        sleepTimerEnd = sleepTimerEnd,
+                                        onFadeDuration = { value -> fadeDurationMs = value; prefs.edit().putLong("fadeDurationMs", value).apply() },
+                                        onNormalizeVolume = { value -> normalizeVolume = value; prefs.edit().putBoolean("normalizeVolume", value).apply() },
+                                        onFloatingLyrics = { value -> floatingLyrics = value; prefs.edit().putBoolean("floatingLyrics", value).apply() },
+                                        onPcWiredSpeaker = { value -> pcWiredSpeaker = value; prefs.edit().putBoolean("pcWiredSpeaker", value).apply() },
+                                        onNeteaseCookie = { value -> neteaseCookie = value; prefs.edit().putString("neteaseCookie", value).apply() },
+                                        onSleepTimer = { end -> sleepTimerEnd = end; prefs.edit().putLong("sleepTimerEnd", end).apply() },
+                                        onImportLrc = { pickLrcFiles.launch(arrayOf("text/plain", "application/octet-stream", "text/*")) },
+                                        onBackupExport = { createBackup.launch("local-music-backup.zip") },
+                                        onBackupRestore = { restoreBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
                                     )
                                 }
                             }
@@ -920,6 +970,17 @@ private fun AppShell() {
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
+                        }
+                        if (floatingLyrics && !showAbout && !playerOpen && playback.id != null) {
+                            FloatingLyricsOverlay(
+                                backdrop = backdrop,
+                                song = nowPlaying,
+                                positionFlow = player.position,
+                                onClick = { playerOpen = true },
+                                modifier = Modifier.align(Alignment.TopCenter)
+                                    .padding(start = 44.dp, end = 44.dp, top = TopBarMargin + TopBarHeight + 8.dp)
+                                    .fillMaxWidth(),
+                            )
                         }
                         // 问名字（新建 / 重命名乐单）：在浮层里，滚轮之上
                         PopInData(naming) { req ->

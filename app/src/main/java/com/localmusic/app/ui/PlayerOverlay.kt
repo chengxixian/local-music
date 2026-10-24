@@ -116,6 +116,42 @@ fun GlassTopBar(
     }
 }
 
+/** Compact always-on-top-in-the-app lyrics capsule. */
+@Composable
+fun FloatingLyricsOverlay(
+    backdrop: LayerBackdrop?,
+    song: Song?,
+    positionFlow: kotlinx.coroutines.flow.StateFlow<Long>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (song == null) return
+    val context = LocalContext.current
+    val position by positionFlow.collectAsState()
+    var lyrics by remember(song.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
+    LaunchedEffect(song.uri) {
+        lyrics = withContext(Dispatchers.IO) { LyricsRepository.load(context.applicationContext, song) }
+    }
+    val current = lyrics?.let { LyricsRepository.currentIndex(it, position) } ?: -1
+    val text = lyrics?.lines?.getOrNull(current)?.text?.takeIf { it.isNotBlank() } ?: return
+    GlassPanel(
+        backdrop = backdrop,
+        shape = RoundedCornerShape(22.dp),
+        refractionHeight = 12.dp,
+        refractionAmount = 18.dp,
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 /** 悬浮玻璃迷你播放条（dock 之上，采集层之外）。 */
 @Composable
 fun MiniPlayerBar(

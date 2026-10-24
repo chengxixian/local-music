@@ -120,7 +120,10 @@ Java_com_localmusic_audio_playback_UsbIsoNative_nativePlayPipe(
         u->iso_frame_desc[0].length = (unsigned int) frame_bytes;
         slots[i].urb = u;
         slots[i].buf = b;
-        slots[i].length = frame_bytes;
+        /* Async feedback can require the next aligned packet to be larger than
+         * the integer average (44 -> 48 bytes at 44.1 kHz). Keep headroom in
+         * the same buffer while the fixed point accumulator preserves the rate. */
+        slots[i].length = frame_bytes + 16;
     }
     if (have_fb) {
         size_t urb_size = sizeof(struct usbdevfs_urb) + sizeof(struct usbdevfs_iso_packet_desc);
