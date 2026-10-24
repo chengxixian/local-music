@@ -1,10 +1,11 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import com.localmusic.app.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.LayerBackdrop
@@ -48,16 +50,22 @@ fun EqualizerSheet(
     val scheme = MiuixTheme.colorScheme
     // 不铺全屏压暗：背景保持原亮度，由烟熏玻璃自己变暗（"周围亮、玻璃暗"）。
     // 仍保留"点面板外收起"的手势。
-    Box(
-        Modifier.fillMaxSize().clickable(onClick = onClose),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // 遮罩：只有**面板以外**的区域可点关闭。它先画、在下层，面板整体盖在它上面。
+        Box(Modifier.matchParentSize().clickable(onClick = onClose))
         GlassPanel(
             backdrop = backdrop,
             shape = RoundedCornerShape(32.dp),
             refractionHeight = 22.dp,
             refractionAmount = 32.dp,
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.88f).padding(horizontal = 20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.88f)
+                .padding(horizontal = 20.dp)
+                // 面板自己吃掉落在它范围内的点击。
+                // 以前整屏的 clickable 挂在**父** Box 上，面板内部没人消费的空白处会一路透传上去
+                // 触发 onClose —— 面板里滑杆/开关之间的缝隙、标题两侧的留白，点一下就整个收起。
+                .pointerInput(Unit) { detectTapGestures { /* 面板内空白：故意什么都不做 */ } },
         ) {
             Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.page, vertical = LiquidSpacing.item)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

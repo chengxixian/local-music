@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   日本語。未翻訳のキーは res/values/（英語）へフォールバックします。
   残りのキーは後から追記できます（キー名は values/strings.xml と同じ）。
@@ -221,4 +221,54 @@
     <string name="library_pick_folder">音楽フォルダを選ぶ</string>
     <string name="scan_no_folder">音楽フォルダが未選択です — 設定から追加してください</string>
     <string name="scan_migrated">%1$d 曲のお気に入り / プレイリスト / カバーをフォルダ項目に移行しました</string>
+
+    <!-- 設定画面の「再生強化 / 接続と同期」などの行：以前は Kotlin に直書きの中国語で、
+         日本語ユーザーにも中国語が見えていました。 -->
+    <string name="settings_fade">フェードイン / アウト</string>
+    <string name="settings_fade_on">曲の切り替えで %1$dms フェードイン</string>
+    <string name="settings_fade_off">オフ</string>
+    <string name="settings_normalize">音量の正規化（ReplayGain）</string>
+    <string name="settings_eq_enabled_line">有効 · %1$s dB</string>
+    <string name="settings_import_lrc">LRC を一括インポート</string>
+    <string name="settings_import_lrc_sub">複数の .lrc を選択し、ファイル名でライブラリと照合してオフライン保存します</string>
+    <string name="settings_conn_sync">接続と同期</string>
+    <string name="settings_floating_lyrics">歌詞のフローティング表示</string>
+    <string name="settings_floating_lyrics_sub">ライブラリ画面に現在の歌詞行を表示します。タップでプレーヤーを開きます</string>
+    <string name="settings_pc_speaker">PC 有線スピーカー</string>
+    <string name="settings_pc_speaker_sub">スマートフォンがサーバーとして TCP 8899 で待ち受けます（44.1kHz / 16bit / ステレオ PCM）。PC 側で先に adb forward tcp:8899 tcp:8899 を実行し、127.0.0.1:8899 に接続してください</string>
+    <string name="settings_sleep_timer">スリープタイマー</string>
+    <string name="settings_sleep_in">%1$d 分後に一時停止</string>
+    <string name="settings_sleep_none">未設定</string>
+    <string name="settings_netease_cookie">NetEase 認証 Cookie（任意）</string>
+    <string name="settings_netease_cookie_sub">MUSIC_U / NMTID などの Cookie を貼り付けます。端末内にのみ保存され、ログインが必要な API にのみ使われます。</string>
+    <string name="settings_backup_export">クラウドバックアップを書き出す</string>
+    <string name="settings_backup_restore">クラウドバックアップを復元</string>
+    <string name="settings_library">ライブラリ</string>
+    <string name="settings_language">言語 / Language</string>
+    <string name="settings_language_current">現在 / Current</string>
+    <string name="settings_fade_ms">%1$d ミリ秒</string>
+    <string name="settings_normalize_off">オフ（音量を揃えない）</string>
+    <string name="settings_normalize_no_tag">この曲には ReplayGain タグがありません</string>
+    <string name="settings_normalize_gain">この曲 %1$s dB · 適用中</string>
+    <string name="settings_pc_speaker_listening">待機中 · PC の接続を待っています 127.0.0.1:8899</string>
+    <string name="settings_pc_speaker_connected">PC 接続済み · 再生中</string>
+    <string name="settings_pc_speaker_error">起動に失敗：%1$s</string>
+    <string name="settings_pc_speaker_starting">起動中…</string>
+    <string name="settings_pc_speaker_idle">無効</string>
+    <string name="settings_sleep_off">オフ</string>
+    <string name="settings_sleep_min">%1$d 分</string>
+    <string name="settings_scrape_stop">停止</string>
+    <string name="toast_lrc_imported">LRC を %1$d 件読み込みました</string>
+    <string name="toast_lrc_unmatched">、%1$d 件は曲と一致しません</string>
+    <string name="toast_lrc_failed">、%1$d 件は読み込めませんでした</string>
+    <string name="floating_lyrics_none">♪ %1$s · 歌詞なし</string>
+    <string name="lyrics_missing_hint_full">3 つの取得元を順に試します：
+· スクレイピングのキャッシュ（設定で「歌詞を取得」を有効にするとオンライン取得、以後はオフラインでも可）
+· 音声ファイルと同じ場所・同じ名前の .lrc
+· 音声ファイルに埋め込まれた歌詞（ID3 USLT / Vorbis LYRICS）
+
+設定の「今すぐ取得」でも補えます。タップでジャケットに戻ります。</string>
+    <string name="player_idle_title">まだ再生していません</string>
+    <string name="player_idle_artist">ライブラリから曲を選んでください</string>
+    <string name="player_unknown_track">不明な曲</string>
 </resources>

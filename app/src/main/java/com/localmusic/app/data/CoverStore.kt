@@ -34,19 +34,38 @@ object CoverStore {
     fun pathFor(context: Context, songUri: String): File? =
         mapping(context)[songUri]?.let(::File)?.takeIf { it.isFile && it.length() > 0 }
 
-    /** 保存用户选的图片；返回是否成功。 */
+    /**
+     * 保存用户选的图片；返回是否成功。
+     *
+     * ⚠️ **先写临时文件 → 校验 → 再原子替换**。
+     * 旧实现直接往 `<sha1>.img`（也就是这首歌当前封面的那个文件）写，校验失败再
+     * `target.delete()` —— 用户选了一张解不开的图（.webp/heic 变体、下载失败的半张图），
+     * 结果是**连原来那张好封面一起被删掉**，而且 `covers` 表里还留着指向该文件的路径。
+     * 现在失败只删临时文件，旧封面原样保留。
+     */
     fun set(context: Context, songUri: String, image: Uri): Boolean {
         val app = context.applicationContext
         return try {
             val dir = File(app.filesDir, "covers").apply { mkdirs() }
             val target = File(dir, sha1(songUri) + ".img")
-            app.contentResolver.openInputStream(image)?.use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
-            } ?: return false
-            // 立刻读一次尺寸，确认存下来的确实是张能解码的图片
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(target.absolutePath, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { target.delete(); return false }
+            val temp = File.createTempFile("cover", ".tmp", dir)
+            var copied = false
+            try {
+                app.contentResolver.openInputStream(image)?.use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                    copied = true
+                }
+                if (!copied) { temp.delete(); return false }
+                // 校验存下来的确实是张能解码的图片（在临时文件上做，不碰旧封面）
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(temp.absolutePath, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { temp.delete(); return false }
+                // 同目录 rename 是原子替换：要么全新封面，要么还是旧封面，不会出现"半个文件"
+                if (!temp.renameTo(target)) { temp.delete(); return false }
+            } catch (_: Exception) {
+                temp.delete()
+                return false
+            }
             commit(app, songUri, target.absolutePath, refresh = true, source = CoverSource.USER)
             true
         } catch (_: Exception) { false }
@@ -57,6 +76,8 @@ object CoverStore {
      *
      * [refresh] 为 false 时**只更新内存映射、不触发 UI 重载**：批量刮削一批 30 张封面时，
      * 如果每存一张就让整墙封面失效重解码，界面会肉眼可见地卡；调用方攒一批后用 [refresh] 收尾。
+     *
+     * 和 [set] 一样走"临时文件 → 校验 → 原子替换"，避免一张坏图把已有封面顶掉。
      */
     fun setFromBytes(context: Context, songUri: String, bytes: ByteArray, refresh: Boolean = true): Boolean {
         val app = context.applicationContext
@@ -64,16 +85,19 @@ object CoverStore {
             if (bytes.isEmpty()) return false
             val dir = File(app.filesDir, "covers").apply { mkdirs() }
             val target = File(dir, sha1(songUri) + ".img")
-            target.writeBytes(bytes)
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(target.absolutePath, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                target.delete()
-                false
-            } else {
-                commit(app, songUri, target.absolutePath, refresh, source = CoverSource.SCRAPED)
-                true
+            val temp = File.createTempFile("cover", ".tmp", dir)
+            try {
+                temp.writeBytes(bytes)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(temp.absolutePath, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) { temp.delete(); return false }
+                if (!temp.renameTo(target)) { temp.delete(); return false }
+            } catch (_: Exception) {
+                temp.delete()
+                return false
             }
+            commit(app, songUri, target.absolutePath, refresh, source = CoverSource.SCRAPED)
+            true
         } catch (_: Exception) { false }
     }
 

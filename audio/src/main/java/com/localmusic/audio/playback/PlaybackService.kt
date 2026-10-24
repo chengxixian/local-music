@@ -44,12 +44,19 @@ class PlaybackService : MediaSessionService() {
     private var fadeGeneration = 0
     private var sleepTimerEnd = 0L
     private var fadeOutIndex = -1
+    /** 当前正在走原生 USB 直通的那首（null = 没有直通会话）。 */
+    @Volatile private var passthroughUri: String? = null
     private val platformAttributes = android.media.AudioAttributes.Builder()
         .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build()
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "bitPerfect" || key == "fadeDurationMs" || key == "normalizeVolume") handler.post {
-            if (key == "bitPerfect") updateRoute() else applyPlaybackVolume(fadeIn = false)
+            if (key == "bitPerfect") {
+                updateRoute()
+                // 开关一变就对齐原生通道：开 → 当前这首走直通；关 → 立刻关管道回到系统输出。
+                syncPassthrough()
+                applyPlaybackVolume(fadeIn = false)
+            } else applyPlaybackVolume(fadeIn = false)
         }
         if (key == "sleepTimerEnd") handler.post { refreshSleepTimer() }
         if (key == "pcWiredSpeaker") handler.post {
@@ -86,10 +93,21 @@ class PlaybackService : MediaSessionService() {
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     fadeOutIndex = -1
-                    updateRoute()
+                    // 直通通道要跟着"当前这首"走：切歌时不换源，DAC 会继续把上一首播完，
+                    // 而 ExoPlayer 已经在放下一首（静音）→ 声音与界面彻底脱节。
+                    syncPassthrough()
                     applyPlaybackVolume(fadeIn = true)
                 }
-                override fun onTracksChanged(tracks: Tracks) { updateRoute() }
+                override fun onTracksChanged(tracks: Tracks) {
+                    // ⚠️ 这里**不再**调 updateRoute()：路由（mixer 属性 / 首选设备）与"哪一首"无关，
+                    // 而 updateRoute() 会 clearMixer + 重新申请 6 档 mixer 属性（binder 调用），
+                    // 每首歌来一遍等于在歌曲边界拆掉再重建 AudioTrack —— 爆音/断音，EQ 状态也会闪。
+                    // 只有在**开关变化 / 设备插拔**时才需要重新协商。
+                }
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    syncPassthrough()
+                    applyPlaybackVolume(fadeIn = false)
+                }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY && player.playWhenReady) applyPlaybackVolume(fadeIn = true)
                 }
@@ -135,10 +153,10 @@ class PlaybackService : MediaSessionService() {
             applyPlaybackVolume(fadeIn = false)
             return
         }
-        if (Build.VERSION.SDK_INT < 34) { status("USB Bit-perfect 需要 Android 14 及以上"); return }
+        if (Build.VERSION.SDK_INT < 34) { status("USB Bit-perfect 需要 Android 14 及以上 · 已使用系统输出"); applyPlaybackVolume(fadeIn = false); return }
         val usb = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
-        } ?: run { status("等待连接兼容 USB DAC · 当前使用系统输出"); return }
+        } ?: run { status("等待连接兼容 USB DAC · 当前使用系统输出"); applyPlaybackVolume(fadeIn = false); return }
         appendDsdCapability(usb)
         // 阶段 0 探针：枚举接口/alt/端点参数；若该 USB 设备已授权，再尝试
         // claimInterface(force=true) 抢掉内核的 snd-usb-audio —— 这是自研 UAC 驱动的 go/no-go。
@@ -174,12 +192,16 @@ class PlaybackService : MediaSessionService() {
             null
         }
         if (best == null) {
+            // 申请被拒 ≠ 直通失败：真正出声的是自研 UAC2 原生等时通道。
+            // 但也不能在这里静音 —— 静音只由 syncPassthrough/applyPlaybackVolume 在
+            // "确认原生通道在跑"之后决定。
             player.setPreferredAudioDevice(null)
-            status("USB 直通已启用 · 声音由自研 UAC2 等时通道输出（向系统申请 mixer 直通属性在本机型被拒，属正常）"); return
+            status("USB 直通已启用 · 声音由自研 UAC2 等时通道输出（向系统申请 mixer 直通属性在本机型被拒，属正常）")
+            applyPlaybackVolume(fadeIn = false)
+            return
         }
         try {
             player.playbackParameters = PlaybackParameters.DEFAULT
-            player.volume = 0f
             player.setPreferredAudioDevice(usb)
             if (manager.setPreferredMixerAttributes(platformAttributes, usb, best)) {
                 preferred = usb
@@ -206,17 +228,25 @@ class PlaybackService : MediaSessionService() {
             player.setPreferredAudioDevice(null)
             status("USB 请求不可用：${e.message}；系统输出")
         }
+        applyPlaybackVolume(fadeIn = false)
     }
 
     /** Apply ReplayGain track gain and optionally ramp the track in. USB passthrough stays bit-perfect. */
     private fun applyPlaybackVolume(fadeIn: Boolean) {
         if (!::player.isInitialized) return
-        if (prefs.getBoolean("bitPerfect", false)) { player.volume = 0f; return }
+        // 只有**确认在跑的直通通道**才允许静音系统输出。
+        // 旧实现是"prefs.bitPerfect 为真就 volume=0"，于是：没插 DAC / Android < 14 /
+        // 采样率不在 DAC 支持列表 / 没有 USB 权限 时，唯一能出声的系统输出被自己静音了 ——
+        // 表现就是"进度条在走、一点声音没有"，也就是用户说的"开了这个开关就没声了"。
+        val passthrough = prefs.getBoolean("bitPerfect", false) && UsbUac2Stream.isStreaming
+        if (passthrough) { player.volume = 0f; return }
         val gain = if (prefs.getBoolean("normalizeVolume", true)) {
             player.currentMediaItem?.mediaMetadata?.extras?.getFloat("replayGainDb", 0f) ?: 0f
         } else 0f
         // A conservative ceiling prevents a tagged +6 dB track from clipping the mixer.
-        val target = (10.0.pow((gain.coerceIn(-18f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.25f, 1f)
+        // 下限放到 0.06：ReplayGain 的标签常是 -10…-20 dB，旧下限 0.25（≈ -12 dB）
+        // 会把安静轨道的衰减截断，"音量标准化"就只对一部分歌生效。
+        val target = (10.0.pow((gain.coerceIn(-30f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.06f, 1f)
         val duration = prefs.getLong("fadeDurationMs", 900L).coerceIn(0L, 10_000L)
         fadeGeneration++
         val generation = fadeGeneration
@@ -235,23 +265,64 @@ class PlaybackService : MediaSessionService() {
         handler.post(tick)
     }
 
+    /**
+     * 让原生 UAC2 直通通道**跟着播放状态走**。
+     *
+     * 以前这条通道只由界面点歌那一下启动（`MainActivity.playSong`），播放服务完全不知道它存在：
+     * 暂停、拖动进度、下一首、自动续播、退出应用都不会停它 —— DAC 继续把上一首放完，
+     * 而 ExoPlayer 已经在放下一首（静音），声音和界面各走各的。
+     *
+     * 现在由服务统一对齐：本曲真正播放时才启动，暂停/切歌/停止时释放。
+     * 直通跑完（或失败）后会重新应用音量，保证系统输出能出声。
+     */
+    private fun syncPassthrough() {
+        if (!::player.isInitialized) return
+        val want = prefs.getBoolean("bitPerfect", false) && player.isPlaying
+        if (!want) {
+            if (passthroughUri != null) {
+                passthroughUri = null
+                UsbUac2Stream.stop()
+                applyPlaybackVolume(fadeIn = false)
+            }
+            return
+        }
+        val item = player.currentMediaItem ?: return
+        val uri = item.localConfiguration?.uri?.toString() ?: item.mediaId
+        if (uri.isBlank() || uri == passthroughUri) return
+        passthroughUri = uri
+        Thread({
+            runCatching { UsbUac2Stream.playFile(this, uri) }
+            passthroughUri = null
+            handler.post {
+                val why = UsbUac2Stream.lastResult
+                PlaybackDiagnostics.mutable.value =
+                    "USB 直通结束 · 已回到系统输出" + if (why.isNotBlank()) "（$why）" else ""
+                applyPlaybackVolume(fadeIn = false)
+            }
+        }, "local-music-usb-passthrough").start()
+        // 直通是异步启动的：`isStreaming` 要等接口真正占用后才为真。
+        // 稍后再对一次账 —— 成功就静音系统输出，失败就保持系统输出有声，两种情况都对。
+        handler.postDelayed({ applyPlaybackVolume(fadeIn = false) }, 400L)
+    }
+
     private fun scheduleFadeMonitor() {
         val monitor = object : Runnable {
             override fun run() {
                 if (!::player.isInitialized) return
                 val fade = prefs.getLong("fadeDurationMs", 900L).coerceIn(0L, 10_000L)
-                if (fade > 0 && !prefs.getBoolean("bitPerfect", false) && player.isPlaying &&
-                    player.duration > 0 && player.hasNextMediaItem()
-                ) {
+                // 只有"真的在放歌 + 开了淡出"才需要 10Hz 轮询；暂停/关闭时降到 1Hz，
+                // 免得息屏后还在后台每秒醒 10 次（耗电）。
+                val active = fade > 0 && player.isPlaying && player.duration > 0
+                if (active && !prefs.getBoolean("bitPerfect", false) && player.hasNextMediaItem()) {
                     val remaining = player.duration - player.currentPosition
                     if (remaining in 1..fade && fadeOutIndex != player.currentMediaItemIndex) {
                         fadeOutIndex = player.currentMediaItemIndex
                         val gain = if (prefs.getBoolean("normalizeVolume", true)) player.currentMediaItem?.mediaMetadata?.extras?.getFloat("replayGainDb", 0f) ?: 0f else 0f
-                        val target = (10.0.pow((gain.coerceIn(-18f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.25f, 1f)
+                        val target = (10.0.pow((gain.coerceIn(-30f, 6f) / 20.0).toDouble())).toFloat().coerceIn(0.06f, 1f)
                         player.volume = target * (remaining.toFloat() / fade)
                     }
                 }
-                handler.postDelayed(this, 100L)
+                handler.postDelayed(this, if (active) 100L else 1_000L)
             }
         }
         handler.post(monitor)
@@ -339,6 +410,9 @@ class PlaybackService : MediaSessionService() {
     }
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        // 直通会话是独立线程 + 原始 fd：服务销毁时必须主动停，否则 DAC 会继续放下去。
+        runCatching { UsbUac2Stream.stop() }
+        passthroughUri = null
         PcWiredSpeakerServer.stop()
         if (::prefs.isInitialized) prefs.unregisterOnSharedPreferenceChangeListener(listener)
         if (::manager.isInitialized) { manager.unregisterAudioDeviceCallback(deviceCallback); clearMixer() }

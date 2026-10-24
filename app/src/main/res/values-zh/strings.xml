@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   中文（默认）字符串。
   约定：只放**界面文案**；日志标签、文件路径、URL、SharedPreferences 键、格式名不要放进来。
@@ -217,4 +217,53 @@
     <string name="library_pick_folder">选择音乐文件夹</string>
     <string name="scan_no_folder">还没有选择音乐文件夹 —— 请到设置里添加</string>
     <string name="scan_migrated">已把 %1$d 首歌的收藏 / 乐单 / 封面迁移到文件夹条目上</string>
+
+    <!-- 设置页「播放增强 / 连接与同步」等行：原来写死在 Kotlin 里，现搬进资源。 -->
+    <string name="settings_fade">淡入淡出</string>
+    <string name="settings_fade_on">切歌时 %1$dms 淡入</string>
+    <string name="settings_fade_off">关闭</string>
+    <string name="settings_normalize">音量标准化（ReplayGain）</string>
+    <string name="settings_eq_enabled_line">已启用 · %1$s dB</string>
+    <string name="settings_import_lrc">批量导入 LRC</string>
+    <string name="settings_import_lrc_sub">选择多个 .lrc，按文件名匹配曲库并离线保存</string>
+    <string name="settings_conn_sync">连接与同步</string>
+    <string name="settings_floating_lyrics">悬浮歌词</string>
+    <string name="settings_floating_lyrics_sub">在曲库页面显示当前歌词行，点击可打开播放页</string>
+    <string name="settings_pc_speaker">PC 有线音箱</string>
+    <string name="settings_pc_speaker_sub">手机作服务端监听 TCP 8899（44.1kHz/16bit/立体声 PCM）。电脑端先执行 adb forward tcp:8899 tcp:8899，再连 127.0.0.1:8899</string>
+    <string name="settings_sleep_timer">睡眠定时器</string>
+    <string name="settings_sleep_in">%1$d 分钟后暂停</string>
+    <string name="settings_sleep_none">未设置</string>
+    <string name="settings_netease_cookie">网易云授权 Cookie（可选）</string>
+    <string name="settings_netease_cookie_sub">粘贴 MUSIC_U / NMTID 等 Cookie；只保存在本机，用于需要登录的接口。</string>
+    <string name="settings_backup_export">导出云备份</string>
+    <string name="settings_backup_restore">恢复云备份</string>
+    <string name="settings_library">曲库</string>
+    <string name="settings_language">语言 / Language</string>
+    <string name="settings_language_current">当前 / Current</string>
+    <string name="settings_fade_ms">%1$d 毫秒</string>
+    <string name="settings_normalize_off">已关闭（不做音量平衡）</string>
+    <string name="settings_normalize_no_tag">本曲没有 ReplayGain 标签</string>
+    <string name="settings_normalize_gain">本曲 %1$s dB · 已应用</string>
+    <string name="settings_pc_speaker_listening">监听中 · 等待电脑连接 127.0.0.1:8899</string>
+    <string name="settings_pc_speaker_connected">电脑已连接 · 正在播放</string>
+    <string name="settings_pc_speaker_error">启动失败：%1$s</string>
+    <string name="settings_pc_speaker_starting">正在启动…</string>
+    <string name="settings_pc_speaker_idle">未启用</string>
+    <string name="settings_sleep_off">关闭</string>
+    <string name="settings_sleep_min">%1$d 分钟</string>
+    <string name="settings_scrape_stop">停止</string>
+    <string name="toast_lrc_imported">已导入 %1$d 个 LRC</string>
+    <string name="toast_lrc_unmatched">，%1$d 个没匹配上曲库</string>
+    <string name="toast_lrc_failed">，%1$d 个读取失败</string>
+    <string name="floating_lyrics_none">♪ %1$s · 暂无歌词</string>
+    <string name="lyrics_missing_hint_full">会依次尝试三种来源：
+· 刮削缓存（设置里开启「下载歌词」后联网获取，之后离线可用）
+· 与音频同目录、同名的 .lrc 文件
+· 音频文件里内嵌的歌词（ID3 USLT / Vorbis LYRICS）
+
+可以在设置里点「立即刮削」补全。点一下回到封面。</string>
+    <string name="player_idle_title">还没有开始播放</string>
+    <string name="player_idle_artist">从曲库选择一首音乐</string>
+    <string name="player_unknown_track">未知曲目</string>
 </resources>

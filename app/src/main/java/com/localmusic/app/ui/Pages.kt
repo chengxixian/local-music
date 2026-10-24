@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +50,8 @@ import com.localmusic.app.R
 import com.localmusic.app.PlaybackUi
 import com.localmusic.app.data.Playlist
 import com.localmusic.app.data.ScanStatus
-import com.liquidmiuix.glass.*import com.localmusic.app.data.Song
+import com.liquidmiuix.glass.*
+import com.localmusic.app.data.Song
 import com.localmusic.app.data.formatTime
 import com.liquidmiuix.theme.LiquidSpacing
 import com.liquidmiuix.ui.*
@@ -146,7 +148,7 @@ fun HomePage(
                             Text(song.title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${song.artist} · ${song.spec}", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        IconButton(onClick = { onPlay(song) }) { Icon(Icons.Rounded.PlayArrow, "播放") }
+                        IconButton(onClick = { onPlay(song) }) { Icon(Icons.Rounded.PlayArrow, stringResource(R.string.player_play)) }
                     }
                 }
             }
@@ -403,18 +405,52 @@ private fun Modifier.wheelCursor(active: Boolean, color: Color): Modifier = this
     }
     .then(if (active) Modifier.border(2.dp, color, RoundedCornerShape(18.dp)) else Modifier)
 
+// ── 设置页有哪几张卡（= LazyColumn 的 item 下标）─────────────────────────────
+// 只在这里定义一次：滚轮的**滚动定位**与卡片的**高亮**都从 SETTINGS_CARD_OF_WHEEL 推导。
+private const val SETTINGS_CARD_AUDIO = 0     // 音频输出：USB Bit-perfect / 均衡器 / 淡入淡出 / ReplayGain
+private const val SETTINGS_CARD_FOLDERS = 1   // 本地音乐文件夹 / ncm 自动转换 / 导出位置 / 批量导入 LRC
+private const val SETTINGS_CARD_SCRAPE = 3    // 自动刮削（第 2 张是「连接与同步」，滚轮不经过它）
+private const val SETTINGS_CARD_TINT = 4      // 滚轮玻璃颜色
+private const val SETTINGS_CARD_LIBRARY = 5   // 曲库：重新扫描
+
 /**
- * 滚轮动作下标 → 设置页里第几张卡（`wheelActions` 的顺序见 MainActivity）。
- * 只用来滚动定位，改动作顺序时这里有对应关系要一起看。
+ * 滚轮动作下标 → 设置页第几张卡。
+ *
+ * ⚠️ 这张表必须与 `MainActivity` 里 `wheelActions` 的**书写顺序**一致
+ * （`MainActivity.kt:606-643`，共 14 项，下标 0..13）：
+ *   0 USB Bit-perfect    1 均衡器            2 ncm 自动转换    3 导出位置
+ *   4 添加文件夹         5 自动刮削          6 下载封面        7 下载歌词
+ *   8 立即刮削           9 网易云音乐源      10 恢复原始封面   11 滚轮玻璃颜色
+ *   12 清除已刮削封面    13 重新扫描
+ *
+ * 以前这张表是错的：刮削那 6 项（5..9、12）写成了第 2 张卡、下标 13 完全缺失、
+ * 10/11 也错位 —— 于是"转到某一项，列表却滚到/高亮另一张卡"。
+ * 现在**滚动定位**（SettingsPage 里的 LaunchedEffect）和**卡片高亮**（wheelCursorFor）
+ * 都读这一份表，不会再各写一遍而走偏。
+ *
+ * 注意：下标 2 号卡「连接与同步」（悬浮歌词 / PC 音箱 / 睡眠定时器 / Cookie / 备份）
+ * 目前**没有任何滚轮动作**，所以它不高亮 —— 这是有意的，不是漏写。
  */
-private val SETTINGS_CARD_OF_WHEEL = mapOf(
-    0 to 0, 1 to 0,          // 音频输出卡：USB Bit-perfect / 均衡器
-    2 to 1, 3 to 1, 4 to 1,  // ncm 卡：自动转换 / 导出位置 / 添加文件夹
-    5 to 2, 6 to 2, 7 to 2, 8 to 2, 9 to 2, // 自动刮削卡：四项 + 恢复封面
-    12 to 2,                 // 自动刮削卡：清除刮削封面并重刮
-    10 to 3,                 // 滚轮玻璃颜色卡
-    11 to 4,                 // 曲库卡：重新扫描
+internal val SETTINGS_CARD_OF_WHEEL: Map<Int, Int> = mapOf(
+    0 to SETTINGS_CARD_AUDIO,
+    1 to SETTINGS_CARD_AUDIO,
+    2 to SETTINGS_CARD_FOLDERS,
+    3 to SETTINGS_CARD_FOLDERS,
+    4 to SETTINGS_CARD_FOLDERS,
+    5 to SETTINGS_CARD_SCRAPE,
+    6 to SETTINGS_CARD_SCRAPE,
+    7 to SETTINGS_CARD_SCRAPE,
+    8 to SETTINGS_CARD_SCRAPE,
+    9 to SETTINGS_CARD_SCRAPE,
+    10 to SETTINGS_CARD_SCRAPE,
+    11 to SETTINGS_CARD_TINT,
+    12 to SETTINGS_CARD_SCRAPE,
+    13 to SETTINGS_CARD_LIBRARY,
 )
+
+/** 卡片高亮：反查 [SETTINGS_CARD_OF_WHEEL]，避免每张卡各写一遍 `wheelIndex in …`。 */
+private fun Modifier.wheelCursorFor(card: Int, wheelIndex: Int, color: Color): Modifier =
+    wheelCursor(SETTINGS_CARD_OF_WHEEL[wheelIndex] == card, color)
 
 /**
  * App 内的点阵 "Lm" 标记（和图标同一套字形）。
@@ -470,6 +506,45 @@ internal val DOT_MARK_ROWS = listOf(
     "XXXXX.X.X.X",
 )
 
+/**
+ * 设置页列表的底部留白。
+ *
+ * 保持原来的 260dp —— 滚轮的尺寸与位置不要改（用户明确要求）。
+ * 若将来真的要调整，是改 `MainActivity` 里的滚轮调用点、再同步这里，而不是反过来。
+ */
+internal val SettingsListBottomInset: Dp = 260.dp
+
+/**
+ * 一组"选一个"的选项（淡入时长 / 睡眠定时器）。
+ *
+ * 为什么单独抽出来：这两项以前都是"整行点一下 → 在固定几档里循环"，用户看不到有哪些档位，
+ * 也不知道点几下会转回来 —— 等于控件没做完。现在点开就是一张明确的候选列表。
+ */
+@Composable
+private fun SettingChoices(
+    options: List<Pair<Long, String>>,
+    selectedValue: Long,
+    onPick: (Long) -> Unit,
+    accent: Color,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        options.forEach { (value, label) ->
+            val active = value == selectedValue
+            TextButton(onClick = { onPick(value) }) {
+                Text(
+                    label,
+                    style = MiuixTheme.textStyles.body2,
+                    color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
 @Composable
 fun SettingsPage(
@@ -517,6 +592,10 @@ fun SettingsPage(
     pcWiredSpeaker: Boolean = false,
     neteaseCookie: String = "",
     sleepTimerEnd: Long = 0L,
+    /** 当前曲目的 ReplayGain 增益（dB）。null = 这首歌没有标签 —— 用来让开关"看得见效果"。 */
+    normalizeGainDb: Float? = null,
+    /** PC 有线音箱的真实运行状态：idle / listening / connected / error:… */
+    pcSpeakerStatus: String = "idle",
     onFadeDuration: (Long) -> Unit = {},
     onNormalizeVolume: (Boolean) -> Unit = {},
     onFloatingLyrics: (Boolean) -> Unit = {},
@@ -526,21 +605,36 @@ fun SettingsPage(
     onImportLrc: () -> Unit = {},
     onBackupExport: () -> Unit = {},
     onBackupRestore: () -> Unit = {},
+    /** 刮削进行中时的「停止」—— 以前只能等它自己跑完。 */
+    onScrapeCancel: () -> Unit = {},
 ) {
     val scheme = MiuixTheme.colorScheme
-    val listState = rememberLazyListState()
+    // ⚠️ 这里以前又写了一次 `val listState = rememberLazyListState()`，把**参数**遮蔽了：
+    //    LazyColumn 用的是那个局部实例，MainActivity 提到 AppShell 顶层的 settingsListState
+    //    从未被用上 —— 于是"切走再回来"总回到顶部（滚动位置随页面一起被丢弃）。
+    //    现在直接用参数。
     // 滚轮转到哪一项，就把对应的卡片滚到可见位置（定位映射见 SETTINGS_CARD_OF_WHEEL）
     LaunchedEffect(wheelIndex) {
         SETTINGS_CARD_OF_WHEEL[wheelIndex]?.let { listState.animateScrollToItem(it) }
     }
+    // 「淡入淡出 / 睡眠定时器」以前都是**整行点一下在固定几档里循环**，用户既看不见有哪些选项、
+    // 也不知道点了几次会回到哪里 —— 控件等于没做完。现在点开一组明确的选项，选完自动收起。
+    var fadeExpanded by remember { mutableStateOf(false) }
+    var sleepExpanded by remember { mutableStateOf(false) }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = LiquidSpacing.page, end = LiquidSpacing.page, top = topPadding, bottom = 260.dp),
+        contentPadding = PaddingValues(
+            start = LiquidSpacing.page,
+            end = LiquidSpacing.page,
+            top = topPadding,
+            // 底部让出滚轮（见 SettingsListBottomInset）：原来 260dp 会让末尾卡片被滚轮永久盖住
+            bottom = SettingsListBottomInset,
+        ),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
         item {
-            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 0 || wheelIndex == 1, scheme.primary)) {
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_AUDIO, wheelIndex, scheme.primary)) {
                 Text(stringResource(R.string.settings_audio_output), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -557,20 +651,53 @@ fun SettingsPage(
                     subtitle = when {
                         !eq.available -> eq.message.ifBlank { stringResource(R.string.settings_eq_unavailable) }
                         eq.bypassed -> stringResource(R.string.settings_eq_bypassed)
-                        eq.enabled -> "已启用 · " + eq.bands.joinToString(" / ") { "${"%.0f".format(it.levelMb / 100f)}" } + " dB"
+                        eq.enabled -> stringResource(
+                            R.string.settings_eq_enabled_line,
+                            eq.bands.joinToString(" / ") { "${"%.0f".format(it.levelMb / 100f)}" },
+                        )
                         else -> stringResource(R.string.settings_eq_off)
                     },
                     leading = Icons.Rounded.GraphicEq,
                     onClick = onOpenEq,
                 )
                 LiquidListItem(
-                    title = "淡入淡出",
-                    subtitle = if (fadeDurationMs <= 0) "关闭" else "切歌时 ${fadeDurationMs}ms 淡入",
+                    title = stringResource(R.string.settings_fade),
+                    subtitle = if (fadeDurationMs <= 0) stringResource(R.string.settings_fade_off)
+                    else stringResource(R.string.settings_fade_on, fadeDurationMs),
                     leading = Icons.Rounded.Tune,
-                    onClick = { onFadeDuration(if (fadeDurationMs <= 0) 900L else 0L) },
+                    onClick = { fadeExpanded = !fadeExpanded },
                 )
+                if (fadeExpanded) {
+                    SettingChoices(
+                        options = listOf(
+                            0L to stringResource(R.string.settings_fade_off),
+                            300L to stringResource(R.string.settings_fade_ms, 300),
+                            600L to stringResource(R.string.settings_fade_ms, 600),
+                            900L to stringResource(R.string.settings_fade_ms, 900),
+                            1200L to stringResource(R.string.settings_fade_ms, 1200),
+                            1500L to stringResource(R.string.settings_fade_ms, 1500),
+                        ),
+                        selectedValue = fadeDurationMs,
+                        onPick = { onFadeDuration(it); fadeExpanded = false },
+                        accent = scheme.primary,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("音量标准化（ReplayGain）", style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_normalize), style = MiuixTheme.textStyles.body2)
+                        // 开关以前没有任何"看得见的效果"：读的是 MediaItem 里的 replayGainDb，
+                        // 而那个值一直是 null（SAF 曲库读不到标签）。现在把**当前曲目的增益**显示出来，
+                        // 有没有标签、值是多少、开没开，一眼可见。
+                        Text(
+                            when {
+                                !normalizeVolume -> stringResource(R.string.settings_normalize_off)
+                                normalizeGainDb == null -> stringResource(R.string.settings_normalize_no_tag)
+                                else -> stringResource(R.string.settings_normalize_gain, String.format(java.util.Locale.ROOT, "%.1f", normalizeGainDb))
+                            },
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = scheme.onSurfaceVariantSummary,
+                        )
+                    }
                     Switch(checked = normalizeVolume, onCheckedChange = onNormalizeVolume, enabled = !bitPerfect)
                 }
             }
@@ -579,7 +706,7 @@ fun SettingsPage(
             // 这张卡从"网易云 ncm 导入"升级成「本地音乐文件夹」的主入口：
             // 曲库现在**只扫这里添加的文件夹**，所以把"添加 / 管理文件夹"提到最前面，
             // ncm 自动转换与导出位置随后。（卡片数量不变 —— 滚轮映射按下标认卡。）
-            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 2..4, scheme.primary)) {
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_FOLDERS, wheelIndex, scheme.primary)) {
                 Text(stringResource(R.string.settings_local_folders), style = MiuixTheme.textStyles.title4)
                 Text(stringResource(R.string.set_local_folders_note),
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
@@ -615,47 +742,77 @@ fun SettingsPage(
                     showDivider = true,
                 )
                 LiquidListItem(
-                    title = "批量导入 LRC",
-                    subtitle = "选择多个 .lrc，按文件名匹配曲库并离线保存",
+                    title = stringResource(R.string.settings_import_lrc),
+                    subtitle = stringResource(R.string.settings_import_lrc_sub),
                     leading = Icons.Rounded.QueueMusic,
                     onClick = onImportLrc,
                 )
             }
         }
         item {
+            // 这张卡（下标 2「连接与同步」）没有任何滚轮动作 —— 见 SETTINGS_CARD_OF_WHEEL 的说明，
+            // 所以它不高亮，也就没有 wheelCursorFor。
             LiquidCard {
-                Text("连接与同步", style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_conn_sync), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("悬浮歌词", style = MiuixTheme.textStyles.title4)
-                        Text("在曲库页面显示当前歌词行，点击可打开播放页", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Text(stringResource(R.string.settings_floating_lyrics), style = MiuixTheme.textStyles.title4)
+                        Text(stringResource(R.string.settings_floating_lyrics_sub), style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = floatingLyrics, onCheckedChange = onFloatingLyrics)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("PC 有线音箱", style = MiuixTheme.textStyles.title4)
-                        Text("监听 TCP 8899，接收 44.1kHz/16bit/立体声 PCM", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                        Text(stringResource(R.string.settings_pc_speaker), style = MiuixTheme.textStyles.title4)
+                        // 端口方向：App 是**服务端**（在手机上 listen 8899），所以电脑端要 `adb forward`
+                        // 把 host:8899 转到 device:8899。以前这里（和文档）写的是 `adb reverse`，
+                        // 那会让 adbd 先占住手机 8899，App 自己 bind 必然 EADDRINUSE。
+                        Text(stringResource(R.string.settings_pc_speaker_sub), style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                     }
                     Switch(checked = pcWiredSpeaker, onCheckedChange = onPcWiredSpeaker)
                 }
-                LiquidListItem(
-                    title = "睡眠定时器",
-                    subtitle = if (sleepTimerEnd > System.currentTimeMillis()) "${((sleepTimerEnd - System.currentTimeMillis()) / 60_000L).coerceAtLeast(1)} 分钟后暂停" else "未设置",
-                    leading = Icons.Rounded.Bedtime,
-                    onClick = {
-                        val now = System.currentTimeMillis()
-                        val left = sleepTimerEnd - now
-                        onSleepTimer(when {
-                            left <= 0L -> now + 30 * 60_000L
-                            left <= 45 * 60_000L -> now + 60 * 60_000L
-                            left <= 75 * 60_000L -> now + 90 * 60_000L
-                            else -> 0L
-                        })
+                // PC 音箱的真实状态（独立一行，不再和"音频输出"共用一条横幅）
+                Text(
+                    when {
+                        pcSpeakerStatus == "listening" -> stringResource(R.string.settings_pc_speaker_listening)
+                        pcSpeakerStatus == "connected" -> stringResource(R.string.settings_pc_speaker_connected)
+                        pcSpeakerStatus.startsWith("error:") ->
+                            stringResource(R.string.settings_pc_speaker_error, pcSpeakerStatus.removePrefix("error:"))
+                        pcWiredSpeaker -> stringResource(R.string.settings_pc_speaker_starting)
+                        else -> stringResource(R.string.settings_pc_speaker_idle)
                     },
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = if (pcSpeakerStatus.startsWith("error:")) scheme.error else scheme.onSurfaceVariantSummary,
                 )
-                Text("网易云授权 Cookie（可选）", style = MiuixTheme.textStyles.title4)
-                Text("粘贴 MUSIC_U / NMTID 等 Cookie；只保存在本机，用于需要登录的接口。", style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
+                LiquidListItem(
+                    title = stringResource(R.string.settings_sleep_timer),
+                    subtitle = if (sleepTimerEnd > System.currentTimeMillis())
+                        stringResource(R.string.settings_sleep_in, ((sleepTimerEnd - System.currentTimeMillis()) / 60_000L).coerceAtLeast(1))
+                    else stringResource(R.string.settings_sleep_none),
+                    leading = Icons.Rounded.Bedtime,
+                    onClick = { sleepExpanded = !sleepExpanded },
+                )
+                if (sleepExpanded) {
+                    val now = System.currentTimeMillis()
+                    val selectedMinutes = if (sleepTimerEnd > now) ((sleepTimerEnd - now + 59_999L) / 60_000L) else 0L
+                    SettingChoices(
+                        options = listOf(
+                            0L to stringResource(R.string.settings_sleep_off),
+                            15L to stringResource(R.string.settings_sleep_min, 15),
+                            30L to stringResource(R.string.settings_sleep_min, 30),
+                            60L to stringResource(R.string.settings_sleep_min, 60),
+                            90L to stringResource(R.string.settings_sleep_min, 90),
+                        ),
+                        selectedValue = selectedMinutes,
+                        onPick = { minutes ->
+                            onSleepTimer(if (minutes <= 0L) 0L else System.currentTimeMillis() + minutes * 60_000L)
+                            sleepExpanded = false
+                        },
+                        accent = scheme.primary,
+                    )
+                }
+                Text(stringResource(R.string.settings_netease_cookie), style = MiuixTheme.textStyles.title4)
+                Text(stringResource(R.string.settings_netease_cookie_sub), style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
                 BasicTextField(
                     value = neteaseCookie,
                     onValueChange = onNeteaseCookie,
@@ -664,13 +821,13 @@ fun SettingsPage(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onBackupExport) { Text("导出云备份") }
-                    TextButton(onClick = onBackupRestore) { Text("恢复云备份") }
+                    TextButton(onClick = onBackupExport) { Text(stringResource(R.string.settings_backup_export)) }
+                    TextButton(onClick = onBackupRestore) { Text(stringResource(R.string.settings_backup_restore)) }
                 }
             }
         }
         item {
-            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex in 5..9, scheme.primary)) {
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_SCRAPE, wheelIndex, scheme.primary)) {
                 Text(stringResource(R.string.settings_scrape), style = MiuixTheme.textStyles.title4)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -698,7 +855,12 @@ fun SettingsPage(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(scrapeStatus.message, style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onScrapeNow, enabled = !scrapeStatus.running) { Text(if (scrapeStatus.running) stringResource(R.string.settings_scraping) else stringResource(R.string.settings_scrape_now)) }
+                    if (scrapeStatus.running) {
+                        // 刮削可能几十秒到几分钟；以前只能干等，没有停止入口。
+                        TextButton(onClick = onScrapeCancel) { Text(stringResource(R.string.settings_scrape_stop)) }
+                    } else {
+                        TextButton(onClick = onScrapeNow) { Text(stringResource(R.string.settings_scrape_now)) }
+                    }
                 }
                 // 之前刮削把歌曲自带的封面盖掉过？这里一键把原封面放回来（用户自己设的封面不动）
                 LiquidListItem(
@@ -719,7 +881,13 @@ fun SettingsPage(
             }
         }
         item {
-            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 10, scheme.primary)) {
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_TINT, wheelIndex, scheme.primary)) {
+                // 拖动中的**本地预览值**：松手（onValueChangeFinished）才 onGlassTint 落盘。
+                // 原来每个 onValueChange 都调 onGlassTint → MainActivity 每帧写 4 个 pref
+                // （SharedPreferences.apply()），整个设置页也跟着重组 —— 拖一下滑杆等于写几百次盘。
+                // 现在手指移动只改这个局部状态（滑杆与下方色块照样实时跟随），松手写一次。
+                var tintDrag by remember { mutableStateOf<WheelTintState?>(null) }
+                val shown = tintDrag ?: tintState
                 Text(stringResource(R.string.settings_wheel_tint), style = MiuixTheme.textStyles.title4)
                 Text(stringResource(R.string.set_tint_note),
                     style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary)
@@ -734,58 +902,61 @@ fun SettingsPage(
                                 Modifier.size(30.dp).clip(CircleShape)
                                     .background(tint.color)
                                     .border(
-                                        width = if (index == tintState.index) 3.dp else 1.dp,
-                                        color = if (index == tintState.index) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
+                                        width = if (index == shown.index) 3.dp else 1.dp,
+                                        color = if (index == shown.index) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
                                         shape = CircleShape,
                                     )
                                     .clickable { onGlassTint(tintState.copy(index = index)) }
                             )
                             Spacer(Modifier.height(4.dp))
                             Text(stringResource(tint.nameRes), style = MiuixTheme.textStyles.footnote1,
-                                color = if (index == tintState.index) scheme.primary else scheme.onSurfaceVariantSummary)
+                                color = if (index == shown.index) scheme.primary else scheme.onSurfaceVariantSummary)
                         }
                     }
                 }
-                // 调色盘：色相 / 饱和度 / 透光率。拖动任意一个即进入"自定义"，实时生效
+                // 调色盘：色相 / 饱和度 / 透光率。拖动任意一个即进入"自定义"，松手才落盘
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.settings_hue), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    Text("${tintState.hue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                    Text("${shown.hue.toInt()}°", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(
-                    value = tintState.hue,
-                    onValueChange = { onGlassTint(tintState.copy(index = -1, hue = it)) },
+                    value = shown.hue,
+                    onValueChange = { tintDrag = (tintDrag ?: tintState).copy(index = -1, hue = it) },
+                    onValueChangeFinished = { tintDrag?.let(onGlassTint); tintDrag = null },
                     valueRange = 0f..360f,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.settings_saturation), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    Text("${(tintState.sat * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                    Text("${(shown.sat * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(
-                    value = tintState.sat,
-                    onValueChange = { onGlassTint(tintState.copy(index = -1, sat = it)) },
+                    value = shown.sat,
+                    onValueChange = { tintDrag = (tintDrag ?: tintState).copy(index = -1, sat = it) },
+                    onValueChangeFinished = { tintDrag?.let(onGlassTint); tintDrag = null },
                     valueRange = 0f..1f,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.settings_transmission), style = MiuixTheme.textStyles.body2, modifier = Modifier.weight(1f))
-                    Text("${(tintState.level * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
+                    Text("${(shown.level * 100).toInt()}%", style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary)
                 }
                 Slider(
-                    value = tintState.level,
-                    onValueChange = { onGlassTint(tintState.copy(index = -1, level = it)) },
+                    value = shown.level,
+                    onValueChange = { tintDrag = (tintDrag ?: tintState).copy(index = -1, level = it) },
+                    onValueChangeFinished = { tintDrag?.let(onGlassTint); tintDrag = null },
                     valueRange = 0.15f..1f,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline)) {
-                    Box(Modifier.size(28.dp).clip(CircleShape).background(tintState.color))
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(shown.color))
                     Text(
-                        stringResource(R.string.set_tint_current, stringResource(tintState.labelRes)) + if (tintState.index < 0) stringResource(R.string.set_tint_detail, tintState.hue.toInt(), (tintState.sat * 100).toInt(), (tintState.level * 100).toInt()) else "",
+                        stringResource(R.string.set_tint_current, stringResource(shown.labelRes)) + if (shown.index < 0) stringResource(R.string.set_tint_detail, shown.hue.toInt(), (shown.sat * 100).toInt(), (shown.level * 100).toInt()) else "",
                         style = MiuixTheme.textStyles.footnote1, color = scheme.onSurfaceVariantSummary,
                     )
                 }
             }
         }
         item {
-            LiquidCard(modifier = Modifier.wheelCursor(wheelIndex == 11, scheme.primary)) {
-                Text("曲库", style = MiuixTheme.textStyles.title4)
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_LIBRARY, wheelIndex, scheme.primary)) {
+                Text(stringResource(R.string.settings_library), style = MiuixTheme.textStyles.title4)
                 LiquidListItem(title = stringResource(R.string.settings_rescan), subtitle = status.message, leading = Icons.Rounded.Refresh, onClick = onScan)
                 if (status.running) {
                     Row(horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline), verticalAlignment = Alignment.CenterVertically) {
@@ -811,7 +982,7 @@ fun SettingsPage(
                 // 点一下在 跟随系统 -> English -> 简体中文 之间循环。
                 val langCtx = LocalContext.current
                 LiquidListItem(
-                    title = "语言 / Language",
+                    title = stringResource(R.string.settings_language),
                     subtitle = com.localmusic.app.data.LanguagePref.label(langCtx) + stringResource(R.string.settings_lang_tap),
                     leading = Icons.Rounded.Settings,
                     onClick = onOpenLanguage,
@@ -1320,12 +1491,12 @@ fun LanguageDialog(
         contentAlignment = Alignment.Center,
     ) {
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.84f)) {
-            Text("语言 / Language", style = MiuixTheme.textStyles.title4)
+            Text(stringResource(R.string.settings_language), style = MiuixTheme.textStyles.title4)
             Spacer(Modifier.height(8.dp))
             com.localmusic.app.data.LanguagePref.options.forEach { (tag, label) ->
                 LiquidListItem(
                     title = label,
-                    subtitle = if (tag == currentTag) "当前 / Current" else null,
+                    subtitle = if (tag == currentTag) stringResource(R.string.settings_language_current) else null,
                     leading = if (tag == currentTag) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     onClick = { onPick(tag) },
                 )

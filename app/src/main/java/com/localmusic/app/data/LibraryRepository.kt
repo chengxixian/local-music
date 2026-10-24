@@ -76,10 +76,20 @@ class LibraryRepository(private val context: Context) {
             val cached = db.all().associateBy { it.uri }
             val found = mutableListOf<Song>()
             val complete = mutableSetOf<String>()
+            // ── ReplayGain 一次性回填 ────────────────────────────────────────────────
+            // 旧版本只走 jaudiotagger，而曲库全是 SAF `content://` 条目（没有物理文件），
+            // 于是 450 首歌的 replayGainDb 全是 NULL。现在补了「直接读容器头」的实现，
+            // 但 `enrich` 的缓存判据是 (modified,size) —— 文件没变就永远复用旧行，
+            // 新解析永远跑不到。所以升级后第一次扫描强制重解析一遍（只读头部，代价很小），
+            // 完成后置位，之后恢复正常的增量行为。
+            val rgBackfillKey = "replayGainBackfillV1"
+            val rgBackfillDone = prefs.getBoolean(rgBackfillKey, false)
+            fun rgCapable(format: String) = format.lowercase(Locale.ROOT) in setOf("flac", "mp3", "mp2")
             fun enrich(base: Song, file: File? = null): Song {
                 val old = cached[base.uri]
-                return if (old != null && old.modified == base.modified && old.size == base.size && base.modified > 0) old
-                    else MetadataReader.read(context, base, file)
+                val unchanged = old != null && old.modified == base.modified && old.size == base.size && base.modified > 0
+                val needsRgBackfill = !rgBackfillDone && rgCapable(base.format) && (old?.replayGainDb == null)
+                return if (unchanged && !needsRgBackfill) old!! else MetadataReader.read(context, base, file)
             }
 
             // ── 只扫用户手动选定的文件夹（SAF 授权目录）──
@@ -171,6 +181,7 @@ class LibraryRepository(private val context: Context) {
             }
 
             db.merge(found.distinctBy { it.uri }, complete)
+            if (!rgBackfillDone) prefs.edit().putBoolean(rgBackfillKey, true).apply()
             _songs.value = db.all()
             val done = if (treeUris().isEmpty()) context.getString(R.string.scan_no_folder)
                 else "扫描完成 · ${_songs.value.size} 首歌曲"

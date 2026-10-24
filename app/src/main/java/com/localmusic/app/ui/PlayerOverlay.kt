@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
 import androidx.compose.animation.core.Animatable
@@ -133,7 +133,10 @@ fun FloatingLyricsOverlay(
         lyrics = withContext(Dispatchers.IO) { LyricsRepository.load(context.applicationContext, song) }
     }
     val current = lyrics?.let { LyricsRepository.currentIndex(it, position) } ?: -1
-    val text = lyrics?.lines?.getOrNull(current)?.text?.takeIf { it.isNotBlank() } ?: return
+    // 没有歌词 / 当前行恰好是空行时，以前直接 return —— 开关明明打开了却什么都不出现，
+    // 用户会以为"这个开关没用"。现在退回显示「♪ 歌名」，至少能看到开关真的生效了。
+    val text = lyrics?.lines?.getOrNull(current)?.text?.takeIf { it.isNotBlank() }
+        ?: androidx.compose.ui.res.stringResource(com.localmusic.app.R.string.floating_lyrics_none, song.title)
     GlassPanel(
         backdrop = backdrop,
         shape = RoundedCornerShape(22.dp),
@@ -270,7 +273,7 @@ fun PlayerPage(
                 },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, "返回", onClose)
+                GlassIconButton(backdrop, Icons.Rounded.ArrowBack, stringResource(R.string.player_close), onClose)
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(
                     backdrop,
@@ -281,7 +284,8 @@ fun PlayerPage(
                 Spacer(Modifier.width(LiquidSpacing.inline))
                 GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, stringResource(R.string.player_pick_cover), onChangeCover)
                 Spacer(Modifier.width(LiquidSpacing.inline))
-                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, "均衡器", onOpenEq)
+                // 这两个按钮的无障碍文案以前写死中文：英文/日文/俄文用户听到的是中文。
+                GlassIconButton(backdrop, Icons.Rounded.GraphicEq, stringResource(R.string.settings_equalizer), onOpenEq)
             }
 
             Spacer(Modifier.height(LiquidSpacing.item))
@@ -500,10 +504,12 @@ private fun LyricsPane(lyrics: LyricsRepository.Lyrics?, loaded: Boolean, positi
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("没有找到歌词", style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
+            // 早先这句写死了中文、而且把来源说少了（只提 .lrc 和内嵌）——
+            // 实际上**刮削缓存**才是第一优先级，用户看到这句会以为不支持在线歌词。
+            Text(stringResource(R.string.lyrics_missing_short), style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
             Spacer(Modifier.height(LiquidSpacing.inline))
             Text(
-                "支持两种来源：\n· 与音频同目录、同名的 .lrc 文件\n· 音频文件里内嵌的歌词（ID3 USLT / Vorbis LYRICS）\n\n点一下可以回到封面",
+                stringResource(R.string.lyrics_missing_hint_full),
                 style = MiuixTheme.textStyles.body2,
                 color = scheme.onSurfaceVariantSummary,
                 textAlign = TextAlign.Center,

@@ -5,28 +5,69 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 歌词：优先**同目录同名 .lrc**，其次是音频文件里内嵌的歌词（ID3 USLT / Vorbis LYRICS）。
+ * 歌词来源，按优先级：
+ *  0. 刮削缓存（[LyricCache]）
+ *  1. 同目录同名 `.lrc`（文件路径或 SAF 兄弟文档）
+ *  2. 音频文件里内嵌的歌词（ID3 USLT / Vorbis LYRICS）
+ *  3. **一次性联网兜底**（网易云 → LRCLIB），每个 uri 进程内只试一次
  *
- * 为什么不做在线歌词：这是本地播放器，在线歌词要联网、要第三方接口、还涉及授权；
- * 用户自己的 .lrc 与内嵌歌词才是"本地"该有的来源。找不到就如实说找不到。
+ * 为什么要第 3 条：以前这里只做 0~2，`load()` 里没有任何联网分支 ——
+ * 还没被批量刮削扫到的歌，打开播放页永远显示「没有找到歌词」；
+ * 而设置页那个"立即刮削"是唯一入口（关掉自动刮削就彻底没歌词了）。
+ * 现在只在本地全都没有时才联网，且同一首只问一次（失败也记账），不会反复重连。
  */
 object LyricsRepository {
     data class Line(val timeMs: Long, val text: String)
     data class Lyrics(val lines: List<Line>, val source: String, val timed: Boolean)
+
+    /** LRC 时间标签：`[mm:ss]` / `[mm:ss.xx]` / `[mm:ss:xx]`，分钟最多 3 位。 */
+    internal const val LRC_TIME = "\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?]"
+
+    /**
+     * 元数据行（不是歌词）。以前这些行没有 `mm:ss` 时间标签，正好落到"没有标签就当纯文本"
+     * 那条分支里，于是 `[ti:晴天]` `[ar:周杰伦]` `[by:xxx]` 会被当成歌词显示在播放页最上面。
+     */
+    private val metaLine = Regex(
+        "^\\[(ti|ar|al|au|by|re|ve|offset|length|tool|kana|language|lyricist|composer)\\s*:[^]]*]$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val offsetTag = Regex("\\[offset\\s*:\\s*([+-]?\\d+)]", RegexOption.IGNORE_CASE)
+    private val timeTag = Regex(LRC_TIME)
+
+    /** 把时间标签换算成毫秒（1 位=百毫秒、2 位=十毫秒、3 位=毫秒）。 */
+    internal fun tagMs(m: MatchResult): Long {
+        val min = m.groupValues[1].toLongOrNull() ?: 0
+        val sec = m.groupValues[2].toLongOrNull() ?: 0
+        val frac = m.groupValues[3]
+        val ms = when (frac.length) {
+            0 -> 0L
+            1 -> (frac.toLongOrNull() ?: 0) * 100
+            2 -> (frac.toLongOrNull() ?: 0) * 10
+            else -> frac.take(3).toLongOrNull() ?: 0
+        }
+        return min * 60_000 + sec * 1_000 + ms
+    }
+
+    /** 已经为哪些 uri 试过联网兜底（成功失败都算）—— 进程内只试一次。 */
+    private val onlineTried = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun load(context: Context, song: Song): Lyrics? = withContext(Dispatchers.IO) {
         // 0) 自动刮削缓存的歌词（最优先：用户点了"已刮到"就该显示它）
         LyricCache.read(context, song.uri)?.let { text -> parse(text, "在线刮削")?.let { l -> return@withContext l } }
         val resolved = resolve(context, song)
         // 1) 同目录同名 .lrc（文件路径或 SAF 兄弟文档）
-        runCatching { resolved?.lrcFile?.takeIf { it.isFile && it.canRead() }?.readText(Charsets.UTF_8) }
+        runCatching { resolved?.lrcFile?.takeIf { it.isFile && it.canRead() }?.let { LrcText.decodeFile(it) } }
             .getOrNull()?.let { text -> parse(text, "同名 .lrc")?.let { l -> return@withContext l } }
         runCatching { readSiblingLrc(context, song) }.getOrNull()
             ?.let { text -> parse(text, "同名 .lrc")?.let { l -> return@withContext l } }
@@ -39,7 +80,31 @@ object LyricsRepository {
                 embedded?.let { parse(it, "内嵌歌词") }
             }.getOrNull()?.let { return@withContext it }
         }
-        null
+        // 3) 本地全都没有 → 有界的一次性联网兜底
+        fetchOnce(context, song)
+    }
+
+    /**
+     * 一次性联网兜底：同一 uri 在一个进程里只请求一次。
+     *
+     * 成败都记账（"不能因为一次失败就每次重新请求"），但**协程被取消**（切歌/离开播放页）
+     * 不算试过 —— 否则用户点一下就走会把这首歌的兜底机会白白用掉。
+     * 成功后写入 [LyricCache]，下次打开就是纯本地/离线路径。
+     */
+    private suspend fun fetchOnce(context: Context, song: Song): Lyrics? {
+        if (!onlineTried.add(song.uri)) return null
+        val text = try {
+            Scraper.fetchLyricsFor(song)
+        } catch (e: CancellationException) {
+            onlineTried.remove(song.uri)
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+        currentCoroutineContext().ensureActive()
+        if (text.isNullOrBlank()) return null
+        runCatching { LyricCache.write(context, song.uri, text) }
+        return parse(text, "在线刮削")
     }
 
     private data class Resolved(val audioFile: File?, val lrcFile: File?)
@@ -86,35 +151,38 @@ object LyricsRepository {
             while (c.moveToNext()) if (c.getString(1) == wanted) { found = c.getString(0); break }
             found
         } ?: return null
+        // 统一走 LrcText：GBK / UTF-16 的 .lrc 以前在这里被当成 UTF-8 直接读成乱码
         return context.contentResolver.openInputStream(DocumentsContract.buildDocumentUriUsingTree(tree, lrcDocId))
-            ?.use { it.readBytes().toString(Charsets.UTF_8) }
+            ?.use { LrcText.decode(it.readBytes()) }
     }
 
-    /** 解析 LRC；没有时间戳就当纯文本逐行显示。 */
+    /**
+     * 解析 LRC；没有时间戳就当纯文本逐行显示。
+     *
+     * 修了三个坑：
+     *  1. `[ti:] [ar:] [al:] [by:] [offset:]` 这些元数据行以前被当成歌词显示；
+     *  2. 正文用 `substringAfterLast(']')` 取 —— 正文里只要有 `]`（`把你[捧在手心]`）
+     *     前半段就被截掉；现在取"最后一个时间标签之后"；
+     *  3. `[offset:±N]` 完全没实现（网易云/绝大多数导出工具都带这一行）。
+     */
     fun parse(raw: String, source: String): Lyrics? {
         val text = raw.removePrefix("\uFEFF")
-        val timeTag = Regex("\\[(\\d{1,3}):(\\d{1,2})(?:[.:](\\d{1,3}))?]")
+        // LRC 规范：offset 正值表示歌词**提前**显示，所以有效时间 = 标签时间 - offset
+        val offsetMs = offsetTag.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         val lines = mutableListOf<Line>()
         var timed = false
         text.lineSequence().forEach { rawLine ->
-            val matches = timeTag.findAll(rawLine).toList()
-            val content = rawLine.substringAfterLast(']').trim()
+            val line = rawLine.trim()
+            if (line.isEmpty()) return@forEach
+            if (metaLine.matches(line)) return@forEach
+            val matches = timeTag.findAll(line).toList()
+            val content = if (matches.isEmpty()) line else line.substring(matches.last().range.last + 1).trim()
             if (matches.isEmpty()) {
                 if (content.isNotEmpty()) lines += Line(-1, content)
             } else {
                 timed = true
-                matches.forEach { m ->
-                    val min = m.groupValues[1].toLongOrNull() ?: 0
-                    val sec = m.groupValues[2].toLongOrNull() ?: 0
-                    val fracRaw = m.groupValues[3]
-                    val ms = when (fracRaw.length) {
-                        0 -> 0L
-                        1 -> fracRaw.toLong() * 100
-                        2 -> fracRaw.toLong() * 10
-                        else -> fracRaw.take(3).toLong()
-                    }
-                    lines += Line(min * 60_000 + sec * 1000 + ms, content)
-                }
+                // 一行多个时间标签（`[00:12.34][00:15.00]text`）→ 每个标签生成一行
+                matches.forEach { m -> lines += Line((tagMs(m) - offsetMs).coerceAtLeast(0), content) }
             }
         }
         if (lines.isEmpty()) return null
@@ -130,4 +198,33 @@ object LyricsRepository {
         }
         return index
     }
+}
+
+/**
+ * `.lrc` 文本解码。
+ *
+ * 以前所有读取路径都写死 `Charsets.UTF_8`：GBK 的 .lrc（简体中文歌词最常见的编码）
+ * 会整篇变成替换字符，UTF-16 的（Windows 记事本"另存为 Unicode"）连 `[mm:ss]` 时间标签
+ * 都解析不出来 —— 于是"明明放了个 lrc 文件却没歌词"。
+ * 规则：BOM 优先 → UTF-8 → 出现 `\uFFFD` 就按 GB18030 重解一次。
+ */
+object LrcText {
+    fun decode(bytes: ByteArray): String {
+        if (bytes.isEmpty()) return ""
+        if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() && bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) {
+            return String(bytes, 3, bytes.size - 3, Charsets.UTF_8)
+        }
+        if (bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte()) {
+            return String(bytes, 2, bytes.size - 2, charset("UTF-16LE"))
+        }
+        if (bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte()) {
+            return String(bytes, 2, bytes.size - 2, charset("UTF-16BE"))
+        }
+        val utf8 = String(bytes, Charsets.UTF_8)
+        if ('\uFFFD' !in utf8) return utf8
+        // UTF-8 解出替换字符 → 几乎一定是 GBK/GB18030（简体中文 LRC 的常见编码）
+        return runCatching { String(bytes, charset("GB18030")) }.getOrDefault(utf8)
+    }
+
+    fun decodeFile(file: File): String = decode(file.readBytes())
 }

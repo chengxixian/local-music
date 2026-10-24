@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.audio.playback
 
 import android.content.Context
@@ -64,6 +64,21 @@ object UsbUac2Stream {
      */
     @Volatile
     private var sessionActive = false
+
+    /**
+     * 直通是否**真的**在出声（从占用接口到释放完毕）。
+     *
+     * 播放服务用它决定"要不要把 ExoPlayer 静音"：
+     * 以前是 `bitPerfect` 打开就无条件 `volume = 0`，于是没有 DAC / 采样率不支持 / 没权限时，
+     * 唯一能出声的那条路被自己静音了 —— 用户看到进度条在走，却一点声音都没有。
+     * 现在只有这条原生通道确认在跑，才允许静音系统输出。
+     */
+    val isStreaming: Boolean get() = sessionActive
+
+    /** 最近一次直通失败/结束的原因（界面与日志用；空串表示没有失败）。 */
+    @Volatile
+    var lastResult: String = ""
+        private set
 
     /**
      * 会话编号与**当前所有者**。
@@ -240,15 +255,16 @@ object UsbUac2Stream {
      */
     fun playFile(
         context: Context,
-        /** 指定要直通播放的文件；为空则按"优先 DAC 支持的采样率"从 dirs 里挑。 */
-        path: String? = null,
-        dirs: List<String> = listOf(
-            "/storage/emulated/0/Download/lmflac",
-            "/storage/emulated/0/Music",
-            "/storage/emulated/0/Download/netease/cloudmusic/Music",
-        ),
+        /**
+         * 要直通播放的文件（可以是 `content://`，内部会缓存成可寻址临时文件）。
+         *
+         * **必须指定**：以前允许为 null，此时会去 `/sdcard/Download/lmflac` 等三个目录里
+         * 按体积挑一个最大的文件直接播 —— 也就是"打开直通开关就开始播一首用户没点过的歌"。
+         * 这不是播放器该有的行为，已删除。
+         */
+        path: String,
     ) {
-        fun emit(s: String) { Log.i(TAG, s) }
+        fun emit(s: String) { Log.i(TAG, s); lastResult = s }
         val resolvedPath = resolveSourcePath(context, path)
         // ⚠️ 同一时刻只允许一条直通。
         // 用户在播放中点了另一首歌（或反复拨开关）时，上一条直通仍在跑 —— 两条流会去抢
@@ -258,7 +274,6 @@ object UsbUac2Stream {
         // 真正的"等它退出"放在下面**已经开始占用接口之前**，并且只在关键区间置标志，
         // 以免中途的提前返回把标志永久留下（那样后续每次点歌都要白等 5 秒）。
         stop()
-        val exts = listOf(".flac", ".mp3", ".m4a", ".wav", ".ogg", ".opus", ".dsf", ".dff")
         val um0 = context.getSystemService(Context.USB_SERVICE) as? UsbManager
         val dev0 = um0?.deviceList?.values?.firstOrNull { isAudio(it) }
         // 这台 DAC **真正支持哪些采样率**，由系统报告。
@@ -276,33 +291,15 @@ object UsbUac2Stream {
             ?.toSet() ?: emptySet()
         emit("流：DAC 支持的采样率=" + supported.sorted())
 
-        val candidates = dirs.asSequence().map { java.io.File(it) }.filter { it.isDirectory }
-            .flatMap { d -> (d.listFiles() ?: emptyArray()).asSequence() }
-            .filter { f -> f.isFile && f.length() > 3_000_000L && exts.any { e -> f.name.lowercase().endsWith(e) } }
-            .sortedByDescending { it.length() }
-            .toList()
+        val candidates = emptyList<java.io.File>()
 
-        // 指定了 path 就直接用它（接进曲库后就是"用户点的那首歌"）；
-        // 否则按"优先 DAC 支持的采样率"从目录里挑一个。
+        // 只播调用方指定的那一首（见 path 的说明）。
         val chosen: java.io.File
         val fileRate: Int
-        if (resolvedPath != null) {
-            val f = java.io.File(resolvedPath)
+        run {
+            val f = java.io.File(resolvedPath ?: "")
             val r = if (f.isFile) UsbPcmDecoder.probe(f.absolutePath)?.first ?: 0 else 0
             if (!f.isFile || r <= 0) return emit("流：指定文件不可用（$path）")
-            chosen = f
-            fileRate = r
-        } else {
-            var f: java.io.File? = null
-            var r = 0
-            for (c in candidates) {
-                val p = UsbPcmDecoder.probe(c.absolutePath) ?: continue
-                if (f == null) { f = c; r = p.first }                     // 兜底：第一个能读的
-                if (supported.isEmpty() || p.first in supported) {         // 优先：DAC 支持的采样率
-                    f = c; r = p.first; break
-                }
-            }
-            if (f == null) return emit("流：没找到可播放的音频文件（搜索：$dirs）")
             chosen = f
             fileRate = r
         }

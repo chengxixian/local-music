@@ -26,6 +26,18 @@ object Dsd {
     /** 输出 PCM 采样率固定 176.4kHz（DSD 的 44.1k 家族整数倍，避免额外重采样）。 */
     const val PCM_RATE = 176_400
 
+    /**
+     * 流式转换每次处理的输入上限（**每声道**的 DSD 字节数）—— 峰值内存的唯一来源。
+     * 旧实现按整轨分配，见 [convertToWav] 注释里的内存账。
+     */
+    private const val CHUNK_BYTES_PER_CHANNEL = 512 * 1024
+
+    /** WAV(24bit PCM) 头长度：44 字节。流式写完后要 seek 回 0 回填。 */
+    private const val WAV_HEADER_BYTES = 44
+
+    /** DSD 源副本 / 转码结果的缓存目录（[copyToLocal]、[cacheFile]、失败清理共用）。 */
+    private const val CACHE_DIR = "dsd-cache"
+
     data class Info(
         val sampleRate: Int,      // DSD 位率：DSD64=2822400 / DSD128=5644800 / DSD256=11289600
         val channels: Int,
@@ -82,7 +94,7 @@ object Dsd {
 
     /** 把 DSD 源落一份到应用私有目录（解码要按字节随机访问，SAF 流做不到）。 */
     fun copyToLocal(context: android.content.Context, uri: android.net.Uri, name: String = "source.dsf"): File? = try {
-        val dir = File(context.filesDir, "dsd-cache").apply { mkdirs() }
+        val dir = File(context.filesDir, CACHE_DIR).apply { mkdirs() }
         val out = File(dir, "src-" + (uri.toString().hashCode().toUInt().toString(16)) + "-" + name)
         if (!out.isFile || out.length() == 0L) {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -221,122 +233,237 @@ object Dsd {
     }
 
     /**
-     * DSD → WAV（176.4kHz / 24bit / 与源相同声道数）。
+     * DSD → WAV（176.4kHz / 24bit / 与源相同声道数）—— **流式**，峰值内存与曲目长度无关。
      *
-     * 滤波：两级 4:1 箱式平均级联 = 16 点三角窗（sinc²），对 DSD 高频噪声是必需的；
-     * 直接抽样会把超声噪声原样搬进可听带内，听起来发毛。
+     * 原来为什么坏（内存账，别再改回整轨缓冲）：旧实现把整条 DSD 码流按声道全读进内存
+     * （`perChannel` 一份 + `channelData` 每声道一份，且 `perChannel` 分配了却从没被用到），
+     * 再为"转换后的 PCM"分配 `IntArray(整轨采样数)`，最后 `writeWav24` 又分配一整轨字节缓冲。
+     * 3 分钟 DSD64 立体声 = 每声道 63.5 MB 码流 ⇒ 63.5(废弃) + 127(channelData) +
+     * 254(两声道 IntArray) + 190(WAV 字节缓冲) ≈ 630 MB，而正常手机堆只有 256~512 MB：
+     * 必然 OOM，用户只看到"DSD 转换失败"。DFF（平面存储）还要再多整文件一份。
+     *
+     * 现在：按块（每声道 ≤ [CHUNK_BYTES_PER_CHANNEL]）读 → 抽取 → 立刻交织写 WAV 帧。
+     * 峰值 = 一个读缓冲 + 每声道一个 chunk 的 IntArray + 一个 chunk 的交织字节缓冲
+     * （立体声约 4 MB，6 声道约 11 MB），与曲目长度完全无关。
+     *
+     * DSP **逐位不变**：两级 4:1 箱式平均（= 16 点三角窗）、位序（DSF LSB-first / DFF MSB-first）、
+     * 缩放常量全部沿用原来的算式，只是把跨整轨的累加器换成可分段的对象状态（[DsdDecimator]）。
+     *
+     * WAV 头先写 44 字节占位，结束后 seek 回 0 回填真实长度 —— 流式下总长度要等真正写完才知道
+     * （源文件被截断时实际帧数会少于文件头声明的数量）。
      */
-    fun convertToWav(src: File, out: File, info: Info, onProgress: ((Int) -> Unit)? = null): Boolean = try {
-        val ratio = (info.sampleRate / PCM_RATE).coerceAtLeast(1)   // DSD64=16, DSD128=32
-        val stage = 4                                                // 两级各 4:1
-        require(ratio % (stage * stage) == 0 || ratio >= stage * stage) { "unsupported ratio $ratio" }
-        val decim = ratio / (stage * stage)                          // 一级内部再抽 decim（DSD128 时为 2）
-        RandomAccessFile(src, "r").use { f ->
-            f.seek(info.dataOffset)
-            val bytesPerChannel = info.bits / 8
-            val perChannel = ByteArray(minOf(bytesPerChannel, Int.MAX_VALUE.toLong()).toInt())
-            // DSF 的交错块要按块读：每声道一块
-            val channelData = arrayOfNulls<ByteArray>(info.channels)
-            for (c in 0 until info.channels) channelData[c] = ByteArray(perChannel.size)
-            if (info.blockSize > 0) {
-                val block = info.blockSize
-                val chunks = (bytesPerChannel + block - 1) / block
-                for (b in 0 until chunks) {
-                    for (c in 0 until info.channels) {
-                        val start = (b * block).toInt()
-                        val n = minOf(block.toLong(), bytesPerChannel - b * block).toInt()
-                        if (n <= 0) continue
-                        val tmp = ByteArray(n)
-                        f.readFully(tmp)
-                        System.arraycopy(tmp, 0, channelData[c]!!, start, n)
+    fun convertToWav(src: File, out: File, info: Info, onProgress: ((Int) -> Unit)? = null): Boolean {
+        val ratio = (info.sampleRate / PCM_RATE).coerceAtLeast(1)   // DSD64=16, DSD128=32, DSD256=64
+        val stage = 4                                               // 两级各 4:1
+        val decim = ratio / (stage * stage)                         // 一级内部再抽 decim（DSD128=2, DSD256=4）
+        // 旧代码这里是一个恒真的 require：ratio 非法（例如 8）时 decim 会变成 0，
+        // `inner >= decim` 恒成立 → 实际按 16:1 抽取却把结果标成别的速率（静默错速）。现在明确拒绝。
+        if (ratio < stage * stage || ratio % (stage * stage) != 0) {
+            Log.i(TAG, "convert 拒绝：不支持的 DSD 位率 ${info.sampleRate}Hz（仅 2822400/5644800/11289600）")
+            return false
+        }
+        val channels = info.channels.coerceAtLeast(1)
+        val bytesPerFrame = ratio / 8                // 每声道每个输出采样对应的 DSD 字节数（16→2, 32→4, 64→8）
+        val bytesPerChannel = info.bits / 8
+        val totalFrames = bytesPerChannel / bytesPerFrame
+        if (totalFrames <= 0L) {
+            Log.i(TAG, "convert 拒绝：${src.name} 的 DSD 数据长度为 0")
+            return false
+        }
+        // WAV 的 RIFF/数据长度字段是 32 位：超过 2GB 写不出正确头（旧实现直接 Int 溢出，头是错的）。
+        val declaredBytes = totalFrames * channels * 3
+        if (declaredBytes > Int.MAX_VALUE - 64L) {
+            Log.i(TAG, "convert 拒绝：${src.name} 转出的 PCM 约 $declaredBytes 字节，超过 WAV 的 2GB 上限")
+            return false
+        }
+        val chunkFrames = (CHUNK_BYTES_PER_CHANNEL / bytesPerFrame).coerceAtLeast(1)
+        var ok = false
+        try {
+            RandomAccessFile(src, "r").use { f ->
+                out.parentFile?.mkdirs()
+                RandomAccessFile(out, "rw").use { o ->
+                    o.setLength(0L)
+                    writeWavHeader(o, channels, PCM_RATE, 0L)          // 占位，长度最后回填
+                    val decimators = Array(channels) { DsdDecimator(decim, info.msbFirst, stage) }
+                    val samples = Array(channels) { IntArray(chunkFrames) }
+                    val dsdBuf = ByteArray(chunkFrames * bytesPerFrame)
+                    val wavBuf = ByteArray(chunkFrames * channels * 3)
+                    var framesDone = 0L
+                    var truncated = false
+                    while (framesDone < totalFrames && !truncated) {
+                        val wantFrames = minOf(chunkFrames.toLong(), totalFrames - framesDone).toInt()
+                        val wantBytes = wantFrames * bytesPerFrame
+                        val firstByte = framesDone * bytesPerFrame
+                        var produced = wantFrames
+                        for (c in 0 until channels) {
+                            val got = readChannelChunk(f, info, c, firstByte, wantBytes, dsdBuf, bytesPerChannel)
+                            // 文件比文件头声明的短：本块按实际读到的字节解，然后收尾。
+                            if (got < wantBytes) truncated = true
+                            val n = decimators[c].decode(dsdBuf, got, samples[c])
+                            if (n < produced) produced = n
+                        }
+                        if (produced <= 0) break
+                        var p = 0
+                        for (i in 0 until produced) {
+                            for (c in 0 until channels) {
+                                val v = samples[c][i]
+                                wavBuf[p++] = (v and 0xFF).toByte()
+                                wavBuf[p++] = ((v shr 8) and 0xFF).toByte()
+                                wavBuf[p++] = ((v shr 16) and 0xFF).toByte()
+                            }
+                        }
+                        o.write(wavBuf, 0, p)
+                        framesDone += produced
+                        onProgress?.invoke(((framesDone * 100L) / totalFrames).toInt().coerceIn(0, 99))
+                    }
+                    if (framesDone <= 0L) {
+                        Log.i(TAG, "convert 失败：${src.name} 没有解出任何采样")
+                    } else {
+                        if (truncated) Log.i(TAG, "convert：源文件比文件头声明的短，按实际 $framesDone 帧收尾")
+                        writeWavHeader(o, channels, PCM_RATE, framesDone)
+                        o.setLength(WAV_HEADER_BYTES + framesDone * channels * 3)
+                        onProgress?.invoke(100)
+                        ok = true
                     }
                 }
+            }
+        } catch (t: Throwable) {
+            // 原来只 catch(Exception)：OutOfMemoryError 是 Error，会直接穿透（上层 runCatching 兜住，
+            // 但这里连一条日志都没有，事后完全无法判断是内存还是数据问题）。
+            Log.i(TAG, "convert failed: ${t::class.java.simpleName} ${t.message}")
+            ok = false
+        }
+        if (!ok) {
+            // 残缺/0 字节的缓存文件必须删：MainActivity 用 `out.isFile && out.length() > 0`
+            // 判断"已转过"，留下半成品就会被当成转换结果直接播放（静音或半首歌）。
+            runCatching { if (out.isFile) out.delete() }
+            // copyToLocal() 落在 filesDir/dsd-cache 的临时源也一起清：一次失败就永久占着
+            // 一份整轨副本（用户看不见、也没法清），DSD 曲目一多就会越积越多。
+            if (isCachedSource(src)) {
+                runCatching { src.delete() }
+                Log.i(TAG, "convert 失败：已清除临时源 ${src.name}")
+            }
+        }
+        return ok
+    }
+
+    /**
+     * 可分段喂数据的 DSD 抽取器：与旧 `decimate(src, outLen, stage, decim, msbFirst)` **逐位等价**
+     * —— 位序、两级 4:1 箱式平均、`(acc2 - stage*stage/2) * (1 shl 24) / (stage*stage)` 的缩放
+     * 全都是原样搬过来的；唯一区别是把原本"跨整轨存活"的累加器（acc1/acc1Count/acc2/
+     * acc2Count/inner）提升成对象状态，所以可以按块调用、结果与一次处理整轨完全相同。
+     */
+    private class DsdDecimator(
+        private val decim: Int,
+        private val msbFirst: Boolean,
+        private val stage: Int = 4,
+    ) {
+        private var acc1 = 0          // 第一级 4 点
+        private var acc1Count = 0
+        private var acc2 = 0          // 第二级 4 点
+        private var acc2Count = 0
+        private var inner = 0
+
+        /** 从 [src] 的前 [len] 个字节里抽取，写进 [out]，返回实际产出的采样数。 */
+        fun decode(src: ByteArray, len: Int, out: IntArray): Int {
+            var o = 0
+            for (i in 0 until len) {
+                val b = src[i].toInt()
+                var bitIndex = 0
+                while (bitIndex < 8) {
+                    val bit = if (msbFirst) (b shr (7 - bitIndex)) and 1 else (b shr bitIndex) and 1
+                    bitIndex++
+                    acc1 += bit
+                    if (++acc1Count == stage) {
+                        acc2 += acc1
+                        acc1 = 0; acc1Count = 0
+                        if (++acc2Count == stage) {
+                            if (++inner >= decim) {
+                                inner = 0
+                                // acc2 ∈ 0..16 → 映射到 -1..1（DSD 的 0/1 均值 0.5 为中点）
+                                if (o < out.size) {
+                                    out[o++] = ((acc2 - stage * stage / 2) * (1 shl 24) / (stage * stage))
+                                        .coerceIn(-(1 shl 23), (1 shl 23) - 1)
+                                }
+                            }
+                            acc2 = 0; acc2Count = 0
+                        }
+                    }
+                }
+            }
+            return o
+        }
+    }
+
+    /**
+     * 读某声道从第 [startByte] 个 DSD 字节起的 [n] 个字节到 [buf] 开头，返回实际读到的字节数
+     * （源文件被截断时 < n，调用方据此收尾）。
+     *
+     * DSF：每声道按 [Info.blockSize] 分块**交错**存放 → 每块一次 seek/read；
+     * DFF：整轨平面存放 → 一次连续 read。
+     */
+    private fun readChannelChunk(
+        f: RandomAccessFile,
+        info: Info,
+        channel: Int,
+        startByte: Long,
+        n: Int,
+        buf: ByteArray,
+        bytesPerChannel: Long,
+    ): Int {
+        val end = minOf(startByte + n, bytesPerChannel)
+        val block = info.blockSize
+        val ch = info.channels.coerceAtLeast(1)
+        var p = startByte
+        var w = 0
+        while (p < end) {
+            val take: Int
+            val fileOff: Long
+            if (block > 0) {
+                val blockIndex = p / block
+                val within = (p - blockIndex * block).toInt()
+                take = minOf((end - p).toInt(), block - within)
+                fileOff = info.dataOffset + blockIndex * block * ch + channel.toLong() * block + within
             } else {
-                // DFF：整段读入后按声道切分
-                val all = ByteArray(minOf(f.length() - info.dataOffset, Int.MAX_VALUE.toLong()).toInt())
-                f.readFully(all)
-                val per = all.size / info.channels
-                for (c in 0 until info.channels) System.arraycopy(all, c * per, channelData[c]!!, 0, per)
+                take = (end - p).toInt()
+                fileOff = info.dataOffset + channel.toLong() * bytesPerChannel + p
             }
-
-            val samplesPerChannel = (info.bits / ratio).toInt()
-            val outChannel = Array(info.channels) { IntArray(samplesPerChannel) }
-            for (c in 0 until info.channels) {
-                outChannel[c] = decimate(channelData[c]!!, samplesPerChannel, stage, decim, info.msbFirst)
-                onProgress?.invoke((c + 1) * 100 / info.channels)
+            if (take <= 0) break
+            f.seek(fileOff)
+            var got = 0
+            while (got < take) {
+                val r = f.read(buf, w + got, take - got)
+                if (r <= 0) return w + got      // EOF：源文件比文件头声明的短
+                got += r
             }
-
-            out.parentFile?.mkdirs()
-            writeWav24(out, outChannel, info.channels, PCM_RATE)
+            p += take
+            w += take
         }
-        true
-    } catch (e: Exception) {
-        Log.i(TAG, "convert failed: ${e::class.java.simpleName} ${e.message}")
-        false
+        return w
     }
 
-    /** 两级箱式平均 + 抽取，输出 -1..1 的 24bit 整数。 */
-    private fun decimate(src: ByteArray, outLen: Int, stage: Int, decim: Int, msbFirst: Boolean): IntArray {
-        val out = IntArray(outLen)
-        var o = 0
-        var acc1 = 0          // 第一级 4 点
-        var acc1Count = 0
-        var acc2 = 0          // 第二级 4 点
-        var acc2Count = 0
-        var inner = 0
-        var byteIndex = 0
-        var bitIndex = 0
-        while (o < outLen && byteIndex < src.size) {
-            val b = src[byteIndex].toInt()
-            val bit = if (msbFirst) (b shr (7 - bitIndex)) and 1 else (b shr bitIndex) and 1
-            bitIndex++
-            if (bitIndex == 8) { bitIndex = 0; byteIndex++ }
-            acc1 += bit
-            if (++acc1Count == stage) {
-                acc2 += acc1
-                acc1 = 0; acc1Count = 0
-                if (++acc2Count == stage) {
-                    if (++inner >= decim) {
-                        inner = 0
-                        // acc2 ∈ 0..16 → 映射到 -1..1（DSD 的 0/1 均值 0.5 为中点）
-                        val v = ((acc2 - stage * stage / 2) * (1 shl 24) / (stage * stage)).coerceIn(-(1 shl 23), (1 shl 23) - 1)
-                        out[o++] = v
-                    }
-                    acc2 = 0; acc2Count = 0
-                }
-            }
-        }
-        return out
+    /**
+     * 写 44 字节 WAV(24bit PCM) 头。可重复调用（内部 seek 回 0 覆盖），
+     * 流式转换先写 0 帧占位、结束后用真实帧数回填。
+     */
+    private fun writeWavHeader(o: RandomAccessFile, chCount: Int, rate: Int, frames: Long) {
+        val dataBytes = (frames * chCount * 3).toInt()
+        fun le32(v: Int) = byteArrayOf((v and 0xFF).toByte(), ((v shr 8) and 0xFF).toByte(), ((v shr 16) and 0xFF).toByte(), ((v shr 24) and 0xFF).toByte())
+        fun le16(v: Int) = byteArrayOf((v and 0xFF).toByte(), ((v shr 8) and 0xFF).toByte())
+        o.seek(0L)
+        o.write("RIFF".toByteArray()); o.write(le32(36 + dataBytes)); o.write("WAVE".toByteArray())
+        o.write("fmt ".toByteArray()); o.write(le32(16)); o.write(le16(1)); o.write(le16(chCount))
+        o.write(le32(rate)); o.write(le32(rate * chCount * 3)); o.write(le16(chCount * 3)); o.write(le16(24))
+        o.write("data".toByteArray()); o.write(le32(dataBytes))
     }
 
-    /** 写 24bit PCM 小端 WAV。 */
-    private fun writeWav24(out: File, channels: Array<IntArray>, chCount: Int, rate: Int) {
-        val frames = channels.minOf { it.size }
-        val dataBytes = frames * chCount * 3
-        out.outputStream().buffered(1 shl 16).use { os ->
-            fun le32(v: Int) = byteArrayOf((v and 0xFF).toByte(), ((v shr 8) and 0xFF).toByte(), ((v shr 16) and 0xFF).toByte(), ((v shr 24) and 0xFF).toByte())
-            fun le16(v: Int) = byteArrayOf((v and 0xFF).toByte(), ((v shr 8) and 0xFF).toByte())
-            os.write("RIFF".toByteArray()); os.write(le32(36 + dataBytes)); os.write("WAVE".toByteArray())
-            os.write("fmt ".toByteArray()); os.write(le32(16)); os.write(le16(1)); os.write(le16(chCount))
-            os.write(le32(rate)); os.write(le32(rate * chCount * 3)); os.write(le16(chCount * 3)); os.write(le16(24))
-            os.write("data".toByteArray()); os.write(le32(dataBytes))
-            val buf = ByteArray(frames * chCount * 3)
-            var p = 0
-            for (i in 0 until frames) {
-                for (c in 0 until chCount) {
-                    val v = channels[c][i]
-                    buf[p++] = (v and 0xFF).toByte()
-                    buf[p++] = ((v shr 8) and 0xFF).toByte()
-                    buf[p++] = ((v shr 16) and 0xFF).toByte()
-                }
-            }
-            os.write(buf)
-        }
-    }
+    /** 是不是 [copyToLocal] 落在应用缓存目录里的临时源（只有这种文件允许在转换失败时删）。 */
+    private fun isCachedSource(f: File): Boolean =
+        f.parentFile?.name == CACHE_DIR && f.name.startsWith("src-")
 
     /** 转码结果缓存路径（同目录同名 + .pcm.wav，放在应用私有目录）。 */
     fun cacheFile(context: android.content.Context, src: File): File {
-        val dir = File(context.filesDir, "dsd-cache").apply { mkdirs() }
+        val dir = File(context.filesDir, CACHE_DIR).apply { mkdirs() }
         val key = (src.absolutePath + src.length() + src.lastModified()).hashCode().toUInt().toString(16)
         return File(dir, "$key.wav")
     }

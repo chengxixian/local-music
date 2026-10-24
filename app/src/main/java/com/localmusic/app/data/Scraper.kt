@@ -15,10 +15,15 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.math.BigInteger
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * 自动刮削：封面 + 歌词。
@@ -65,6 +70,10 @@ object Scraper {
         val failures = mutableListOf<String>()
         _status.value = Status(true, context.getString(R.string.scrape_starting))
         try {
+            // 新一轮刮削：清掉上一轮"这首歌没有自带封面"的**否定**缓存。
+            // 旧实现把否定结果和肯定结果一样永久记住 —— 一次瞬时读图失败（provider 忙、
+            // 文件刚拷进来还没索引好）就让这首歌从此再也抓不到封面，只能杀进程重来。
+            ArtworkProbe.beginRound()
             // 先把"之前刮削盖住的、其实自带封面"的歌恢复原样（自动纠错，不用用户手动点）
             val restored = runCatching { CoverStore.restoreOriginals(context, songs) }.getOrDefault(0)
 
@@ -178,11 +187,30 @@ object Scraper {
     /** Optional user supplied MUSIC_U / NMTID cookie for account-only endpoints. */
     fun setNeteaseCookie(cookie: String?) { authCookie = cookie.orEmpty().trim() }
 
+    /**
+     * 默认伪装 cookie（只在用户没填自己的 cookie 时用）。
+     *
+     * 原来**只有**用户手填 cookie 才会带 `Cookie` 头 —— 匿名请求会被网易云当脚本：
+     * 搜索返回 200 但 `result.songs` 为空、歌词返回 200 但 `lrc.lyric` 为空，
+     * 于是整批歌"搜到了却没有封面/歌词"。上游 CoverFetcher.kt:44-48 与
+     * NeteaseLyricsFetcher.kt:100-106 是全程都带一个伪造的
+     * `os=pc; appver=3.0.1; deviceId=…`，这里照做。
+     * deviceId 在进程内固定：每次请求都换一个新身份反而更像批量脚本（上游注释 88-91）。
+     */
+    private val fakeDeviceId: String by lazy {
+        java.util.UUID.randomUUID().toString().replace("-", "").uppercase()
+    }
+    private val defaultCookie: String by lazy {
+        "os=pc; osver=Microsoft-Windows-10-Professional-build-19045-64bit; appver=3.0.1; " +
+            "deviceId=$fakeDeviceId; _ntes_nuid=$fakeDeviceId"
+    }
+    private fun cookieHeader(): String = authCookie.ifBlank { defaultCookie }
+
     private fun neteaseHeaders(): Map<String, String> = buildMap {
         put("Referer", "https://music.163.com/")
         put("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
         put("Accept", "*/*")
-        if (authCookie.isNotBlank()) put("Cookie", authCookie)
+        put("Cookie", cookieHeader())
     }
 
     internal data class NeteaseSong(val id: Long, val name: String, val artist: String, val cover: String?)
@@ -257,7 +285,7 @@ object Scraper {
     /**
      * 洗掉本地文件名里的噪音：`(Live)` `[Official MV]` `feat. XXX` 等。
      *
-     * 这些后缀会让"歌名"和网易云的正式歌名对不上（`titleMatches` 是包含式比较，
+     * 这些后缀会让"歌名"和网易云的正式歌名对不上（`titleSimilar` 是包含式比较，
      * 但整串带着 `(Live)` 时，搜索排名会先落到一堆现场版/翻唱上）。
      */
     private fun cleanTitle(raw: String): String = raw
@@ -330,7 +358,7 @@ object Scraper {
             val song = songs.optJSONObject(i) ?: continue
             val name = song.optString("name")
             if (top.size < 3) top += name
-            if (!titleMatches(titleHint, name)) continue
+            if (!titleSimilar(titleHint, name)) continue
             val artists = song.optJSONArray("artists")?.let { array ->
                 (0 until array.length())
                     .mapNotNull { array.optJSONObject(it)?.optString("name")?.takeIf { n -> n.isNotBlank() } }
@@ -416,8 +444,18 @@ object Scraper {
      */
     private val neteasePlaceholders = listOf("6y-UleORITEDbvrOLV0Q8A==", "5639395138885805", "109951163277456216")
 
+    /**
+     * 网易云返回的 `picUrl` 经常是 `http://p1.music.126.net/...`。
+     * targetSdk≥28 的应用默认**禁止明文 HTTP**（本应用没有 `usesCleartextTraffic`），
+     * 于是 `fetchImage("http://…")` 直接抛异常 → 封面永远抓不到，
+     * 而代码还以为是"没匹配上"。统一升级成 https（上游 CoverFetcher.kt:107、139 同款处理）。
+     */
+    private fun httpsUrl(url: String): String =
+        if (url.startsWith("http://", ignoreCase = true)) "https://" + url.substring(7) else url
+
     private fun usableCover(url: String?): String? =
         url?.takeIf { it.isNotBlank() && neteasePlaceholders.none { p -> it.contains(p) } }
+            ?.let(::httpsUrl)
 
     /**
      * 取**专辑封面**：必须显式取 `songs[0].album.picUrl`。
@@ -426,32 +464,169 @@ object Scraper {
      * "歌手举麦克风"就是这么来的。现在统一走上面的合批实现（见 neteaseCoversByIds）。
      */
 
-    /** 取带时间戳的歌词（`lrc.lyric`）。 */
-    internal fun neteaseLyrics(id: Long): String? = try {
-        val body = get("https://music.163.com/api/song/lyric?id=$id&lv=-1&kv=-1&tv=-1", neteaseHeaders()) ?: return null
-        val lrc = JSONObject(body).optJSONObject("lrc")?.optString("lyric")
-        pick(lrc)
+    /**
+     * 取歌词：**weapi 加密 POST 优先**，旧的明文 GET 只当兜底。
+     *
+     * 旧实现直接 GET `/api/song/lyric` —— 这个半废弃接口在没有登录态时经常
+     * "HTTP 200 但 `lrc.lyric` 为空"（上游 NeteaseLyricsFetcher.kt:24-41 记录了同样的结论），
+     * 于是库里一大批歌永远拿不到网易云歌词、只能靠 LRCLIB 碰运气。
+     * 现在按上游做法走网页版真正在用的 `/weapi/song/lyric`（AES 两层 + RSA 加密随机密钥），
+     * 并且把请求里已经要了的 `tlyric`（翻译）取回来按时间戳合并，不再白扔。
+     */
+    internal fun neteaseLyrics(id: Long): String? {
+        weapiLyrics(id)?.let { return it }
+        return legacyNeteaseLyrics(id)
+    }
+
+    /** weapi 版：失败（网络/风控/空 lrc）返回 null，由调用方回落旧接口。 */
+    private fun weapiLyrics(id: Long): String? = try {
+        val params = JSONObject().apply {
+            put("id", id)
+            put("lv", -1)
+            put("kv", -1)
+            put("tv", -1)
+            put("csrf_token", "")
+        }
+        val body = weapiPost("/song/lyric", params) ?: return null
+        val json = JSONObject(body)
+        val main = json.optJSONObject("lrc")?.optString("lyric")
+        val trans = json.optJSONObject("tlyric")?.optString("lyric")
+        if (main.isNullOrEmpty()) {
+            android.util.Log.i("LMScrape", "weapi lyric 仍为空 id=$id（风控或该曲无词）")
+            null
+        } else {
+            pick(mergeTranslation(main, trans))
+        }
     } catch (_: Exception) { null }
+
+    /** 旧的明文 GET：weapi 拿不到时再试一次（少数曲目反而只有它返回）。 */
+    private fun legacyNeteaseLyrics(id: Long): String? = try {
+        val body = get("https://music.163.com/api/song/lyric?id=$id&lv=-1&kv=-1&tv=-1", neteaseHeaders()) ?: return null
+        val json = JSONObject(body)
+        val main = json.optJSONObject("lrc")?.optString("lyric")
+        val trans = json.optJSONObject("tlyric")?.optString("lyric")
+        if (main.isNullOrEmpty()) null else pick(mergeTranslation(main, trans))
+    } catch (_: Exception) { null }
+
+    /**
+     * 把翻译按时间戳并进主歌词（参考上游 QQMusicLyricsFetcher.mergeLyrics）。
+     * 同一时间戳输出两行：第一行原文、第二行译文 —— 本地解析本来就支持同时间戳多行。
+     */
+    private fun mergeTranslation(main: String, trans: String?): String {
+        if (trans.isNullOrBlank()) return main
+        val tag = Regex(LyricsRepository.LRC_TIME)
+        val byTime = HashMap<Long, String>()
+        trans.lineSequence().forEach { raw ->
+            val line = raw.trim()
+            if (line.isEmpty()) return@forEach
+            val matches = tag.findAll(line).toList()
+            if (matches.isEmpty()) return@forEach
+            val text = line.substring(matches.last().range.last + 1).trim()
+            if (text.isEmpty()) return@forEach
+            matches.forEach { byTime[LyricsRepository.tagMs(it)] = text }
+        }
+        if (byTime.isEmpty()) return main
+        val out = StringBuilder()
+        main.lineSequence().forEach { raw ->
+            out.append(raw).append('\n')
+            val matches = tag.findAll(raw).toList()
+            if (matches.isEmpty()) return@forEach
+            val text = raw.substring(matches.last().range.last + 1).trim()
+            val translated = byTime[LyricsRepository.tagMs(matches.last())]
+            if (translated != null && translated != text) {
+                out.append(raw.substring(0, matches.last().range.last + 1)).append(translated).append('\n')
+            }
+        }
+        return out.toString().trimEnd()
+    }
+
+    // ── weapi 加密（网易云网页版自己用的请求签名，上游 NeteaseLyricsFetcher.kt:42-85 同款）──
+    private const val WEAPI_AES_KEY = "0CoJUm6Qyw8W8jud"
+    private const val WEAPI_AES_IV = "0102030405060708"
+    private const val WEAPI_RSA_MODULUS =
+        "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7"
+    private const val WEAPI_RSA_PUBLIC_EXP = "010001"
+    private const val WEAPI_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+    private val rng = SecureRandom()
+
+    private fun aesEncryptBase64(text: String, key: String): String {
+        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+        cipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(key.toByteArray(Charsets.UTF_8), "AES"),
+            IvParameterSpec(WEAPI_AES_IV.toByteArray(Charsets.UTF_8)),
+        )
+        val encrypted = cipher.doFinal(text.toByteArray(Charsets.UTF_8))
+        return android.util.Base64.encodeToString(encrypted, android.util.Base64.NO_WRAP)
+    }
+
+    /** 网易云这里不是标准 RSA 填充：把密钥整个反转后当大数做 modPow，再补齐到 256 个十六进制字符。 */
+    private fun rsaEncryptSecretKey(secretKey: String): String {
+        val text = BigInteger(1, secretKey.reversed().toByteArray(Charsets.UTF_8))
+        val result = text.modPow(BigInteger(WEAPI_RSA_PUBLIC_EXP, 16), BigInteger(WEAPI_RSA_MODULUS, 16))
+        val hex = result.toString(16)
+        return if (hex.length < 256) "0".repeat(256 - hex.length) + hex else hex
+    }
+
+    private fun randomSecretKey(): String {
+        val chars = "abcdef0123456789"
+        return buildString { repeat(16) { append(chars[rng.nextInt(chars.length)]) } }
+    }
+
+    /** POST `https://music.163.com/weapi<path>?csrf_token=`，返回响应体；失败返回 null。 */
+    private fun weapiPost(path: String, params: JSONObject): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            val secret = randomSecretKey()
+            val encParams = aesEncryptBase64(aesEncryptBase64(params.toString(), WEAPI_AES_KEY), secret)
+            val encSecKey = rsaEncryptSecretKey(secret)
+            val form = "params=" + URLEncoder.encode(encParams, "UTF-8") +
+                "&encSecKey=" + URLEncoder.encode(encSecKey, "UTF-8")
+            connection = (URL("https://music.163.com/weapi$path?csrf_token=").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                instanceFollowRedirects = true
+                doOutput = true
+                setRequestProperty("User-Agent", WEAPI_UA)
+                setRequestProperty("Referer", "https://music.163.com/")
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                setRequestProperty("Cookie", cookieHeader())
+            }
+            connection.outputStream.use { it.write(form.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                android.util.Log.i("LMScrape", "weapi $path HTTP $code")
+                null
+            } else connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (e: Exception) {
+            android.util.Log.i("LMScrape", "weapi $path 失败：${e.javaClass.simpleName} ${e.message}")
+            null
+        } finally {
+            runCatching { connection?.disconnect() }
+        }
+    }
 
     // ── 封面（iTunes → Deezer 兜底；网易云在 scrape 里优先试）──
 
     private fun findCover(title: String, artist: String): ByteArray? {
         if (title.isBlank()) return null
         val term = if (artist.isBlank() || artist.startsWith("未知")) title else "$artist $title"
-        itunesCover(term, title)?.let { return it }
-        val deezer = deezerCover(term, title)
+        itunesCover(term, title, artist)?.let { return it }
+        val deezer = deezerCover(term, title, artist)
         // 诊断：网易云给"不相干结果"时，要能分清兜底源是"连不上"还是"没匹配上"
         android.util.Log.i("LMScrape", "fallback '$term' -> " + (if (deezer != null) "Deezer 命中" else "iTunes/Deezer 都未命中"))
         return deezer
     }
 
-    private fun itunesCover(term: String, title: String): ByteArray? = try {
+    private fun itunesCover(term: String, title: String, artist: String): ByteArray? = try {
         val body = get("https://itunes.apple.com/search?media=music&entity=song&limit=8&term=" + encode(term)) ?: return null
         val results = JSONObject(body).optJSONArray("results") ?: return null
         var found: ByteArray? = null
         for (i in 0 until results.length()) {
             val item = results.optJSONObject(i) ?: continue
-            if (!titleMatches(title, item.optString("trackName"))) continue
+            if (!isMatch(title, artist, item.optString("trackName"), item.optString("artistName"))) continue
             val art = item.optString("artworkUrl100")
             if (art.isBlank()) continue
             // iTunes 的 URL 里尺寸是写死的，换掉就拿到大图
@@ -461,32 +636,87 @@ object Scraper {
         found
     } catch (_: Exception) { null }
 
-    private fun deezerCover(term: String, title: String): ByteArray? = try {
+    private fun deezerCover(term: String, title: String, artist: String): ByteArray? = try {
         val body = get("https://api.deezer.com/search?limit=8&q=" + encode(term)) ?: return null
         val data = JSONObject(body).optJSONArray("data") ?: return null
         var found: ByteArray? = null
         for (i in 0 until data.length()) {
             val item = data.optJSONObject(i) ?: continue
-            if (!titleMatches(title, item.optString("title"))) continue
+            val resultArtist = item.optJSONObject("artist")?.optString("name").orEmpty()
+            if (!isMatch(title, artist, item.optString("title"), resultArtist)) continue
             val album = item.optJSONObject("album") ?: continue
             val cover = album.optString("cover_xl").ifBlank { album.optString("cover_big") }
             if (cover.isBlank()) continue
-            found = fetchImage(cover)
+            found = fetchImage(httpsUrl(cover))
             if (found != null) break
         }
         found
     } catch (_: Exception) { null }
 
-    /** 标题匹配（忽略大小写/标点/空格）：避免"同名不同歌"配错封面。 */
-    private fun titleMatches(wanted: String, candidate: String): Boolean {
-        fun norm(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]"), "")
-        val a = norm(wanted)
-        val b = norm(candidate)
+    /** 归一化：忽略大小写、标点、空格（保留中日韩字母与数字）。 */
+    private fun normText(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]"), "")
+
+    /**
+     * 搜索阶段的**歌名**相似判断（网易云搜索用；歌手在后面单独判断）。
+     *
+     * 保留原来"包含式"比较（搜索结果常带 `(Live)`/`feat.` 后缀），但加了一条：
+     * 较短一方至少 2 个字符 —— 否则单字歌名（"雨"）会把所有结果都当成命中。
+     * 封面来源（iTunes/Deezer）不再用这个宽松规则，见 [isMatch]。
+     */
+    private fun titleSimilar(wanted: String, candidate: String): Boolean {
+        val a = normText(wanted)
+        val b = normText(candidate)
         if (a.isBlank() || b.isBlank()) return false
-        return a == b || b.contains(a) || a.contains(b)
+        return a == b || (minOf(a.length, b.length) >= 2 && (b.contains(a) || a.contains(b)))
+    }
+
+    /**
+     * 歌名 + 歌手**双重**匹配（移植上游 CoverFetcher.isMatch）。
+     *
+     * 原来只比歌名、而且是双向 `contains`：一首叫「雨」的歌会把 8 条结果里的第一条当封面，
+     * 所以用户会看到"封面是别人的"。现在：
+     *  · 歌手已知时**必须**有交集，否则丢弃；
+     *  · 歌名允许互相包含，但较短的一方至少 2 个字符（防止单字歌名通配一切）。
+     */
+    private fun isMatch(queryTitle: String, queryArtist: String, resultTitle: String, resultArtist: String): Boolean {
+        val qt = normText(queryTitle)
+        val rt = normText(resultTitle)
+        if (qt.isBlank() || rt.isBlank()) return false
+        val titleOk = qt == rt || (minOf(qt.length, rt.length) >= 2 && (rt.contains(qt) || qt.contains(rt)))
+        if (!titleOk) return false
+        val qa = queryArtist.trim()
+        // 本地没有歌手信息（"未知艺术家"/空）→ 没有可比对的东西，只能按歌名放行
+        if (qa.isBlank() || qa.startsWith("未知")) return true
+        val ra = resultArtist.trim()
+        if (ra.isBlank()) return false
+        val qn = normText(qa)
+        val rn = normText(ra)
+        if (qn.isBlank() || rn.isBlank()) return false
+        if (qn == rn || rn.contains(qn) || qn.contains(rn)) return true
+        // 合唱/多歌手（`A/B/C`、`A & B`）：任一对上就算
+        val qParts = qa.split(Regex("[/&,、;，]")).map(::normText).filter { it.length >= 2 }
+        val rParts = ra.split(Regex("[/&,、;，]")).map(::normText).filter { it.length >= 2 }
+        return qParts.any { q -> rn.contains(q) || rParts.any { r -> r.contains(q) || q.contains(r) } } ||
+            rParts.any { qn.contains(it) }
     }
 
     // ── 歌词 ──
+
+    /**
+     * 单曲联网取词 —— 播放页的**一次性兜底**入口（见 `LyricsRepository.load` 第 3 步）。
+     *
+     * 只发一条搜索关键词 + 一次歌词请求，再退到 LRCLIB：打开一首没歌词的歌不应该把
+     * `searchKeywords` 那四五条关键词全部发一遍（那是整批刮削才做的事，否则播放页要等几十秒）。
+     * 每个请求都受 8 秒 socket 超时约束，所以最坏等待是有界的。
+     */
+    internal suspend fun fetchLyricsFor(song: Song): String? = withContext(Dispatchers.IO) {
+        val fromNetease = runCatching {
+            val keyword = searchKeywords(song.title, song.artist).firstOrNull() ?: return@runCatching null
+            currentKeyword = keyword
+            searchOnce(keyword)?.let { neteaseLyrics(it.id) }
+        }.getOrNull()
+        fromNetease ?: runCatching { findLyrics(song) }.getOrNull()
+    }
 
     private fun findLyrics(song: Song): String? {
         val artist = song.artist.takeIf { it.isNotBlank() && !it.startsWith("未知") } ?: ""
@@ -518,7 +748,17 @@ object Scraper {
         return search
     }
 
-    private fun pick(text: String?): String? = text?.takeIf { it.isNotBlank() && it.length in 8..200_000 }
+    /**
+     * 歌词最少字符数。写入端（这里）与读取端（[LyricCache]）必须用同一个门槛。
+     *
+     * 原来写入接受 `length in 8..200000`（含 8），而 [LyricCache.read] 要求 `length() > 8`
+     * —— 正好 8 个字符的歌词"写成功但永远读不到"，于是每次刮削都重复下载同一首。
+     */
+    private const val MIN_LYRIC_CHARS = 8
+    private const val MAX_LYRIC_CHARS = 200_000
+
+    private fun pick(text: String?): String? =
+        text?.trim()?.takeIf { it.isNotBlank() && it.length in MIN_LYRIC_CHARS..MAX_LYRIC_CHARS }
 
     // ── HTTP ──
 
@@ -546,9 +786,11 @@ object Scraper {
 
 
     private fun fetchImage(url: String): ByteArray? {
+        // 兜底再升级一次 scheme：只要调用方漏了，明文 HTTP 在 targetSdk≥28 上必失败
+        val target = httpsUrl(url)
         var connection: HttpURLConnection? = null
         return try {
-            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connection = (URL(target).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = TIMEOUT_MS
                 readTimeout = TIMEOUT_MS
@@ -591,17 +833,24 @@ object Scraper {
  *
  * 有就不许刮削去覆盖它 —— 用户明确要求"不要改歌曲原本就有的封面"。
  * 判定很便宜：MediaStore 只查专辑封面 URI 存不存在，不解码图片；本地文件才读内嵌图。
- * 结果记在内存里（一次扫描周期内不重复探测，也不落盘）。
+ *
+ * ⚠️ 缓存策略区分肯定/否定：**肯定**结果（真的有内嵌图）可以长期记住；
+ * **否定**结果只在当前这一轮刮削内有效（[beginRound] 清空）。
+ * 原来两者一样永久记住 —— 一次瞬时失败（provider 忙、文件刚拷进来还没索引好）
+ * 就把这首歌永久排除在刮削之外，只能杀进程重来。
  */
 object ArtworkProbe {
-    private val withArt = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
-    private val withoutArt = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+    private val withArt = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val withoutArt = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** 每一轮刮削开始前调用：丢掉上一轮的否定缓存，让瞬时失败过的歌重新有机会被探测。 */
+    fun beginRound() { withoutArt.clear() }
 
     fun hasOwnArtwork(context: Context, song: Song): Boolean {
         if (withArt.contains(song.uri)) return true
         if (withoutArt.contains(song.uri)) return false
         val result = runCatching { probe(context, song) }.getOrDefault(false)
-        (if (result) withArt else withoutArt).add(song.uri)
+        if (result) withArt.add(song.uri) else withoutArt.add(song.uri)
         return result
     }
 
@@ -635,18 +884,35 @@ object ArtworkProbe {
     }
 }
 
-/** 刮削（或用户手动放的）歌词缓存：`filesDir/lyrics/<sha1(uri)>.lrc`。 */
+/**
+ * 刮削（或用户手动放的）歌词缓存：`filesDir/lyrics/<sha1(uri)>.lrc`。
+ *
+ * 读/写必须用**同一套长度门槛**：原来写入端接受 8 字符、读取端要求 `> 8` 字节，
+ * 正好 8 个字符的歌词会被判为"写入成功"却永远读不回来（每次都重复下载）。
+ * 现在短于 [MIN_BYTES] 的一律不落盘，且读回时统一走 [LrcText.decode]
+ * （老版本/手工放进来的 GBK 缓存也能正常读）。
+ */
 object LyricCache {
+    private const val MIN_BYTES = 8L
+    private const val MAX_BYTES = 400_000L
+
     fun file(context: Context, songUri: String): File =
         File(File(context.filesDir, "lyrics").apply { mkdirs() }, sha1(songUri) + ".lrc")
 
     fun read(context: Context, songUri: String): String? = try {
-        file(context, songUri).takeIf { it.isFile && it.length() > 8 }?.readText(Charsets.UTF_8)
+        file(context, songUri)
+            .takeIf { it.isFile && it.length() in MIN_BYTES..MAX_BYTES }
+            ?.readBytes()
+            ?.let(LrcText::decode)
     } catch (_: Exception) { null }
 
     fun write(context: Context, songUri: String, text: String): Boolean = try {
-        file(context, songUri).writeText(text)
-        true
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        // 与读取端同一门槛：太短的不写（写了也读不回来），太大的不写（多半是网页错误页）
+        if (bytes.size.toLong() in MIN_BYTES..MAX_BYTES) {
+            file(context, songUri).writeBytes(bytes)
+            true
+        } else false
     } catch (_: Exception) { false }
 
     fun clear(context: Context): Int {

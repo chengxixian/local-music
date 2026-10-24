@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="docs/banner.png" width="100%" alt="local music — 本地优先的 Android 高解析播放器">
 </p>
 
@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
-  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.7.0-blue" alt="Latest release: v0.7.0"></a>
+  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.8.4-blue" alt="Latest release: v0.8.4"></a>
   <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android 13+ (API 33)">
   <img src="https://img.shields.io/badge/USB%20passthrough-Android%2014%2B%20(API%2034)-3DDC84?logo=android&logoColor=white" alt="USB passthrough: Android 14+ (API 34)">
   <img src="https://img.shields.io/badge/language-Kotlin%20%2B%20C-7F52FF" alt="Kotlin + C">
@@ -47,12 +47,12 @@
 | 播放 | Media3 ExoPlayer + `DefaultAudioSink(enableFloatOutput = true)`；`MediaSessionService` 提供后台播放与系统媒体通知（上一项 / 播放 / 下一项） |
 | 播放队列 | 点行跳播、调整顺序、移除；卡片上的 `+` 追加到当前队列；队列取自当前页面显示的列表（曲库 / 乐单 / 喜欢），点歌保留乱序设置；播放完一轮回到第一首（默认列表循环，可切换 关 / 列表 / 单曲） |
 | USB 直通 | 自研 UAC2 等时输出（JNI + usbfs），按文件原始采样率设置 DAC 时钟并读取设备异步反馈调速；详见 [USB 直通](#usb-直通) |
-| 播放增强 | 支持 ReplayGain 音量标准化、切歌淡入淡出、睡眠定时器；USB 直通开启时自动保持位完美路径 |
+| 播放增强 | ReplayGain 音量标准化（曲库扫描时直接从 FLAC/MP3 文件头读标签，SAF 条目也能读到；设置页显示**当前曲目**的增益值）、切歌淡入淡出（时长可选 关 / 300–1500ms）、睡眠定时器（关 / 15 / 30 / 60 / 90 分钟，到点自动暂停并把界面复位）；USB 直通开启时自动保持位完美路径 |
 | `.ncm` 转换 | 内封装 FLAC → 逐字节还原，无损、零重编码；内封装 MP3 → 解码后写成合法 FLAC 流，侧车 JSON 以 `payloadFormat` 如实标注；FLAC 校验不通过时仍发布但标记 `flac-unverified-raw`，MP3 转 FLAC 失败时直接落原始 `.mp3`；可发布到自选的 SAF 文件夹，文件名取「艺术家 - 歌名」 |
 | 封面 | 优先用户自选图片 → 系统缩略图 → 文件内嵌封面；自选图片复制进应用私有目录，与原始文件解耦；缩略图按尺寸落盘缓存 |
 | 歌词 | 带时间戳 LRC 逐行高亮 + 自动滚动（当前行取当前歌曲封面的主题色）；来源顺序为刮削缓存 → 同目录 `.lrc` → 文件内嵌歌词 |
 | 歌词工具 | 设置页可批量选择 `.lrc` 导入并按曲名匹配；曲库页可显示当前歌词行悬浮胶囊 |
-| 连接与同步 | 可选 PC 有线音箱监听（TCP 8899，44.1kHz/16bit/立体声 PCM）；可将数据库、歌词、封面和设置导出为 ZIP，目标可选择任意云盘 SAF 提供方 |
+| 连接与同步 | 可选 PC 有线音箱：手机是**服务端**，监听 TCP 8899 收 44.1kHz/16bit/立体声 PCM，电脑端先 `adb forward tcp:8899 tcp:8899` 再连 `127.0.0.1:8899`（注意不是 `adb reverse`，方向反了会占用手机端口导致 App 绑定失败）；设置页实时显示空闲 / 监听中 / 已连接 / 失败原因。可将数据库、歌词、封面和设置导出为 ZIP，目标可选择任意云盘 SAF 提供方；恢复是两阶段的，解包后下次启动才落盘（避免覆盖正在使用的数据库） |
 | 自动刮削 | 封面：网易云音乐 → iTunes → Deezer；歌词：网易云音乐 → LRCLIB。只补缺、分批节流、不覆盖歌曲自带的封面，并可一键恢复自带封面 |
 | 网易云授权 | 默认使用无需账号的公开接口；设置页可选填账号 Cookie，供需要登录的接口使用，凭据只保存在本机备份范围内 |
 | 乐单 | dock 第二栏进入，两列竖卡片；新建 / 重命名 / 换封面 / 删除；未自选封面时用乐单第一首歌的封面，空乐单回落点阵标记 |
@@ -156,10 +156,13 @@ Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt�
 | 会话 | 同一时刻只允许一条直通；停止时关闭管道写端，让原生 `read` 返回 0 后释放接口；只有仍是当前所有者的会话才允许释放接口，避免并发会话互相抢接口 |
 | 界面 | 设置页「USB 直通」开关；曲库点歌即直通；SAF `content://` 音频会先缓存为可寻址临时文件；直通期间 ExoPlayer 被静音但仍负责界面、队列与进度 |
 
-### 直通的两条边界
+### 直通的三条边界
 
 - **DAC 不支持的采样率直接拒绝**：设备只上报自己支持的采样率（例如只有 48kHz 家族而没有 44.1kHz），
   文件采样率不在其中时不做直通、也不重采样，而是明确提示。
+- **直通失败不再把整机静音**：只有确认原生等时通道**真的在跑**（`UsbUac2Stream.isStreaming`）才会把
+  ExoPlayer 静音；没有 DAC / 没授权 / 采样率不支持 / 通道启动失败时，自动继续走系统输出（能听到声音）。
+  早期版本是"设置里打开开关就把系统输出静音"，于是没插 DAC 时进度条在走却完全没声。
 - **未完成硬件端到端验证**：代码能确认的只是系统与设备接受了请求，没有用测量设备核对模拟输出，
   因此界面文案按「请求已被接受」措辞，而不是「已测得位完美」。
 
@@ -167,13 +170,19 @@ Android 的 Java USB API（`UsbRequest`）只支持 control / bulk / interrupt�
 ## 已知限制
 
 - **USB 直通缺少测量级验证**：没有测量设备核对 DAC 的模拟输出，界面与文档都只声明「请求被接受」；
-  未连接兼容 DAC 时会显示等待连接，不会假装直通已生效。
+  未连接兼容 DAC 时会显示等待连接并继续用系统输出，不会假装直通已生效。
+- **直通不支持拖动进度**：暂停 / 切歌 / 退出会停掉原生通道；直通期间拖动进度条会切回系统输出
+  （原生通道按文件从头解码，没有随机定位）。
 - **只对部分 UAC2 设备验证过**：采样率能力完全取自所连设备上报的信息，DAC 不支持的采样率会被拒绝
   （宁可不出声，也不硬播走调或噪音）。
-- **DSD 不是原生直通**：`.dsf` / `.dff` 解码为 PCM 后播放；Android 公开 API 没有等时 USB 音频，
+- **DSD 不是原生直通**：`.dsf` / `.dff` 解码为 PCM 后播放；转换是流式的（内存占用与曲长无关），
+  大文件不会再因为整轨缓冲而 OOM。Android 公开 API 没有等时 USB 音频，
   原生 DSD / DoP 需要单独的驱动实现。对 DAC 是否支持 bit-perfect DSD 只做能力探测，
   结果如实写在诊断日志里（logcat 标签 `LMDsd`）。
 - **高解析必须走 USB**：蓝牙链路本身有损且会重采样；不满足直通条件时回落到系统混音（能听，但不再位完美）。
+- **PC 有线音箱要 `adb forward`**：手机是服务端（监听 8899），所以是
+  `adb forward tcp:8899 tcp:8899` → 电脑连 `127.0.0.1:8899`。
+  早期文档写的 `adb reverse` 方向反了：它会让 adbd 先在手机上占住 8899，App 自己 bind 必然 `EADDRINUSE`。
 - **元数据刮削使用非官方接口**：网易云音乐接口未公开、无需账号，可能被限流、随地区不同或直接失效
   （失效时回落到 iTunes / Deezer / LRCLIB）；接口返回内容的版权归原服务方，仅限本地个人使用。
 - **`.ncm` 转 FLAC 不提升音质**：内封装 MP3 的有损音源转成 FLAC 只是容器变化，侧车 JSON 的

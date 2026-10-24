@@ -37,21 +37,25 @@ object UsbPcmDecoder {
         val ex = MediaExtractor()
         return try {
             ex.setDataSource(path)
-            for (i in 0 until ex.trackCount) {
-                val f = ex.getTrackFormat(i)
-                val mime = f.getString(MediaFormat.KEY_MIME) ?: continue
-                if (mime.startsWith("audio/")) {
-                    val rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                    val ch = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                    return rate to ch
-                }
-            }
-            null
+            // 与 decodeTo() 共用同一个选轨函数：两处对同一文件必须得出同样的
+            // (采样率, 声道数)，否则 DAC 的时钟和实际送出的数据长度会对不上（=变速）。
+            val f = findAudioTrack(ex)?.second ?: return null
+            f.getInteger(MediaFormat.KEY_SAMPLE_RATE) to f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         } catch (t: Throwable) {
             null
         } finally {
             runCatching { ex.release() }
         }
+    }
+
+    /** 第一条音频轨（下标 + 格式）。[probe] 与 [decodeTo] 必须共用，避免两处各自解析出不同结果。 */
+    private fun findAudioTrack(ex: MediaExtractor): Pair<Int, MediaFormat>? {
+        for (i in 0 until ex.trackCount) {
+            val f = ex.getTrackFormat(i)
+            val mime = f.getString(MediaFormat.KEY_MIME) ?: continue
+            if (mime.startsWith("audio/")) return i to f
+        }
+        return null
     }
 
     /**
@@ -65,19 +69,43 @@ object UsbPcmDecoder {
         var written = 0L
         try {
             ex.setDataSource(path)
-            var track = -1
-            var fmt: MediaFormat? = null
-            for (i in 0 until ex.trackCount) {
-                val f = ex.getTrackFormat(i)
-                val mime = f.getString(MediaFormat.KEY_MIME) ?: continue
-                if (mime.startsWith("audio/")) { track = i; fmt = f; break }
-            }
-            if (track < 0 || fmt == null) {
+            val found = findAudioTrack(ex) ?: run {
                 Log.i(TAG, "解码：文件里没有音频轨")
                 return 0
             }
+            val track = found.first
+            val fmt = found.second
             ex.selectTrack(track)
-            val mime = fmt.getString(MediaFormat.KEY_MIME)!!
+            val mime = fmt.getString(MediaFormat.KEY_MIME) ?: run {
+                Log.i(TAG, "解码：音频轨没有 mime，无法创建解码器")
+                return 0
+            }
+            // 采样率/声道数与 probe() 同源（同一个 findAudioTrack），不会两处算出不同结果。
+            val inRate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            val inChannels = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+            /*
+             * ── 声道闸：原来这里什么都不查，直接把解码器输出硬塞进管道 ──────────────
+             *
+             * 原生层（usbisoc.c）每帧固定按 2 声道 × 32bit = 每采样帧 8 字节消费，
+             * 而这里送出去的长度完全取决于源文件的声道数：
+             *   单声道（4 字节/采样帧）→ DAC 按 8 字节消费 → 采到的数据永远比实际少 →
+             *     听起来就是 2 倍速（音高翻倍）；
+             *   5.1（12 字节/采样帧）→ 3 倍速。
+             * 这不是"音质差一点"，是**放错**，所以不能再静默继续。
+             *
+             * 1 声道：下面用 monoToStereo() 把每个采样复制成左右两声道（样本值不变，仍可直通）。
+             * >2 声道：明确拒绝 + 在上层状态栏说明原因（不再变速播放）。
+             */
+            if (inChannels !in 1..2) {
+                Log.i(
+                    TAG,
+                    "解码：拒绝直通 —— 源文件 $inChannels 声道（直通只支持立体声，" +
+                        "单声道会自动复制成左右声道）",
+                )
+                PlaybackDiagnostics.mutable.value =
+                    "USB 直通不支持该文件：$inChannels 声道（直通只支持立体声）"
+                return 0
+            }
             /*
              * ⚠️ 不要在这里请求 KEY_PCM_ENCODING = FLOAT（我曾这么写，是两次噪音的真凶）。
              *
@@ -98,9 +126,12 @@ object UsbPcmDecoder {
             var inputDone = false
             var outputDone = false
             var outEncoding = AudioFormat.ENCODING_PCM_16BIT
-            var outChannels = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-            // 采样率在解码前后不会变（我们不做重采样），取输入格式里的即可
-            val outRate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            // 解码器真正的输出声道数会在 INFO_OUTPUT_FORMAT_CHANGED 里覆盖它；
+            // 在那之前按源声道数处理（单声道需要复制成左右两声道）。
+            var outChannels = inChannels
+            // 采样率用**源格式**里那一份（与 probe() 同源）；解码器回报的只用来校验，
+            // 不用来参与计算 —— DAC 的时钟是调用方按 probe() 的结果设的。
+            val outRate = inRate
             var lastProgress = -1L
             // 安全闸的统计量：接近满量程的样本数 / 已检查样本数
             var hotSamples = 0L
@@ -136,8 +167,33 @@ object UsbPcmDecoder {
                         AudioFormat.ENCODING_PCM_16BIT
                     }
                     outChannels = of.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                    val ofRate = if (of.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                        of.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                    } else {
+                        inRate
+                    }
                     Log.i(TAG, "解码：输出编码=$outEncoding 声道=$outChannels " +
-                        "采样率=${of.getInteger(MediaFormat.KEY_SAMPLE_RATE)}")
+                        "采样率=$ofRate（源 $inRate）")
+                    /*
+                     * ── 采样率闸 ────────────────────────────────────────────────
+                     * DAC 的时钟/每帧字节数是调用方按 probe() 读到的 $inRate 设死的。
+                     * 解码器若自己变采样率（典型：HE-AAC 的 SBR 让输出变成源的两倍），
+                     * 再按 $inRate 硬送就是**变速播放**。宁可不出声并留下可读原因，
+                     * 也不静默变速 —— 这正是"直通"最不能妥协的一条。
+                     */
+                    if (ofRate > 0 && ofRate != inRate) {
+                        Log.i(TAG, "解码：拒绝直通 —— 解码器输出 ${ofRate}Hz ≠ 文件 ${inRate}Hz，直通会变速")
+                        PlaybackDiagnostics.mutable.value =
+                            "USB 直通不支持该文件：解码输出 ${ofRate}Hz ≠ ${inRate}Hz（会变速）"
+                        return written
+                    }
+                    // 同一轨道的声道数不可能中途变化；真变了说明数据布局假设不成立，不能继续送。
+                    if (outChannels !in 1..2) {
+                        Log.i(TAG, "解码：拒绝直通 —— 解码器输出 $outChannels 声道（只支持 1/2）")
+                        PlaybackDiagnostics.mutable.value =
+                            "USB 直通不支持该文件：解码输出 $outChannels 声道"
+                        return written
+                    }
                     continue
                 }
                 if (outIdx < 0) continue
@@ -147,7 +203,12 @@ object UsbPcmDecoder {
                     ob.position(info.offset)
                     ob.limit(info.offset + info.size)
                     val src = ob.slice().order(ByteOrder.nativeOrder())
-                    val bytes = toInt32(src, outEncoding)
+                    val pcm32 = toInt32(src, outEncoding)
+                    /*
+                     * 送给原生层的数据**永远是 2 声道 × 32bit = 每采样帧 8 字节**。
+                     * 单声道源在这里补成左右两声道（原来不补 → 2 倍速播放）。
+                     */
+                    val bytes = if (outChannels == 1) monoToStereo(pcm32) else pcm32
                     out.write(bytes)
                     written += bytes.size
                     /*
@@ -178,8 +239,9 @@ object UsbPcmDecoder {
                     // 进度日志：用于中途核对"解码是否在持续推进"
                     if (written / PROGRESS_EVERY != lastProgress) {
                         lastProgress = written / PROGRESS_EVERY
-                        val ch2 = if (outChannels <= 0) 2 else outChannels
-                        val secs = written.toDouble() / (outRate * 8.0 * ch2 / 2.0)
+                        // 字面上送出去的永远是 2ch×32bit = 8 字节/采样帧，不再按源声道数换算
+                        // （否则单声道文件这条"已写 ≈ N 秒"会算多一倍）。
+                        val secs = written.toDouble() / (outRate * 8.0)
                         Log.i(TAG, "解码：已写 PCM=${written} 字节 ≈ ${"%.1f".format(secs)} 秒音频")
                     }
                 }
@@ -198,6 +260,25 @@ object UsbPcmDecoder {
             runCatching { codec?.release() }
             runCatching { ex.release() }
         }
+    }
+
+    /**
+     * 单声道 → 立体声：每个采样复制成左右两声道（样本值一个字节都不改）。
+     *
+     * 原生层按 2ch/32bit 固定消费 8 字节/采样帧，单声道源若不补，DAC 拿到的数据只有
+     * 需要的一半 → 2 倍速（音高翻倍）。输入/输出都是小端 32bit 定点，所以这里只做
+     * "4 字节一组复制两遍"，不引入任何增益或滤波。
+     */
+    private fun monoToStereo(mono: ByteArray): ByteArray {
+        val frames = mono.size / 4
+        val dst = ByteBuffer.allocate(frames * 8).order(ByteOrder.LITTLE_ENDIAN)
+        val src = ByteBuffer.wrap(mono).order(ByteOrder.LITTLE_ENDIAN)
+        while (src.remaining() >= 4) {
+            val v = src.getInt()
+            dst.putInt(v)
+            dst.putInt(v)
+        }
+        return dst.array()
     }
 
     /** 把解码器输出统一转成 32bit 定点（小端）字节序的数组。 */

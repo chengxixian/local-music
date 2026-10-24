@@ -19,8 +19,10 @@ data class QueueItem(val index: Int, val title: String, val artist: String, val 
 data class PlaybackUi(
     val connected: Boolean = false,
     val id: String? = null,
-    val title: String = "还没有开始播放",
-    val artist: String = "从曲库选择一首音乐",
+    // 空串表示"还没有内容"；真正的占位文案由 PlayerConnection 用 Context 取字符串资源填。
+    // 以前这三处写死中文，en/ja/ru 用户在迷你播放条和播放队列里会直接看到中文。
+    val title: String = "",
+    val artist: String = "",
     val playing: Boolean = false,
     val duration: Long = 0,
     val shuffle: Boolean = false,
@@ -30,8 +32,11 @@ data class PlaybackUi(
 )
 
 class PlayerConnection(context: Context) {
+    private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val mutable = MutableStateFlow(PlaybackUi())
+    private val idleTitle = appContext.getString(com.localmusic.app.R.string.player_idle_title)
+    private val idleArtist = appContext.getString(com.localmusic.app.R.string.player_idle_artist)
+    private val mutable = MutableStateFlow(PlaybackUi(title = idleTitle, artist = idleArtist))
     val state = mutable.asStateFlow()
 
     /** 播放进度（毫秒）。单独一条流，避免 400ms 一次的进度更新把整棵界面树拖着重组。 */
@@ -70,8 +75,8 @@ class PlayerConnection(context: Context) {
             lastQueueKey = queueKey
             queueCache = buildQueue(p)
         }
-        val next = PlaybackUi(true, p.currentMediaItem?.mediaId, p.mediaMetadata.title?.toString() ?: "还没有开始播放",
-            p.mediaMetadata.artist?.toString() ?: "从曲库选择一首音乐", p.isPlaying,
+        val next = PlaybackUi(true, p.currentMediaItem?.mediaId, p.mediaMetadata.title?.toString() ?: idleTitle,
+            p.mediaMetadata.artist?.toString() ?: idleArtist, p.isPlaying,
             p.duration.coerceAtLeast(0), p.shuffleModeEnabled, p.repeatMode, p.playerError?.errorCodeName,
             queue = queueCache)
         // 值没变就不发射：稳态播放时下面这些字段其实都是常量
@@ -87,7 +92,8 @@ class PlayerConnection(context: Context) {
             val item = p.getMediaItemAt(i)
             QueueItem(
                 index = i,
-                title = item.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() } ?: "未知曲目",
+                title = item.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
+                    ?: appContext.getString(com.localmusic.app.R.string.player_unknown_track),
                 artist = item.mediaMetadata.artist?.toString().orEmpty(),
                 current = i == p.currentMediaItemIndex,
             )

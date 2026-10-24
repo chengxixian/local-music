@@ -288,67 +288,52 @@ private fun AppShell() {
             return@play
         }
 
-        // ── 点歌即 USB 直通 ──────────────────────────────────────────────
-        // 只有当设置里的「USB Bit-perfect」打开时才走这条路（默认关闭，
-        // 因此正常播放完全不受影响）。这条路不经过 ExoPlayer：
-        // 解码 → 管道 → 原生 usbfs 等时 → DAC，采样率按文件原始值设置。
-        // 解码端带垃圾数据安全闸：异常时宁可不出声，也绝不把噪音送进 DAC。
-        // playSong 定义在 bitPerfect 状态变量之前（作用域拿不到），
-        // 所以直接读偏好 —— 偏好本来就是开关的真源，等价且更直接。
-        if (prefs.getBoolean("bitPerfect", false)) {
-            playerOpen = true
-            // 界面/队列/进度/通知仍交给 ExoPlayer —— 它此时已被服务静音（volume=0），
-            // 所以不会和直通两路同时出声，播放页也能正确显示"正在播放"而不是空状态。
+        // ── 点歌：界面只负责"播哪首"，声音走哪条路由由播放服务决定 ──────────────
+        // 旧实现是：先 player.play()（被服务静音），再在这里开一个裸 Thread 调
+        // UsbUac2Stream.playFile()。后果有三个，用户都能碰到：
+        //  ① 暂停 / 拖动进度 / 下一首 / 自动续播 都不会停那条原生流 → DAC 继续放上一首；
+        //  ② 「USB Bit-perfect」只是在设置里打开、并没有 DAC 时，界面这条路照样把
+        //     ExoPlayer 静音了 → 进度条在走、一点声音没有；
+        //  ③ DSD 分支被放在 bitPerfect 之后，开着直通点 .dsf 时用的是"先直通再判断"，
+        //     永远走不到转码，直接交给 ExoPlayer 解 .dsf → 解码失败。
+        // 现在直通通道由 PlaybackService.syncPassthrough() 跟随播放状态启动/停止，
+        // 这里只剩两件事：DSD 先转码、然后交给播放器。
+        if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
-            val rawPath = if (song.uri.startsWith("file://")) {
-                runCatching { android.net.Uri.parse(song.uri).path }.getOrNull()
-            } else song.uri
-            if (rawPath.isNullOrBlank()) {
-                android.widget.Toast.makeText(context, "无法解析文件路径", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                // The DAC may have been plugged in after app launch; request USB permission
-                // again here so direct playback works without an adb-only setup step.
-                com.localmusic.app.data.UsbAudioPermission.ensure(context) { granted ->
-                    if (granted) Thread {
-                        runCatching { com.localmusic.audio.playback.UsbUac2Stream.playFile(context, rawPath) }
-                    }.start()
-                }
+            playerOpen = true
+            return@play
+        }
+        // DSD（.dsf/.dff）：Media3 解不了，必须先抽成 176.4kHz/24bit PCM WAV。
+        // 转好的那份用它的 URI 播 —— 之后系统输出和 USB 直通都能直接用。
+        android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_converting), android.widget.Toast.LENGTH_SHORT).show()
+        uiScope.launch {
+            val playable: java.io.File? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val uri = android.net.Uri.parse(song.uri)
+                    val name = song.title.ifBlank { "dsd" }.take(40) +
+                        if (song.uri.lowercase().endsWith(".dff")) ".dff" else ".dsf"
+                    val src = com.localmusic.app.data.Dsd.copyToLocal(context, uri, name) ?: return@runCatching null
+                    val info = com.localmusic.app.data.Dsd.probe(src) ?: return@runCatching null
+                    val out = com.localmusic.app.data.Dsd.cacheFile(context, src)
+                    if (out.isFile && out.length() > 0L) out
+                    else if (com.localmusic.app.data.Dsd.convertToWav(src, out, info)) out
+                    else null
+                }.getOrNull()
             }
-        } else if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
-            player.play(list, song)
-            playerOpen = true
-        } else {
-            android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_converting), android.widget.Toast.LENGTH_SHORT).show()
-            uiScope.launch {
-                val playable: java.io.File? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching {
-                        val uri = android.net.Uri.parse(song.uri)
-                        val name = song.title.ifBlank { "dsd" }.take(40) +
-                            if (song.uri.lowercase().endsWith(".dff")) ".dff" else ".dsf"
-                        val src = com.localmusic.app.data.Dsd.copyToLocal(context, uri, name) ?: return@runCatching null
-                        val info = com.localmusic.app.data.Dsd.probe(src) ?: return@runCatching null
-                        val out = com.localmusic.app.data.Dsd.cacheFile(context, src)
-                        if (out.isFile && out.length() > 0L) out
-                        else if (com.localmusic.app.data.Dsd.convertToWav(src, out, info)) out
-                        else null
-                    }.getOrNull()
-                }
-                if (playable == null) {
-                    android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_failed), android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    // 规格必须换成"转码后的 PCM"：Song 的 sampleRate/bitDepth 会进 MediaItem extras，
-                    // 而 USB 直通（AudioMixerAttributes）正是按它去申请源规格的。
-                    // 不换的话会拿 DSD 的 2822400Hz/1bit 去申请 —— 任何 DAC 都不可能支持，
-                    // 结果是白退化成系统输出，USB DAC 直通等于失效。
-                    val converted = song.copy(
-                        uri = android.net.Uri.fromFile(playable).toString(),
-                        format = "wav",
-                        sampleRate = com.localmusic.app.data.Dsd.PCM_RATE,
-                        bitDepth = 24,
-                    )
-                    player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
-                    playerOpen = true
-                }
+            if (playable == null) {
+                android.widget.Toast.makeText(context, context.getString(R.string.toast_dsd_failed), android.widget.Toast.LENGTH_LONG).show()
+            } else {
+                // 规格必须换成"转码后的 PCM"：Song 的 sampleRate/bitDepth 会进 MediaItem extras，
+                // 而 USB 直通正是按它去申请源规格的。不换的话会拿 DSD 的 2822400Hz/1bit 去申请，
+                // 任何 DAC 都不可能支持，等于直通失效。
+                val converted = song.copy(
+                    uri = android.net.Uri.fromFile(playable).toString(),
+                    format = "wav",
+                    sampleRate = com.localmusic.app.data.Dsd.PCM_RATE,
+                    bitDepth = 24,
+                )
+                player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
+                playerOpen = true
             }
         }
     }
@@ -360,6 +345,10 @@ private fun AppShell() {
     }
     val scrapeStatus by com.localmusic.app.data.Scraper.status.collectAsState()
     val scrapeScope = rememberCoroutineScope()
+    /** 正在跑的刮削任务（界面上要能"停止"）。 */
+    var scrapeJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    /** PC 有线音箱自己的状态流（不再和 USB / 睡眠定时器抢同一行诊断）。 */
+    val pcSpeakerStatus by com.localmusic.audio.playback.PcWiredSpeakerServer.status.collectAsState()
     val updateState by com.localmusic.app.data.UpdateChecker.status.collectAsState()
     var autoScrape by remember { mutableStateOf(prefs.getBoolean("autoScrape", true)) }
     var scrapeCover by remember { mutableStateOf(prefs.getBoolean("scrapeCover", true)) }
@@ -367,11 +356,22 @@ private fun AppShell() {
     // 刮削是否使用网易云音乐源（非官方接口，默认开）
     var neteaseSource by remember { mutableStateOf(prefs.getBoolean("neteaseSource", true)) }
     var neteaseCookie by remember { mutableStateOf(prefs.getString("neteaseCookie", "") ?: "") }
+    /** Cookie 输入的防抖落盘任务（见 onNeteaseCookie）。 */
+    var cookieSaveJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var fadeDurationMs by remember { mutableLongStateOf(prefs.getLong("fadeDurationMs", 900L)) }
     var normalizeVolume by remember { mutableStateOf(prefs.getBoolean("normalizeVolume", true)) }
     var floatingLyrics by remember { mutableStateOf(prefs.getBoolean("floatingLyrics", false)) }
     var pcWiredSpeaker by remember { mutableStateOf(prefs.getBoolean("pcWiredSpeaker", false)) }
     var sleepTimerEnd by remember { mutableLongStateOf(prefs.getLong("sleepTimerEnd", 0L)) }
+    // 睡眠定时器到点后，PlaybackService 会 pause 并把 `sleepTimerEnd` 偏好删掉；
+    // 但这里的状态只是一次性的 remember 初值（`System.currentTimeMillis()` 也不是快照源），
+    // 不主动刷就会永远显示「N 分钟后暂停」——以前就是这样。
+    // 这里按到期时间挂一个协程：到点把状态清零，设置页立刻回到「未设置」。
+    LaunchedEffect(sleepTimerEnd) {
+        val remaining = sleepTimerEnd - System.currentTimeMillis()
+        if (remaining > 0) kotlinx.coroutines.delay(remaining)
+        if (sleepTimerEnd > 0L && sleepTimerEnd <= System.currentTimeMillis()) sleepTimerEnd = 0L
+    }
     // 滚轮圆环的玻璃颜色：预设下标（-1 = 自定义）+ 色相/饱和度/透光率
     var tintState by remember {
         mutableStateOf(
@@ -519,24 +519,49 @@ private fun AppShell() {
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) scrapeScope.launch {
-            val n = com.localmusic.app.data.LrcImporter.importFiles(context, songs, uris)
-            android.widget.Toast.makeText(context, "已导入 $n 个 LRC", android.widget.Toast.LENGTH_SHORT).show()
+            // 结果分三类上报：导入成功 / 没匹配上歌 / 读不出来。
+            // 以前只有一句「已导入 N 个」，用户不知道 N 为什么小。
+            val r = com.localmusic.app.data.LrcImporter.importDetailed(context, songs, uris)
+            val msg = buildString {
+                append(context.getString(R.string.toast_lrc_imported, r.imported))
+                if (r.unmatched > 0) append(context.getString(R.string.toast_lrc_unmatched, r.unmatched))
+                if (r.failed > 0) append(context.getString(R.string.toast_lrc_failed, r.failed))
+            }
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
     }
     val createBackup = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if (uri != null) {
-            val ok = com.localmusic.app.data.BackupManager.export(context, uri)
-            android.widget.Toast.makeText(context, if (ok) "备份已导出" else "备份导出失败", android.widget.Toast.LENGTH_SHORT).show()
+            // 打包要读数据库 + 上千个文件：放在 IO 线程，主线程只更新一句提示。
+            // 以前是同步跑在回调里 → 界面直接卡住（大库接近 ANR）。
+            scrapeScope.launch {
+                android.widget.Toast.makeText(context, "正在打包备份…", android.widget.Toast.LENGTH_SHORT).show()
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.localmusic.app.data.BackupManager.export(context, uri)
+                }
+                android.widget.Toast.makeText(context, if (ok) "备份已导出" else "备份导出失败（目标不可写或数据库正忙）", android.widget.Toast.LENGTH_LONG).show()
+            }
         }
     }
     val restoreBackup = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val ok = com.localmusic.app.data.BackupManager.restore(context, uri)
-            android.widget.Toast.makeText(context, if (ok) "备份已恢复，重启应用后生效" else "备份恢复失败", android.widget.Toast.LENGTH_LONG).show()
+            // 恢复是两阶段的：这里只解包到私有暂存目录，真正的落盘在**下次启动**时
+            // （BackupManager.applyPendingRestore）。旧实现直接覆盖正在使用的 library.db，
+            // 会被 SQLite 连接反写回去，表现就是"提示恢复成功但什么都没变"。
+            scrapeScope.launch {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.localmusic.app.data.BackupManager.restore(context, uri)
+                }
+                android.widget.Toast.makeText(
+                    context,
+                    if (ok) "备份已解包 · 完全退出并重新打开应用后生效" else "备份恢复失败（包不完整或不是本应用的备份）",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
         }
     }
 
@@ -571,6 +596,11 @@ private fun AppShell() {
     // 返回键：先关播放页，再收均衡器面板
     BackHandler(enabled = showEq) { showEq = false }
     BackHandler(enabled = playerOpen && !showEq) { playerOpen = false }
+    // 以前缺这三个：在「关于」页 / 语言弹窗 / 乐单菜单上按返回键会**直接退出 App**，
+    // 因为没有任何 BackHandler 把系统返回事件接住。
+    BackHandler(enabled = showPlaylistMenu) { showPlaylistMenu = false }
+    BackHandler(enabled = showLanguage) { showLanguage = false }
+    BackHandler(enabled = showAbout) { showAbout = false }
     BackHandler(enabled = pickerSong != null) { pickerSong = null }
     BackHandler(enabled = openPlaylist != null && pickerSong == null) { openPlaylist = null }
 
@@ -757,10 +787,12 @@ private fun AppShell() {
                                         onScrapeCover = { scrapeCover = it; prefs.edit().putBoolean("scrapeCover", it).apply() },
                                         onScrapeLyrics = { scrapeLyrics = it; prefs.edit().putBoolean("scrapeLyrics", it).apply() },
                                         onScrapeNow = {
-                                            scrapeScope.launch {
-                                                com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400)
+                                            // 记住这个 Job：刮削可能跑几分钟，界面上要能"停止"。
+                                            scrapeJob = scrapeScope.launch {
+                                                com.localmusic.app.data.Scraper.scrape(context, songs, scrapeCover, scrapeLyrics, limit = 400, wantNetease = neteaseSource)
                                             }
                                         },
+                                        onScrapeCancel = { scrapeJob?.cancel() },
                                         onClearScrapedCovers = {
                                             scrapeScope.launch {
                                                 val n = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -791,17 +823,16 @@ private fun AppShell() {
                                         onBitPerfect = {
                                             bitPerfect = it
                                             prefs.edit().putBoolean("bitPerfect", it).apply()
-                                            // 真正的 USB 直通开关（不用 adb）：
-                                            //   开 → 后台启动自研 UAC2 等时输出（按源采样率直出）
-                                            //   关 → 关闭管道，原生层自然收尾并释放接口
-                                            // 只有你手动打开才会出声，打开 App 不会自动播放。
+                                            // 开关只**写偏好**，不在这里启动任何音频流：
+                                            // 以前这里调 `UsbUac2Stream.playFile(context)`（没有指定曲目），
+                                            // 会去 /sdcard 三个目录里挑一个最大的文件直接播进 DAC ——
+                                            // 等于"打开开关就放一首用户没点过的歌"。现在由
+                                            // PlaybackService 的偏好监听 → syncPassthrough() 接管：
+                                            // 当前正在播的那首才走直通，没有 DAC 就继续走系统输出（有声）。
                                             if (it) {
-                                                Thread {
-                                                    runCatching {
-                                                        com.localmusic.audio.playback.UsbUac2Stream
-                                                            .playFile(context)
-                                                    }
-                                                }.start()
+                                                // DAC 可能是启动后才插上的：顺手把 USB 授权要一遍，
+                                                // 免得直通开始后卡在"没有权限"。
+                                                com.localmusic.app.data.UsbAudioPermission.ensure(context) { }
                                             } else {
                                                 com.localmusic.audio.playback.UsbUac2Stream.stop()
                                             }
@@ -826,11 +857,17 @@ private fun AppShell() {
                                         pcWiredSpeaker = pcWiredSpeaker,
                                         neteaseCookie = neteaseCookie,
                                         sleepTimerEnd = sleepTimerEnd,
+                                        // 「音量标准化」这一行要显示**当前曲目**的真实增益，
+                                        // 否则开关点了也看不出有没有生效（以前就是这么个死开关）。
+                                        normalizeGainDb = nowPlaying?.replayGainDb,
+                                        pcSpeakerStatus = pcSpeakerStatus,
                                         onFadeDuration = { value -> fadeDurationMs = value; prefs.edit().putLong("fadeDurationMs", value).apply() },
                                         onNormalizeVolume = { value -> normalizeVolume = value; prefs.edit().putBoolean("normalizeVolume", value).apply() },
                                         onFloatingLyrics = { value -> floatingLyrics = value; prefs.edit().putBoolean("floatingLyrics", value).apply() },
                                         onPcWiredSpeaker = { value -> pcWiredSpeaker = value; prefs.edit().putBoolean("pcWiredSpeaker", value).apply() },
-                                        onNeteaseCookie = { value -> neteaseCookie = value; prefs.edit().putString("neteaseCookie", value).apply() },
+                                        // Cookie 输入框：**每次按键只有输入法组词结束才落盘**，
+                                        // 以前 onValueChange 里直接 apply()，敲 30 个字符就写 30 次磁盘。
+                                        onNeteaseCookie = { value -> neteaseCookie = value; cookieSaveJob?.cancel(); cookieSaveJob = scrapeScope.launch { kotlinx.coroutines.delay(600); prefs.edit().putString("neteaseCookie", value).apply() } },
                                         onSleepTimer = { end -> sleepTimerEnd = end; prefs.edit().putLong("sleepTimerEnd", end).apply() },
                                         onImportLrc = { pickLrcFiles.launch(arrayOf("text/plain", "application/octet-stream", "text/*")) },
                                         onBackupExport = { createBackup.launch("local-music-backup.zip") },
@@ -971,7 +1008,10 @@ private fun AppShell() {
                         if (showAbout) {
                             AboutPage(onBack = { showAbout = false })
                         }
-                        if (floatingLyrics && !showAbout && !playerOpen && playback.id != null) {
+                        // 设置里写的是「**在曲库页面**显示当前歌词行」，但这里以前没有页面判断：
+                        // 乐单 / 喜欢 / 设置页也会浮出来，正好压在页面标题上（设置页第一张卡被挡）。
+                        // 现在按文案只在曲库页显示。
+                        if (floatingLyrics && page == Page.Library && !showAbout && !playerOpen && playback.id != null) {
                             FloatingLyricsOverlay(
                                 backdrop = backdrop,
                                 song = nowPlaying,

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   Русский. Непереведённые ключи откатываются к res/values/ (английский).
   Остальные ключи можно дописать позже (имена как в values/strings.xml).
@@ -221,4 +221,54 @@
     <string name="library_pick_folder">Выбрать папку с музыкой</string>
     <string name="scan_no_folder">Папка с музыкой не выбрана — добавьте её в настройках</string>
     <string name="scan_migrated">Избранное / плейлисты / обложки для %1$d треков перенесены на папковые записи</string>
+
+    <!-- Строки экрана настроек («Улучшение воспроизведения / Подключения и синхронизация»):
+         раньше были захардкожены по-китайски прямо в Kotlin. -->
+    <string name="settings_fade">Плавное появление / затухание</string>
+    <string name="settings_fade_on">Появление %1$d мс при смене трека</string>
+    <string name="settings_fade_off">Выключено</string>
+    <string name="settings_normalize">Нормализация громкости (ReplayGain)</string>
+    <string name="settings_eq_enabled_line">Включено · %1$s дБ</string>
+    <string name="settings_import_lrc">Пакетный импорт LRC</string>
+    <string name="settings_import_lrc_sub">Выберите несколько .lrc — они сопоставятся с библиотекой по имени файла и сохранятся офлайн</string>
+    <string name="settings_conn_sync">Подключения и синхронизация</string>
+    <string name="settings_floating_lyrics">Плавающий текст песни</string>
+    <string name="settings_floating_lyrics_sub">Показывать текущую строку текста на экране библиотеки; нажмите, чтобы открыть плеер</string>
+    <string name="settings_pc_speaker">Проводная колонка ПК</string>
+    <string name="settings_pc_speaker_sub">Телефон работает как сервер и слушает TCP 8899 (44.1 кГц / 16 бит / стерео PCM). На ПК сначала выполните adb forward tcp:8899 tcp:8899, затем подключитесь к 127.0.0.1:8899</string>
+    <string name="settings_sleep_timer">Таймер сна</string>
+    <string name="settings_sleep_in">Пауза через %1$d мин</string>
+    <string name="settings_sleep_none">Не задан</string>
+    <string name="settings_netease_cookie">Cookie авторизации NetEase (необязательно)</string>
+    <string name="settings_netease_cookie_sub">Вставьте Cookie MUSIC_U / NMTID; они хранятся только на этом устройстве и используются лишь для методов, требующих входа.</string>
+    <string name="settings_backup_export">Экспорт резервной копии</string>
+    <string name="settings_backup_restore">Восстановление из копии</string>
+    <string name="settings_library">Библиотека</string>
+    <string name="settings_language">Язык / Language</string>
+    <string name="settings_language_current">Текущий / Current</string>
+    <string name="settings_fade_ms">%1$d мс</string>
+    <string name="settings_normalize_off">Выкл. (без выравнивания громкости)</string>
+    <string name="settings_normalize_no_tag">У этого трека нет тега ReplayGain</string>
+    <string name="settings_normalize_gain">Этот трек %1$s дБ · применено</string>
+    <string name="settings_pc_speaker_listening">Ожидание · ждём ПК на 127.0.0.1:8899</string>
+    <string name="settings_pc_speaker_connected">ПК подключён · воспроизведение</string>
+    <string name="settings_pc_speaker_error">Ошибка запуска: %1$s</string>
+    <string name="settings_pc_speaker_starting">Запуск…</string>
+    <string name="settings_pc_speaker_idle">Отключено</string>
+    <string name="settings_sleep_off">Выкл.</string>
+    <string name="settings_sleep_min">%1$d мин</string>
+    <string name="settings_scrape_stop">Стоп</string>
+    <string name="toast_lrc_imported">Импортировано LRC: %1$d</string>
+    <string name="toast_lrc_unmatched">, не найдено совпадений: %1$d</string>
+    <string name="toast_lrc_failed">, не удалось прочитать: %1$d</string>
+    <string name="floating_lyrics_none">♪ %1$s · текста нет</string>
+    <string name="lyrics_missing_hint_full">Пробуются три источника:
+· кэш скрейпинга (включается в настройках, потом работает офлайн)
+· файл .lrc с тем же именем рядом с аудио
+· текст, встроенный в файл (ID3 USLT / Vorbis LYRICS)
+
+Можно дополнить кнопкой «Скрейпить сейчас» в настройках. Нажмите, чтобы вернуться к обложке.</string>
+    <string name="player_idle_title">Воспроизведение не начато</string>
+    <string name="player_idle_artist">Выберите песню в библиотеке</string>
+    <string name="player_unknown_track">Неизвестный трек</string>
 </resources>

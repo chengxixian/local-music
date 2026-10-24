@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.data
 
 import com.localmusic.app.R
@@ -38,6 +38,8 @@ object UpdateChecker {
         val notes: String,
         val apkUrl: String,
         val sizeBytes: Long,
+        /** 清单里带的 versionCode（旧清单没有就是 0，此时回落到版本名比较）。 */
+        val versionCode: Int = 0,
     )
 
     data class Status(
@@ -59,6 +61,15 @@ object UpdateChecker {
     private fun localVersion(context: Context): String = runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
     }.getOrDefault("")
+
+    /**
+     * 本机 versionCode。清单里带 `versionCode` 时优先用它比较：
+     * 版本名是给人看的字符串（"0.8.10" / "0.8.10-beta" / "0.8.10-debug" 都可能），
+     * 只按名字比会在"只加 versionCode 的修复版"上**永远收不到更新**。
+     */
+    private fun localVersionCode(context: Context): Int = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+    }.getOrDefault(0)
 
     /** 逐段比数字：远端 > 本地 → true。 */
     internal fun isNewer(remote: String, local: String): Boolean {
@@ -84,12 +95,21 @@ object UpdateChecker {
         try {
             val body = get(MANIFEST_URL) ?: throw IllegalStateException(context.getString(R.string.update_net_fail))
             val json = JSONObject(body)
-            val remote = json.optString("version")
-            val apkUrl = json.optString("apkUrl")
+            val remote = json.optString("version").trim()
+            val apkUrl = json.optString("apkUrl").trim()
             val size = json.optLong("size")
+            val remoteCode = json.optInt("versionCode", 0)
             val local = localVersion(context)
-            val update = if (apkUrl.isNotBlank() && remote.isNotBlank() && isNewer(remote, local)) {
-                Update("v${remote.removePrefix("v")}", json.optString("notes").take(4000), apkUrl, size)
+            // ⚠️ 清单缺字段时**不能**静默当成"已是最新"。
+            // 旧写法是 `if (apkUrl.isNotBlank() && …) Update(...) else null` ——
+            // 清单里漏了 apkUrl 就走进 else，界面显示"已是最新版本"，
+            // 等于把"清单坏了/还没填完"伪装成"没有更新"。现在明确报错。
+            if (remote.isBlank()) throw IllegalStateException("更新清单缺少 version 字段")
+            if (apkUrl.isBlank()) throw IllegalStateException("更新清单缺少 apkUrl 字段")
+            // versionCode 优先（能识别"只加 code 的修复版"），清单没写就回落到版本名逐段比较
+            val newer = if (remoteCode > 0) remoteCode > localVersionCode(context) else isNewer(remote, local)
+            val update = if (newer) {
+                Update("v${remote.removePrefix("v")}", json.optString("notes").take(4000), apkUrl, size, remoteCode)
             } else null
             _status.value = Status(
                 checking = false,
@@ -110,9 +130,14 @@ object UpdateChecker {
         val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "updates").apply { mkdirs() }
         val target = File(dir, "local-music-${update.tag}.apk")
         if (target.isFile && target.length() > 0) {
-            _status.value = _status.value.copy(downloading = false)
-            onDone(target)
-            return
+            if (apkSizeMatches(target, update.sizeBytes)) {
+                _status.value = _status.value.copy(downloading = false)
+                onDone(target)
+                return
+            }
+            // 上次下到一半留下的残包：大小和清单对不上就**不能**拿去装（会装出坏 APK），
+            // 旧实现只要 length > 0 就直接交给安装器。
+            target.delete()
         }
         runCatching {
             val request = DownloadManager.Request(Uri.parse(update.apkUrl)).apply {
@@ -151,8 +176,18 @@ object UpdateChecker {
                     )
                     when (downloadStatus) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
+                            val apk = File(dir, target.name)
+                            if (!apkSizeMatches(apk, update.sizeBytes)) {
+                                // 大小与清单不符：DownloadManager 说成功也不可信（代理错误页/截断）
+                                apk.delete()
+                                _status.value = _status.value.copy(
+                                    downloading = false,
+                                    error = "下载的安装包大小与清单不一致，已删除，请重试",
+                                )
+                                return@launch
+                            }
                             _status.value = _status.value.copy(downloading = false, progress = 1f, message = context.getString(R.string.update_download_done))
-                            withContext(Dispatchers.Main) { onDone(File(dir, target.name)) }
+                            withContext(Dispatchers.Main) { onDone(apk) }
                             return@launch
                         }
                         DownloadManager.STATUS_FAILED -> {
@@ -165,6 +200,19 @@ object UpdateChecker {
         }.onFailure {
             _status.value = _status.value.copy(downloading = false, error = it.message ?: "下载失败")
         }
+    }
+
+    /**
+     * 安装前的大小校验。
+     *
+     * 旧实现只要文件 `length > 0` 就直接交给安装器：DownloadManager 判失败留下的半截文件、
+     * 或上一次下载中断的残包，都会被当成完整 APK 装进去（用户看到的是"安装包解析失败"）。
+     * 清单没给 size（0）时无法校验，只能放行。
+     */
+    private fun apkSizeMatches(file: File, expected: Long): Boolean {
+        if (!file.isFile || file.length() <= 0L) return false
+        if (expected <= 0L) return true
+        return file.length() == expected
     }
 
     /** 拉起系统安装界面（需要用户允许"安装未知应用"）。 */
