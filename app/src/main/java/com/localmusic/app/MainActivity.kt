@@ -504,6 +504,16 @@ private fun AppShell() {
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                 )
+            }
+            val label = android.provider.DocumentsContract.getTreeDocumentId(uri).substringAfter(':')
+            prefs.edit().putString("exportTree", uri.toString()).putString("exportLabel", label).apply()
+            exportLabel = label
+            // 导出的 FLAC 也要进曲库 → 把它加进被扫描的目录集合
+            library.addTree(uri)
+            trees = library.treeUris().toList()
+            showExportPrompt = false
+        }
+    }
 
     val pickLrcFiles = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -527,16 +537,6 @@ private fun AppShell() {
         if (uri != null) {
             val ok = com.localmusic.app.data.BackupManager.restore(context, uri)
             android.widget.Toast.makeText(context, if (ok) "备份已恢复，重启应用后生效" else "备份恢复失败", android.widget.Toast.LENGTH_LONG).show()
-        }
-    }
-            }
-            val label = android.provider.DocumentsContract.getTreeDocumentId(uri).substringAfter(':')
-            prefs.edit().putString("exportTree", uri.toString()).putString("exportLabel", label).apply()
-            exportLabel = label
-            // 导出的 FLAC 也要进曲库 → 把它加进被扫描的目录集合
-            library.addTree(uri)
-            trees = library.treeUris().toList()
-            showExportPrompt = false
         }
     }
 
