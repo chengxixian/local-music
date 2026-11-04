@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.LocalMusic" parent="android:style/Theme.Material.Light.NoActionBar">
+    <!-- NOTHING 风格：纯黑底、浅色状态栏图标、信号红作为系统强调色。
+         冷启动那一帧也必须是黑的，否则会先闪一下浅灰再进深色界面。 -->
+    <style name="Theme.LocalMusic" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">#F7F7F7</item>
-        <item name="android:colorAccent">#526C50</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:colorAccent">#E1191F</item>
     </style>
 </resources>

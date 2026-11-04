@@ -259,4 +259,25 @@ Open the player again later or run a scrape in Settings to fill it in. Tap here 
     <string name="player_idle_title">Nothing playing yet</string>
     <string name="player_idle_artist">Pick a song from the library</string>
     <string name="player_unknown_track">Unknown track</string>
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_note">Dot matrix = NOTHING black / white / gray / red. M3E = the original liquid glass UI.</string>
+    <string name="appearance_skin">Style</string>
+    <string name="appearance_mode">Light / dark</string>
+    <string name="appearance_accent">Accent color (M3E)</string>
+    <string name="skin_nothing">Dot matrix</string>
+    <string name="skin_m3e">M3E</string>
+    <string name="ui_mode_system">System</string>
+    <string name="ui_mode_light">Light</string>
+    <string name="ui_mode_dark">Dark</string>
+    <string name="accent_dynamic">Wallpaper</string>
+    <string name="accent_miublue">MIUI blue</string>
+    <string name="accent_blue">Blue</string>
+    <string name="accent_violet">Violet</string>
+    <string name="accent_green">Green</string>
+    <string name="accent_orange">Orange</string>
+    <string name="accent_red">Signal red</string>
+    <string name="accent_cyan">Cyan</string>
+    <string name="accent_amber">Amber</string>
+    <string name="accent_rose">Rose</string>
+    <string name="accent_lime">Lime</string>
 </resources>

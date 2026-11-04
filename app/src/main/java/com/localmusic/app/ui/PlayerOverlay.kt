@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.localmusic.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -104,13 +111,23 @@ fun GlassTopBar(
                     )
                 }
             } else {
-                Text(
-                    text = title,
-                    style = MiuixTheme.textStyles.title2,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // 切页时标题做一次"上滑淡入"，而不是整条顶栏瞬间换字
+                AnimatedContent(
+                    targetState = title,
+                    transitionSpec = {
+                        (fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 })
+                            .togetherWith(fadeOut(tween(140)) + slideOutVertically(tween(180)) { -it / 2 })
+                    },
+                    label = "topBarTitle",
+                ) { t ->
+                    Text(
+                        text = t,
+                        style = MiuixTheme.textStyles.title2,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -223,10 +240,15 @@ fun PlayerPage(
 ) {
     val scheme = MiuixTheme.colorScheme
     // 主题色：优先取当前歌曲封面的鲜艳色，取不到再回落默认主题色
-    val accent = rememberPlayerAccent(song) ?: scheme.primary
+    // NOTHING 配色：控件本身只用白 / 灰，红色只留给进度条与喜欢这类小面积信号。
+    // 封面平均色只用来判断背景明暗（决定文字黑白），不再当作强调色。
+    // 点阵皮肤：控件用白 / 灰，红色只做点缀；M3E：恢复"封面平均色"动态取色。
+    val nothing = com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING
+    val coverTone = rememberPlayerAccent(song)
+    val accent = if (nothing) Color.White else (coverTone ?: scheme.primary)
     // 文字随背景明暗自适应：背景偏亮用深色字，偏暗用浅色字
     // （accent 就是封面的平均色，也正是播放页背景的兜底色，可代表背景明暗）
-    val onBackdrop = if (accent.luminance() > 0.68f) Color.Black else Color.White
+    val onBackdrop = if ((coverTone ?: Color.Black).luminance() > 0.68f) Color.Black else Color.White
     val context = LocalContext.current
     // 播放进度在播放页内部收集：只有这一屏会跟着 400ms 的进度重组，曲库网格不受影响
     val livePosition by positionFlow.collectAsState()
@@ -375,7 +397,7 @@ fun PlayerPage(
                             Icon(
                                 if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
-                                tint = if (favorite) accent else scheme.onSurfaceVariantSummary,
+                                tint = if (favorite) (if (nothing) Color(0xFFE1191F) else accent) else scheme.onSurfaceVariantSummary,
                             )
                         }
                         IconButton(onClick = onRepeat) {
@@ -443,7 +465,7 @@ private fun QueuePane(
                     )
                     Column(Modifier.weight(1f)) {
                         Text(item.title, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            color = if (item.current) scheme.primary else scheme.onSurface)
+                            color = if (item.current) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else scheme.primary) else scheme.onSurface)
                         if (item.artist.isNotBlank()) {
                             Text(item.artist, style = MiuixTheme.textStyles.footnote1,
                                 color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -551,7 +573,7 @@ private fun SeekBar(player: PlaybackUi, livePosition: Long, onSeek: (Long) -> Un
             onValueChange = { dragging = true; dragValue = it },
             onValueChangeFinished = { dragging = false; onSeek(dragValue.toLong()) },
             colors = SliderDefaults.colors(
-                thumbColor = accent,
+                thumbColor = if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else accent,
                 activeTrackColor = accent,
                 inactiveTrackColor = accent.copy(alpha = 0.24f),
             ),

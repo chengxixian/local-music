@@ -124,7 +124,7 @@ val GlassRegularBlurRadius = 5.dp
  * 要「看得见」就必须与背景**有一点点色相/明度差**，但不能差太多 ——
  * 太浓就不「干净透亮」了。3% 的冷灰只改变 6~8 个灰阶：有实体感、同时保持透亮。
  */
-val GlassSurfaceTint = Color(0xFF6E7D96).copy(alpha = 0.03f)
+val GlassSurfaceTint = Color(0xFFE6E6E6).copy(alpha = 0.055f)
 
 /**
  * 磨砂颗粒强度。0 = 关闭。

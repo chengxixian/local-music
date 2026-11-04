@@ -35,7 +35,7 @@ import kotlinx.coroutines.withContext
  *  2. 只取一张很小的图（192px）来糊：模糊后细节全无，取大图纯属浪费内存与解码时间。
  */
 @Composable
-fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
+fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier, monochrome: Boolean = false) {
     val context = LocalContext.current
     val state by produceState<Pair<androidx.compose.ui.graphics.ImageBitmap, Color>?>(null, song?.uri) {
         value = withContext(Dispatchers.IO) {
@@ -62,11 +62,14 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
                         }
                         y += step
                     }
-                    val avg = if (n == 0) Color.Black else Color(
-                        red = (r / n / 255f).toFloat(),
-                        green = (g / n / 255f).toFloat(),
-                        blue = (b / n / 255f).toFloat(),
-                    )
+                    val avg = if (n == 0) Color.Black else if (monochrome) {
+                        // 点阵皮肤：背景是灰的 -> 兜底底色也必须是灰的
+                        val lum = (0.2126f * (r / n) + 0.7152f * (g / n) + 0.0722f * (b / n)) / 255f
+                        Color(red = lum, green = lum, blue = lum)
+                    } else {
+                        // M3E：保留封面平均色，作为模糊图的兜底（原来的行为）
+                        Color(red = (r / n / 255f).toFloat(), green = (g / n / 255f).toFloat(), blue = (b / n / 255f).toFloat())
+                    }
                     bmp.asImageBitmap() to avg
                 }
             }
@@ -77,9 +80,9 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
         if (pair != null) {
             // ① 不透明兜底色（保证严丝合缝盖住下层）
             Box(Modifier.fillMaxSize().background(pair.second))
-            // ② 模糊封面：放大撑出屏幕，糊掉的边缘落在可视区外；**降饱和**让它退成"氛围色"
+            // ② 模糊封面：放大撑出屏幕，糊掉的边缘落在可视区外；**完全去色**（黑白灰红，不跟封面染色）
             //    而不是抢眼的图（纯模糊的高饱和封面会很吵，字也压不住）。
-            val calm = ColorMatrix().apply { setToSaturation(0.42f) }
+            val calm = ColorMatrix().apply { setToSaturation(if (monochrome) 0f else 0.42f) }
             Image(
                 bitmap = pair.first,
                 contentDescription = null,
@@ -95,7 +98,7 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
             )
         } else {
             // 封面还没加载出来时也要不透明，不能漏出曲库页
-            Box(Modifier.fillMaxSize().background(Color(0xFF101014)))
+            Box(Modifier.fillMaxSize().background(if (monochrome) Color(0xFF0A0A0A) else Color(0xFF101014)))
         }
         // 不压死：中间留透（玻璃才有东西可折射），只在上下加深，保证歌名/控件读得清
         Box(
@@ -103,10 +106,11 @@ fun PlayerBackdrop(song: Song?, modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.42f),
-                        0.35f to Color.Black.copy(alpha = 0.18f),
-                        0.62f to Color.Black.copy(alpha = 0.22f),
-                        1f to Color.Black.copy(alpha = 0.55f),
+                        // 点阵皮肤压到深灰（白色控件才有对比）；M3E 用原来的轻压暗
+                        0f to Color.Black.copy(alpha = if (monochrome) 0.86f else 0.42f),
+                        0.35f to Color.Black.copy(alpha = if (monochrome) 0.74f else 0.18f),
+                        0.62f to Color.Black.copy(alpha = if (monochrome) 0.76f else 0.22f),
+                        1f to Color.Black.copy(alpha = if (monochrome) 0.90f else 0.55f),
                     )
                 )
         )

@@ -12,6 +12,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -66,8 +72,9 @@ class MainActivity : ComponentActivity() {
     // 套用上次选择的播放页风格（液态玻璃 / 波浪）。PlayerStyleState 是 Compose 可观察的，
     // 播放页那两个分支读它来分叉；只读偏好不写这里的话，冷启动会回到默认（玻璃）那套。
     com.localmusic.app.data.PlayerStyleState.load(this)
+    com.localmusic.app.data.UiSettings.load(this)
 
-    setContent { LiquidTheme { AppShell() } }
+    setContent { com.localmusic.app.ui.AppTheme { AppShell() } }
 
     // 自研 UAC 驱动的阶段 0 探针：先申请该 USB 设备权限（系统弹一次窗），
     // 拿到权限后再跑探针 —— 那时 claimInterface(force=true) 会给出决定性结论
@@ -149,7 +156,7 @@ private fun NameDialogGlass(
     var text by remember(initial) { mutableStateOf(initial) }
     val scheme = MiuixTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.fillMaxWidth(0.86f)) {
@@ -269,6 +276,8 @@ private fun AppShell() {
     var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
 
     var playerOpen by remember { mutableStateOf(false) }
+    // 播放页从哪里"长"出来：点卡片 = 卡片矩形；迷你条 / 悬浮歌词 = null（从屏幕中部弹出）
+    var playerOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
 
     /**
      * 统一的"播这首歌"入口。
@@ -283,6 +292,7 @@ private fun AppShell() {
         // 媒体项并 prepare → 正在听的歌被"从 0:00 重来"。用户明确要求：点当前这首不要重启。
         // 现在的语义：暂停中就继续播，正在播就什么都不做，两种都把播放页打开。
         if (song.uri == playback.id) {
+            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
             playerOpen = true
             if (!playback.playing) player.toggle()
             return@play
@@ -300,6 +310,7 @@ private fun AppShell() {
         // 这里只剩两件事：DSD 先转码、然后交给播放器。
         if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
+            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
             playerOpen = true
             return@play
         }
@@ -333,6 +344,7 @@ private fun AppShell() {
                     bitDepth = 24,
                 )
                 player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
+                playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
                 playerOpen = true
             }
         }
@@ -419,7 +431,6 @@ private fun AppShell() {
 
     val nowPlaying = remember(songs, playback.id) { songs.firstOrNull { it.uri == playback.id } }
     // dock 仅在播放页跟随封面（主界面用主题色）
-    val dockAccent = com.localmusic.app.ui.rememberPlayerAccent(nowPlaying)
     // dock 选中色：跟随当前歌曲封面（取不到则回落到主题色）
 
     // ── 滚轮导航：曲库/喜欢用过滤后的歌曲列表，设置用下面这张动作表 ──
@@ -689,9 +700,15 @@ private fun AppShell() {
                             targetState = page,
                             transitionSpec = {
                                 val forward = targetState.ordinal > initialState.ordinal
-                                // 用 gentle 而不是 snappy：滚轮切页时太快会显得"闪一下"（用户反馈切换太快）
-                                (fadeIn(LiquidMotion.gentle()) + slideInHorizontally(LiquidMotion.gentle()) { if (forward) it / 6 else -it / 6 })
-                                    .togetherWith(fadeOut(LiquidMotion.gentle()) + slideOutHorizontally(LiquidMotion.gentle()) { if (forward) -it / 6 else it / 6 })
+                                val dir = if (forward) 1 else -1
+                                // 新页从侧向滑入 + 轻微放大 + 淡入；旧页反向滑出并略缩小 —— 有"推进"的方向感
+                                val enter = fadeIn(tween(260)) +
+                                    slideInHorizontally(tween(340)) { dir * it / 5 } +
+                                    scaleIn(tween(340), initialScale = 0.94f)
+                                val exit = fadeOut(tween(200)) +
+                                    slideOutHorizontally(tween(300)) { -dir * it / 8 } +
+                                    scaleOut(tween(300), targetScale = 0.97f)
+                                enter togetherWith exit
                             },
                             label = "page",
                         ) { p ->
@@ -880,7 +897,11 @@ private fun AppShell() {
                         // 播放页的背景：当前封面放大 + 高斯模糊（画在**采集层之内**，
                         // 这样播放页的玻璃折射到的就是这张封面，而不是背后的曲库页）
                         if (playerOpen) {
-                            PlayerBackdrop(song = nowPlaying, modifier = Modifier.matchParentSize())
+                            PlayerBackdrop(
+                                song = nowPlaying,
+                                monochrome = com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING,
+                                modifier = Modifier.matchParentSize(),
+                            )
                         }
 
                         // 关于页：它是**独立一页**，不是浮在设置页上的弹层。
@@ -899,7 +920,7 @@ private fun AppShell() {
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
                         // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
                         // 顶栏让位给页面自己的那行玻璃圆钮。
-                        PopIn(visible = playerOpen) {
+                        PlayerReveal(visible = playerOpen, origin = playerOrigin) {
                             if (com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE) {
                                 WavePlayerPage(
                                 backdrop = backdrop,
@@ -1016,7 +1037,7 @@ private fun AppShell() {
                                 backdrop = backdrop,
                                 song = nowPlaying,
                                 positionFlow = player.position,
-                                onClick = { playerOpen = true },
+                                onClick = { playerOrigin = null; playerOpen = true },
                                 modifier = Modifier.align(Alignment.TopCenter)
                                     .padding(start = 44.dp, end = 44.dp, top = TopBarMargin + TopBarHeight + 8.dp)
                                     .fillMaxWidth(),
@@ -1093,13 +1114,20 @@ private fun AppShell() {
                                 .padding(start = BarMargin, end = BarMargin, bottom = BarMargin)
                                 .fillMaxWidth(),
                         ) {
-                            // 播放页本身就是播放界面，所以只在别的页面显示迷你播放条
-                            if (playback.id != null && !playerOpen) {
-                                MiniPlayerBar(
-                                    backdrop = backdrop, song = nowPlaying, player = playback,
-                                    onToggle = { player.toggle() }, onOpen = { playerOpen = true },
-                                )
-                                Spacer(Modifier.height(12.dp))
+                            // 播放页本身就是播放界面，所以只在别的页面显示迷你播放条。
+                            // 出现/消失用滑入滑出，而不是"啪"地出现。
+                            AnimatedVisibility(
+                                visible = playback.id != null && !playerOpen,
+                                enter = slideInVertically(tween(260)) { it / 2 } + fadeIn(tween(220)),
+                                exit = slideOutVertically(tween(200)) { it / 2 } + fadeOut(tween(160)),
+                            ) {
+                                Column {
+                                    MiniPlayerBar(
+                                        backdrop = backdrop, song = nowPlaying, player = playback,
+                                        onToggle = { player.toggle() }, onOpen = { playerOrigin = null; playerOpen = true },
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                }
                             }
                             // 关于页 / 播放页：下面都不挂 dock（导航栏）。
                             // 播放页自己的控件已经占满底部，再叠一条导航栏只会挡住它 ——
@@ -1130,7 +1158,7 @@ private fun AppShell() {
                                     GlassNavBarContent(
                                         items = Page.entries.map { it.icon to stringResource(it.titleRes) },
                                         selectedIndex = Page.entries.indexOf(page),
-                                        selectedColor = if (playerOpen) dockAccent else null,
+                                        selectedColor = null,
                                         onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false; openPlaylist = null; showPlaylistMenu = false; pickerSong = null; naming = null },
                                         modifier = Modifier.matchParentSize(),
                                         backdrop = backdrop,

@@ -174,6 +174,13 @@ enum class LiquidAccentColor(val label: String, private val seed: Long?) {
     Violet("紫", 0xFF6750A4),
     Green("绿", 0xFF356A35),
     Orange("橙", 0xFF8B4F23),
+
+    // —— 为 M3E 皮肤新增的配色（原库只有上面 6 种）——
+    Red("信号红", 0xFFD71921),
+    Cyan("青", 0xFF00696D),
+    Amber("琥珀", 0xFF8B5000),
+    Rose("玫红", 0xFF9C4146),
+    Lime("青柠", 0xFF4F6A00),
     ;
 
     /** 固定色的种子；[Dynamic] 返回 null（由系统提供）。 */

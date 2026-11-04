@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
-  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.8.4-blue" alt="Latest release: v0.8.4"></a>
+  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.9.0-blue" alt="Latest release: v0.9.0"></a>
   <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android 13+ (API 33)">
   <img src="https://img.shields.io/badge/USB%20passthrough-Android%2014%2B%20(API%2034)-3DDC84?logo=android&logoColor=white" alt="USB passthrough: Android 14+ (API 34)">
   <img src="https://img.shields.io/badge/language-Kotlin%20%2B%20C-7F52FF" alt="Kotlin + C">
@@ -25,6 +25,21 @@
 播放内核移植自 [Rueded/AURALIS](https://github.com/Rueded/AURALIS)（GPL-3.0），
 液态玻璃界面使用 [chengxixian/liquid-miuix](https://github.com/chengxixian/liquid-miuix)（已内置在 `third_party/`），
 `.ncm` 解码移植自 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump)。
+
+## 界面与主题
+
+两套皮肤，设置 → **外观** 里即时切换，改完立刻生效（不用重启）：
+
+| 皮肤 | 视觉 | 图标 |
+|---|---|---|
+| **点阵**（默认） | NOTHING 风格：纯黑 / 白 / 灰 + 信号红点缀；播放页背景为封面去色模糊 | Material 图标（与 M3E 相同），只换配色 |
+| **M3E** | 原来的液态玻璃（MiuiX / Monet），播放页恢复封面动态取色 | 原 Material 图标 |
+
+- **深浅模式**：跟随系统 / 浅色 / 深色，两套皮肤都支持；状态栏图标自动反色。
+- **M3E 配色**：跟随壁纸、MIUI 蓝、蓝、紫、绿、橙、信号红、青、琥珀、玫红、青柠，共 11 种。
+- **红色只做点缀**：点阵皮肤里红色仅出现在正在播放的标题、喜欢的红心、进度条手柄、当前队列项。
+- **字体**：全局使用系统开源的 Noto Serif（Android 的 serif 家族，系统把 times new roman 别名到它），中文为 Noto Serif CJK。
+- **动效**：点曲库卡片时播放页从卡片位置放大展开（container transform，关闭时缩回）；切页为滑入 + 轻微缩放 + 淡入；迷你播放条滑入滑出；顶栏标题上滑淡入；dock 选中图标轻微放大；卡片按下有回弹。
 
 ![FEATURES](docs/sections/features.png)
 ## 功能

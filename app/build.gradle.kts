@@ -9,8 +9,8 @@ android {
         applicationId = "com.localmusic.app"
         minSdk = 33
         targetSdk = 36
-        versionCode = 84
-        versionName = "0.8.4"
+        versionCode = 90
+        versionName = "0.9.0"
     }
     buildFeatures { compose = true }
     compileOptions {

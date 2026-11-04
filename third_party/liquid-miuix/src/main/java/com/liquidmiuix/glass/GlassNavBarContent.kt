@@ -491,6 +491,12 @@ fun GlassNavBarContent(
                 } else {
                     MiuixTheme.colorScheme.onSurfaceVariantSummary
                 }
+                // 选中项的图标轻微放大：切页时有一个"落点"，不是纯换色
+                val iconScale by animateFloatAsState(
+                    targetValue = if (selected) 1.14f else 1f,
+                    animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow),
+                    label = "dockIconScale",
+                )
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -509,7 +515,10 @@ fun GlassNavBarContent(
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(22.dp).graphicsLayer {
+                            scaleX = iconScale
+                            scaleY = iconScale
+                        },
                         tint = tint,
                     )
                     Text(

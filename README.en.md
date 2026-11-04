@@ -28,6 +28,21 @@ liquid glass UI uses [chengxixian/liquid-miuix](https://github.com/chengxixian/l
 under `third_party/`); `.ncm` decoding is ported from
 [taurusxin/ncmdump](https://github.com/taurusxin/ncmdump).
 
+## Themes
+
+Two skins, switchable instantly under Settings → **Appearance** (no restart):
+
+| Skin | Look | Icons |
+|---|---|---|
+| **Dot matrix** (default) | NOTHING-inspired: black / white / gray with a signal-red accent; the player backdrop is a desaturated blur of the cover | Material icons (same as M3E) — only the palette changes |
+| **M3E** | The original liquid-glass UI (MiuiX / Monet); the player uses cover-derived dynamic colour again | The original Material icons |
+
+- **Light / dark**: follow system, light, or dark — both skins support it, with status-bar icons flipping automatically.
+- **M3E accents**: wallpaper, MIUI blue, blue, violet, green, orange, signal red, cyan, amber, rose, lime — 11 in total.
+- **Red is an accent only**: in the dot-matrix skin it appears on the now-playing title, liked hearts, the seek thumb and the current queue item.
+- **Font**: the system open-source Noto Serif (Android's serif family; the system aliases times new roman to it), with Noto Serif CJK for Chinese.
+- **Motion**: tapping a library card expands the player from that card (container transform, and shrinks back on close); page switches slide + scale + fade; the mini player slides in/out; the top-bar title slides up; the selected dock icon scales slightly; cards spring back on press.
+
 ![FEATURES](docs/sections/features.png)
 ## Features
 

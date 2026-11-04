@@ -266,4 +266,25 @@
     <string name="player_idle_title">还没有开始播放</string>
     <string name="player_idle_artist">从曲库选择一首音乐</string>
     <string name="player_unknown_track">未知曲目</string>
+    <string name="appearance_title">外观</string>
+    <string name="appearance_note">点阵 = NOTHING 的黑 / 白 / 灰 / 红；M3E = 原来的液态玻璃界面。</string>
+    <string name="appearance_skin">主题风格</string>
+    <string name="appearance_mode">深浅模式</string>
+    <string name="appearance_accent">强调色（M3E）</string>
+    <string name="skin_nothing">点阵</string>
+    <string name="skin_m3e">M3E</string>
+    <string name="ui_mode_system">跟随系统</string>
+    <string name="ui_mode_light">浅色</string>
+    <string name="ui_mode_dark">深色</string>
+    <string name="accent_dynamic">跟随壁纸</string>
+    <string name="accent_miublue">MIUI 蓝</string>
+    <string name="accent_blue">蓝</string>
+    <string name="accent_violet">紫</string>
+    <string name="accent_green">绿</string>
+    <string name="accent_orange">橙</string>
+    <string name="accent_red">信号红</string>
+    <string name="accent_cyan">青</string>
+    <string name="accent_amber">琥珀</string>
+    <string name="accent_rose">玫红</string>
+    <string name="accent_lime">青柠</string>
 </resources>

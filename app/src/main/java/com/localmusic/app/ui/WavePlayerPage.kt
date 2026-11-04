@@ -148,9 +148,14 @@ fun WavePlayerPage(
     onMoveInQueue: (Int, Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
 ) {
-    val accent = rememberPlayerAccent(song) ?: Color(0xFF8AB4F8)
+    // NOTHING 配色：封面平均色只决定背景明暗，控件不再跟封面染色。
+    // 点阵皮肤：白色控件；M3E：恢复封面动态取色。
+    val nothing = com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING
+    val coverColor = rememberPlayerAccent(song)
+    val coverTone = coverColor ?: Color(0xFF202020)
+    val accent = if (nothing) Color.White else (coverColor ?: Color(0xFF8AB4F8))
     // 背景偏亮 → 深色字；偏暗 → 浅色字。与玻璃版同一档阈值。
-    val onBackdrop = if (accent.luminance() > 0.68f) Color(0xFF141414) else Color.White
+    val onBackdrop = if (coverTone.luminance() > 0.68f) Color(0xFF141414) else Color.White
     val darkBackdrop = onBackdrop.luminance() > 0.5f
 
     // 封面平均色经常偏灰、甚至很暗（深色封面），直接拿来当图标色就会"看不清"。
@@ -571,7 +576,7 @@ private fun InfoRow(
         CircleChip(
             icon = if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
             description = if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
-            tint = ink,
+            tint = if (favorite) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else ink) else ink,
             active = favorite,
             onClick = onFavorite,
         )
@@ -686,7 +691,7 @@ private fun WaveSeek(
                 cornerRadius = CornerRadius(thumbW * 2f),
             )
             drawRoundRect(
-                color = tint,
+                color = if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else tint,
                 topLeft = Offset(played - thumbW / 2f, cy - thumbH / 2f),
                 size = Size(thumbW, thumbH),
                 cornerRadius = CornerRadius(thumbW / 2f),

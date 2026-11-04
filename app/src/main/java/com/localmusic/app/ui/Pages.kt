@@ -5,6 +5,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -301,12 +305,26 @@ private fun LibraryGridCard(
     playlistState: State<(Song) -> Unit>,
 ) {
     val scheme = MiuixTheme.colorScheme
+    // 按压缩放：点下去的瞬间卡片轻微缩小、松手回弹 —— 和系统点图标的手感一致
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (pressed) 0.955f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = 0.55f,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
+        ),
+        label = "cardPress",
+    )
     Card(
         onClick = { playState.value(song) },
+        interactionSource = interaction,
         modifier = Modifier.fillMaxWidth()
+            // 记录卡片在窗口里的位置：播放页要从这张卡片"长"出来
+            .onGloballyPositioned { PlayerRevealOrigin.lastCard = it.boundsInRoot() }
             // 高亮只在图层/绘制里读，不在组合里读：转动时不会让卡片重组，只重画
             .graphicsLayer {
-                val s = if (highlightState.value == index) 1.055f else 1f
+                val s = (if (highlightState.value == index) 1.055f else 1f) * pressScale
                 scaleX = s; scaleY = s
             }
             .drawWithContent {
@@ -345,7 +363,7 @@ private fun LibraryGridCard(
                         if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
                         modifier = Modifier.size(17.dp),
-                        tint = if (favorite) scheme.primary else Color.White,
+                        tint = if (favorite) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else scheme.primary) else Color.White,
                     )
                 }
                 Box(
@@ -371,7 +389,7 @@ private fun LibraryGridCard(
                     song.title,
                     style = MiuixTheme.textStyles.title4,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    color = if (playing) scheme.primary else scheme.onSurface,
+                    color = if (playing) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else scheme.primary) else scheme.onSurface,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -407,11 +425,12 @@ private fun Modifier.wheelCursor(active: Boolean, color: Color): Modifier = this
 
 // ── 设置页有哪几张卡（= LazyColumn 的 item 下标）─────────────────────────────
 // 只在这里定义一次：滚轮的**滚动定位**与卡片的**高亮**都从 SETTINGS_CARD_OF_WHEEL 推导。
-private const val SETTINGS_CARD_AUDIO = 0     // 音频输出：USB Bit-perfect / 均衡器 / 淡入淡出 / ReplayGain
-private const val SETTINGS_CARD_FOLDERS = 1   // 本地音乐文件夹 / ncm 自动转换 / 导出位置 / 批量导入 LRC
-private const val SETTINGS_CARD_SCRAPE = 3    // 自动刮削（第 2 张是「连接与同步」，滚轮不经过它）
-private const val SETTINGS_CARD_TINT = 4      // 滚轮玻璃颜色
-private const val SETTINGS_CARD_LIBRARY = 5   // 曲库：重新扫描
+private const val SETTINGS_CARD_APPEARANCE = 0 // 外观：皮肤 / 深浅 / M3E 强调色
+private const val SETTINGS_CARD_AUDIO = 1     // 音频输出：USB Bit-perfect / 均衡器 / 淡入淡出 / ReplayGain
+private const val SETTINGS_CARD_FOLDERS = 2   // 本地音乐文件夹 / ncm 自动转换 / 导出位置 / 批量导入 LRC
+private const val SETTINGS_CARD_SCRAPE = 4    // 自动刮削（第 3 张是「连接与同步」，滚轮不经过它）
+private const val SETTINGS_CARD_TINT = 5      // 滚轮玻璃颜色
+private const val SETTINGS_CARD_LIBRARY = 6   // 曲库：重新扫描
 
 /**
  * 滚轮动作下标 → 设置页第几张卡。
@@ -545,6 +564,82 @@ private fun SettingChoices(
     }
 }
 
+/** 外观卡的一行选项：可横向滚动的胶囊。 */
+@Composable
+private fun <T> AppearanceOptionRow(
+    options: List<Pair<T, String>>,
+    selected: T,
+    accent: Color,
+    onPick: (T) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        options.forEach { (value, label) ->
+            val active = value == selected
+            Text(
+                text = label,
+                style = MiuixTheme.textStyles.body2,
+                color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (active) accent.copy(alpha = 0.14f) else MiuixTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(50),
+                    )
+                    .clickable { onPick(value) }
+                    .padding(horizontal = 13.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
+
+/** M3E 强调色：色点 + 名字，选中的加一圈描边。 */
+@Composable
+private fun AppearanceAccentRow(
+    selected: com.liquidmiuix.theme.LiquidAccentColor,
+    accent: Color,
+    onPick: (com.liquidmiuix.theme.LiquidAccentColor) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        com.localmusic.app.data.AccentOptions.forEach { option ->
+            val active = option.value == selected
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onPick(option.value) }
+                    .padding(horizontal = 7.dp, vertical = 5.dp)
+                    .width(58.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(26.dp)
+                        .background(option.preview, CircleShape)
+                        .border(if (active) 2.dp else 1.dp, if (active) accent else Color.Transparent, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (option.isDynamic) {
+                        Box(Modifier.size(8.dp).background(Color.White.copy(alpha = 0.9f), CircleShape))
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    stringResource(option.labelRes),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
 /** 设置：USB 直通、存储授权、ncm 自动转换、扫描诊断。 */
 @Composable
 fun SettingsPage(
@@ -609,6 +704,7 @@ fun SettingsPage(
     onScrapeCancel: () -> Unit = {},
 ) {
     val scheme = MiuixTheme.colorScheme
+    val context = androidx.compose.ui.platform.LocalContext.current
     // ⚠️ 这里以前又写了一次 `val listState = rememberLazyListState()`，把**参数**遮蔽了：
     //    LazyColumn 用的是那个局部实例，MainActivity 提到 AppShell 顶层的 settingsListState
     //    从未被用上 —— 于是"切走再回来"总回到顶部（滚动位置随页面一起被丢弃）。
@@ -633,6 +729,44 @@ fun SettingsPage(
         ),
         verticalArrangement = Arrangement.spacedBy(LiquidSpacing.item),
     ) {
+        item {
+            LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_APPEARANCE, wheelIndex, scheme.primary)) {
+                Text(stringResource(R.string.appearance_title), style = MiuixTheme.textStyles.title4)
+                Text(
+                    stringResource(R.string.appearance_note),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onSurfaceVariantSummary,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(stringResource(R.string.appearance_skin), style = MiuixTheme.textStyles.body2)
+                Spacer(Modifier.height(6.dp))
+                AppearanceOptionRow(
+                    options = com.localmusic.app.data.UiSkin.entries.map { it to stringResource(it.labelRes) },
+                    selected = com.localmusic.app.data.UiSettings.skin,
+                    accent = scheme.primary,
+                    onPick = { com.localmusic.app.data.UiSettings.setSkin(context, it) },
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.appearance_mode), style = MiuixTheme.textStyles.body2)
+                Spacer(Modifier.height(6.dp))
+                AppearanceOptionRow(
+                    options = com.localmusic.app.data.UiMode.entries.map { it to stringResource(it.labelRes) },
+                    selected = com.localmusic.app.data.UiSettings.mode,
+                    accent = scheme.primary,
+                    onPick = { com.localmusic.app.data.UiSettings.setMode(context, it) },
+                )
+                if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.M3E) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.appearance_accent), style = MiuixTheme.textStyles.body2)
+                    Spacer(Modifier.height(6.dp))
+                    AppearanceAccentRow(
+                        selected = com.localmusic.app.data.UiSettings.accent,
+                        accent = scheme.primary,
+                        onPick = { com.localmusic.app.data.UiSettings.setAccent(context, it) },
+                    )
+                }
+            }
+        }
         item {
             LiquidCard(modifier = Modifier.wheelCursorFor(SETTINGS_CARD_AUDIO, wheelIndex, scheme.primary)) {
                 Text(stringResource(R.string.settings_audio_output), style = MiuixTheme.textStyles.title4)
@@ -1112,7 +1246,7 @@ fun PlaylistActionsSheet(
     onDismiss: () -> Unit,
 ) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.82f)) {
@@ -1244,7 +1378,7 @@ internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, o
     // 兜底实现：万一有人直接调用，仍然能工作（不带玻璃）
     var text by remember { mutableStateOf(initial) }
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
         LiquidCard(Modifier.clickable(enabled = false) {}) {
@@ -1293,7 +1427,7 @@ fun AddToPlaylistSheet(
     onAskName: (String, String, (String) -> Unit) -> Unit = { _, _, _ -> },
 ) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.88f)) {
@@ -1448,7 +1582,7 @@ fun AboutPage(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = 0.75f))
                     .clickable { showDonate = false },
                 contentAlignment = Alignment.Center,
             ) {
@@ -1487,7 +1621,7 @@ fun LanguageDialog(
     onDismiss: () -> Unit,
 ) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)).clickable { onDismiss() },
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.75f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
         GlassCard(backdrop = backdrop, modifier = Modifier.fillMaxWidth(0.84f)) {
