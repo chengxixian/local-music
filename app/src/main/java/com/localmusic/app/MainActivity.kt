@@ -900,7 +900,10 @@ private fun AppShell() {
                             PlayerBackdrop(
                                 song = nowPlaying,
                                 monochrome = com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING,
-                                modifier = Modifier.matchParentSize(),
+                                modifier = Modifier.matchParentSize().graphicsLayer {
+                                    // 转场进度只在绘制层读取，不触发重组
+                                    alpha = com.localmusic.app.ui.PlayerRevealProgress.backdropAlpha
+                                },
                             )
                         }
 
@@ -920,7 +923,7 @@ private fun AppShell() {
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
                         // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
                         // 顶栏让位给页面自己的那行玻璃圆钮。
-                        PlayerReveal(visible = playerOpen, origin = playerOrigin) {
+                        PlayerReveal(visible = playerOpen, origin = playerOrigin, song = nowPlaying) {
                             if (com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE) {
                                 WavePlayerPage(
                                 backdrop = backdrop,
