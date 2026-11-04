@@ -41,7 +41,7 @@ Two skins, switchable instantly under Settings → **Appearance** (no restart):
 - **M3E accents**: wallpaper, MIUI blue, blue, violet, green, orange, signal red, cyan, amber, rose, lime — 11 in total.
 - **Red is an accent only**: in the dot-matrix skin it appears on the now-playing title, liked hearts, the seek thumb and the current queue item.
 - **Font**: the system open-source Noto Serif (Android's serif family; the system aliases times new roman to it), with Noto Serif CJK for Chinese.
-- **Motion**: tapping a library card expands the whole card (cover + text + buttons) from its grid rect to full screen, then a black scrim and the player fade in (and back on close); page switches slide + scale + fade; the mini player slides in/out; the top-bar title slides up; the selected dock icon scales slightly; cards spring back on press.
+- **Motion**: tapping a library card scales the whole player page up from the card cover position to its final layout (cover moves to the player cover, title/controls settle with it) — no expand-then-shrink; page switches slide + scale + fade; the mini player slides in/out; the top-bar title slides up; the selected dock icon scales slightly; cards spring back on press.
 
 ![FEATURES](docs/sections/features.png)
 ## Features

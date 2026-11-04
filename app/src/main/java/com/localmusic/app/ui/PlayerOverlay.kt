@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -497,7 +499,11 @@ private fun QueuePane(
  */
 @Composable
 private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth().aspectRatio(1f).clickable(onClick = onClick)) {
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(1f)
+            .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() }
+            .clickable(onClick = onClick),
+    ) {
         Box(
             Modifier.matchParentSize().liquidGlass(
                 backdrop = backdrop,

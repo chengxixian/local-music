@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localmusic.app.data.Song
+import kotlinx.coroutines.flow.first
 import com.liquidmiuix.ui.LiquidPill
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -88,6 +89,11 @@ private fun smooth(x: Float): Float {
     return t * t * (3f - 2f * t)
 }
 
+/** 播放页里封面/标题的最终位置（窗口坐标），由播放页自己上报。 */
+object PlayerTargets {
+    var cover by mutableStateOf<Rect?>(null)
+}
+
 @Composable
 fun PlayerReveal(
     visible: Boolean,
@@ -98,21 +104,33 @@ fun PlayerReveal(
     content: @Composable () -> Unit,
 ) {
     var kept by remember { mutableStateOf(visible) }
+    // 播放页封面的**布局位置**。必须先在没有缩放的状态下量一次，
+    // 否则 onGloballyPositioned 拿到的是被缩放后的矩形，会自己追自己。
+    var ready by remember { mutableStateOf(false) }
+    var target by remember { mutableStateOf<Rect?>(null) }
     val anim = remember { Animatable(if (visible) 0f else 1f) }
 
     LaunchedEffect(visible) {
         if (visible) {
             kept = true
-            anim.animateTo(1f, tween(durationMillis = 460, easing = FastOutSlowInEasing))
+            ready = false
+            PlayerTargets.cover = null
+            // 等播放页完成一次布局（最多 120ms），拿到封面最终位置后再开始动画
+            target = kotlinx.coroutines.withTimeoutOrNull(120L) {
+                snapshotFlow { PlayerTargets.cover }.first { it != null }
+            }
+            ready = true
+            anim.snapTo(0f)
+            anim.animateTo(1f, tween(durationMillis = 420, easing = FastOutSlowInEasing))
         } else {
-            anim.animateTo(0f, tween(durationMillis = 320, easing = FastOutSlowInEasing))
+            anim.animateTo(0f, tween(durationMillis = 300, easing = FastOutSlowInEasing))
             kept = false
         }
     }
     LaunchedEffect(Unit) {
         snapshotFlow { anim.value }.collect {
             PlayerRevealProgress.value = it
-            PlayerRevealProgress.backdropAlpha = smooth((it - 0.55f) / 0.30f)
+            PlayerRevealProgress.backdropAlpha = smooth((it - 0.10f) / 0.55f)
         }
     }
     if (!kept) return
@@ -124,142 +142,52 @@ fun PlayerReveal(
         val fullW = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val fullH = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         val p = anim.value
+        val e = smooth(p)
 
-        // ① 卡片整体放大：0 → 0.55
-        val expand = smooth(p / 0.55f)
-        // ② 遮罩：0.45 起、0.65 到顶、0.85 后退场
-        val scrim = smooth((p - 0.45f) / 0.20f) * (1f - smooth((p - 0.85f) / 0.15f))
-        // ③ 播放页：0.62 → 1 显影；卡片在遮罩下退场
-        val contentAlpha = smooth((p - 0.62f) / 0.38f)
-        val cardAlpha = 1f - smooth((p - 0.50f) / 0.25f)
-
-        val o = origin?.let {
+        // 卡片封面矩形（卡片顶部正方形）
+        val cardCover = origin?.let {
+            Rect(it.left - boxOffset.x, it.top - boxOffset.y, it.right - boxOffset.x, it.top - boxOffset.y + it.width)
+        }
+        // 播放页封面矩形（等待阶段量到的布局值；量不到时用屏幕中上部兜底）
+        val measured = target?.let {
             Rect(it.left - boxOffset.x, it.top - boxOffset.y, it.right - boxOffset.x, it.bottom - boxOffset.y)
-        }
+        } ?: Rect(fullW * 0.07f, fullH * 0.12f, fullW * 0.93f, fullH * 0.12f + fullW * 0.86f)
 
-        // ① 卡片快照：整张卡从网格里的矩形长到全屏
-        if (o != null && o.width > 1f && o.height > 1f && cardAlpha > 0.001f) {
-            val density = LocalDensity.current
-            val cardW = with(density) { o.width.toDp() }
-            val cardH = with(density) { o.height.toDp() }
-            // 等比放大到"卡片宽度铺满屏幕"；高度会超出屏幕，由窗口裁掉
-            val targetScale = (fullW / o.width).coerceAtLeast(1f)
-            Box(
-                Modifier
-                    .size(cardW, cardH)
-                    .graphicsLayer {
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        translationX = o.left * (1f - expand)
-                        translationY = o.top * (1f - expand)
-                        val s = 1f + (targetScale - 1f) * expand
-                        scaleX = s
-                        scaleY = s
-                        alpha = cardAlpha
-                    }
-                    .clip(RoundedCornerShape(18.dp)),
-            ) {
-                CardSnapshot(song, favorite, playing)
-            }
-        }
+        // 把"播放页整体"做一次缩放+平移：p=0 时它的封面正好压在卡片封面上，p=1 时回到原位。
+        // 于是封面是"位移 + 放大到播放页封面的位置"，标题/控件一起平滑就位，
+        // 不再有"先放大到全屏、再缩回播放页"的两段跳。
+        val startScale = if (cardCover != null && measured.width > 1f) {
+            (cardCover.width / measured.width).coerceIn(0.05f, 1f)
+        } else 0.86f
+        val startTx = if (cardCover != null) cardCover.left - measured.left * startScale else 0f
+        val startTy = if (cardCover != null) cardCover.top - measured.top * startScale else 0f
+        val s = startScale + (1f - startScale) * e
+        val tx = startTx * (1f - e)
+        val ty = startTy * (1f - e)
 
-        // ② 遮罩
+        // 遮罩：把曲库压暗，避免"两张封面同时存在"的穿帮；播放页铺满后自动退场
+        val scrim = smooth(p / 0.55f) * (1f - smooth((p - 0.80f) / 0.20f))
         if (scrim > 0.001f) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.92f * scrim)))
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f * scrim)))
         }
 
-        // ③ 播放页
-        if (contentAlpha > 0.001f) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = contentAlpha
-                        val s = 0.99f + 0.01f * contentAlpha
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (ready) {
+                        transformOrigin = TransformOrigin(0f, 0f)
                         scaleX = s
                         scaleY = s
-                    },
-            ) {
-                content()
-            }
-        }
-    }
-}
-
-/**
- * 卡片快照：和曲库网格里的卡片同一套排版（封面 + 歌名 + 艺术家 + 格式）。
- * 只用于转场，不响应点击；封面用 420px 请求，和卡片共用内存缓存，放大瞬间就有图，
- * 不会先闪一下默认唱片占位。
- */
-@Composable
-private fun CardSnapshot(song: Song?, favorite: Boolean, playing: Boolean) {
-    val scheme = MiuixTheme.colorScheme
-    Column(Modifier.fillMaxSize().background(scheme.surfaceContainer)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
-            Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
-            // 卡片上的四个小圆钮也一起放大，否则点下去的一瞬间它们会"消失"
-            Box(
-                Modifier.align(Alignment.TopStart).padding(6.dp).size(28.dp)
-                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.QueueMusic, null, Modifier.size(18.dp), tint = Color.White) }
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp)
-                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    null,
-                    Modifier.size(17.dp),
-                    tint = if (favorite) scheme.primary else Color.White,
-                )
-            }
-            Box(
-                Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp)
-                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.Add, null, Modifier.size(20.dp), tint = Color.White) }
-            Box(
-                Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)
-                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(20.dp), tint = Color.White) }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(
-                song?.title.orEmpty(),
-                style = MiuixTheme.textStyles.title4,
-                color = if (playing) scheme.primary else scheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                song?.artist.orEmpty(),
-                style = MiuixTheme.textStyles.footnote1,
-                color = scheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                LiquidPill(song?.format?.uppercase().orEmpty())
-                Text(
-                    when {
-                        song == null -> ""
-                        song.bitDepth > 0 -> song.bitDepth.toString() + "bit/" + (song.sampleRate / 1000.0) + "kHz"
-                        song.duration > 0 -> com.localmusic.app.data.formatTime(song.duration)
-                        else -> song.album
-                    },
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = scheme.onSurfaceVariantSummary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+                        translationX = tx
+                        translationY = ty
+                    } else {
+                        // 等待测量：保持原尺寸但完全透明，只参与布局
+                        alpha = 0f
+                    }
+                },
+        ) {
+            content()
         }
     }
 }

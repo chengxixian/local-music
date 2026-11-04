@@ -86,6 +86,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -405,6 +407,7 @@ private fun CoverPane(song: Song?, cover: ImageBitmap?, onOpenLyrics: () -> Unit
         Box(
             Modifier
                 .size(side)
+                .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() }
                 .clip(RoundedCornerShape(22.dp))
                 .clickable(onClick = onOpenLyrics),
         ) {
