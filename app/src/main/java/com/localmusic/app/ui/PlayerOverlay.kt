@@ -261,10 +261,8 @@ fun PlayerPage(
     // ── 进入播放页的"弹出"动画 ──
     // 一个 0→1 的弹簧进度，再按窗口切成三拍错峰：图标钮先出现 → 封面放大淡入 → 控件面板从下往上推到
     // 位。用弹簧（有回弹）而不是 tween，配合液态玻璃的形变手感。
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        enter.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow))
-    }
+    // 入场动画交给外层的卡片转场；这里直接给最终值，避免"外层缩放 + 内层再缩放"导致封面先小后大
+    val enter = remember { Animatable(1f) }
     val progress = enter.value
     fun stage(from: Float, until: Float): Float =
         ((progress - from) / (until - from).coerceAtLeast(0.001f)).coerceIn(0f, 1f)
@@ -369,8 +367,40 @@ fun PlayerPage(
                     Modifier.fillMaxWidth().padding(horizontal = LiquidSpacing.card, vertical = LiquidSpacing.item),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(player.title, style = MiuixTheme.textStyles.title4, color = onBackdrop, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = onBackdrop.copy(alpha = 0.72f), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val titleStyle = MiuixTheme.textStyles.title4
+                    val artistStyle = MiuixTheme.textStyles.footnote1
+                    Text(
+                        player.title,
+                        style = titleStyle,
+                        color = onBackdrop,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .onGloballyPositioned {
+                                PlayerTargets.titleRect = it.boundsInRoot()
+                                PlayerTargets.titleStyle = titleStyle
+                                PlayerTargets.titleColor = onBackdrop
+                                PlayerTargets.titleText = player.title
+                            }
+                            .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                    )
+                    Text(
+                        player.artist,
+                        style = artistStyle,
+                        color = onBackdrop.copy(alpha = 0.72f),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .onGloballyPositioned {
+                                PlayerTargets.artistRect = it.boundsInRoot()
+                                PlayerTargets.artistStyle = artistStyle
+                                PlayerTargets.artistColor = onBackdrop.copy(alpha = 0.72f)
+                                PlayerTargets.artistText = player.artist
+                            }
+                            .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         song?.let {
                             LiquidPill(it.format.uppercase())
@@ -501,7 +531,6 @@ private fun QueuePane(
 private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: () -> Unit) {
     Box(
         Modifier.fillMaxWidth().aspectRatio(1f)
-            .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() }
             .clickable(onClick = onClick),
     ) {
         Box(
@@ -512,7 +541,10 @@ private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: (
                 refractionAmount = 34.dp,
             )
         )
-        Box(Modifier.matchParentSize().padding(18.dp)) {
+        Box(
+            Modifier.matchParentSize().padding(18.dp)
+                .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() },
+        ) {
             Artwork(song, Modifier.matchParentSize(), radius = 34, requestPx = 900)
         }
     }

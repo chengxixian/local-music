@@ -195,10 +195,8 @@ fun WavePlayerPage(
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
 
     // 入场：淡入 + 轻微放大（比玻璃版朴素的弹簧，参考图是"整页浮上来"的观感）。
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        enter.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow))
-    }
+    // 入场动画交给外层的卡片转场；这里直接给最终值
+    val enter = remember { Animatable(1f) }
     val stage = enter.value
 
     LaunchedEffect(song?.uri, middle) {
@@ -559,20 +557,42 @@ private fun InfoRow(
             Spacer(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
+            val titleStyle = androidx.compose.ui.text.TextStyle(
                 fontSize = if (compact) 19.sp else 25.sp,
                 fontWeight = FontWeight.Bold,
+            )
+            val artistStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = if (compact) 13.sp else 15.sp,
+            )
+            Text(
+                text = title,
+                style = titleStyle,
                 color = titleTint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .onGloballyPositioned {
+                        PlayerTargets.titleRect = it.boundsInRoot()
+                        PlayerTargets.titleStyle = titleStyle
+                        PlayerTargets.titleColor = titleTint
+                        PlayerTargets.titleText = title
+                    }
+                    .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
             )
             Text(
                 text = artist,
-                fontSize = if (compact) 13.sp else 15.sp,
+                style = artistStyle,
                 color = artistTint.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .onGloballyPositioned {
+                        PlayerTargets.artistRect = it.boundsInRoot()
+                        PlayerTargets.artistStyle = artistStyle
+                        PlayerTargets.artistColor = artistTint.copy(alpha = 0.85f)
+                        PlayerTargets.artistText = artist
+                    }
+                    .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
             )
         }
         Spacer(Modifier.width(10.dp))

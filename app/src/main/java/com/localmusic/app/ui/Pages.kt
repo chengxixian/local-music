@@ -321,7 +321,7 @@ private fun LibraryGridCard(
         interactionSource = interaction,
         modifier = Modifier.fillMaxWidth()
             // 记录卡片在窗口里的位置：播放页要从这张卡片"长"出来
-            .onGloballyPositioned { PlayerRevealOrigin.lastCard = it.boundsInRoot() }
+            .onGloballyPositioned { PlayerRevealOrigin.cardBounds[song.uri] = it.boundsInRoot() }
             // 高亮只在图层/绘制里读，不在组合里读：转动时不会让卡片重组，只重画
             .graphicsLayer {
                 val s = (if (highlightState.value == index) 1.055f else 1f) * pressScale
@@ -396,6 +396,9 @@ private fun LibraryGridCard(
                     song.artist,
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.onGloballyPositioned {
+                        PlayerRevealOrigin.cardArtist[song.uri] = it.boundsInRoot()
+                    },
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
