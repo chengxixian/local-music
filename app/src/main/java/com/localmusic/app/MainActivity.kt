@@ -292,7 +292,7 @@ private fun AppShell() {
         // 媒体项并 prepare → 正在听的歌被"从 0:00 重来"。用户明确要求：点当前这首不要重启。
         // 现在的语义：暂停中就继续播，正在播就什么都不做，两种都把播放页打开。
         if (song.uri == playback.id) {
-            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
+            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
             playerOpen = true
             if (!playback.playing) player.toggle()
             return@play
@@ -310,7 +310,7 @@ private fun AppShell() {
         // 这里只剩两件事：DSD 先转码、然后交给播放器。
         if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
-            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
+            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
             playerOpen = true
             return@play
         }
@@ -344,7 +344,7 @@ private fun AppShell() {
                     bitDepth = 24,
                 )
                 player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
-                playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.lastCard
+                playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
                 playerOpen = true
             }
         }
@@ -923,7 +923,13 @@ private fun AppShell() {
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
                         // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
                         // 顶栏让位给页面自己的那行玻璃圆钮。
-                        PlayerReveal(visible = playerOpen, origin = playerOrigin, song = nowPlaying) {
+                        PlayerReveal(
+                            visible = playerOpen,
+                            origin = playerOrigin,
+                            song = nowPlaying,
+                            favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
+                            playing = nowPlaying != null && nowPlaying.uri == playback.id,
+                        ) {
                             if (com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE) {
                                 WavePlayerPage(
                                 backdrop = backdrop,

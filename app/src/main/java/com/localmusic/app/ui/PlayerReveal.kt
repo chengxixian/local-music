@@ -5,10 +5,29 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,24 +45,31 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.localmusic.app.data.Song
+import com.liquidmiuix.ui.LiquidPill
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 曲库卡片 → 播放页的转场：**卡片直接放大，再交叉淡入播放页**。
+ * 曲库卡片 → 播放页的转场：**整张卡片放大 → 压黑遮罩 → 播放页显影**。
  *
- *   ① 卡片里的封面从卡片矩形放大到全屏（圆角同步收到 0）；
- *   ② 放大到位后，封面层与播放页交叉淡化 —— 播放页从整屏封面里"显影"出来，
- *      同时播放页自己的背景（模糊封面）跟着淡入。
+ *   ① 卡片（封面 + 歌名 + 艺术家 + 格式）作为一个整体，从它在网格里的矩形放大到全屏；
+ *   ② 放大到位后压一层黑色遮罩；
+ *   ③ 遮罩之上播放页淡入，同时卡片与遮罩退场。
  *
- * 不做黑色遮罩：中间那一下压黑反而会打断"同一张封面连续放大"的连续感。
- * 关闭时反向播放（播放页淡出 → 封面缩回卡片）。
+ * 关键点：放大的是**卡片快照**（[CardSnapshot]），不是单独一张封面 ——
+ * 这样点哪张卡，就是哪张卡整体飞起来；卡片里的文字也一起放大，而不是只有图在动。
  *
- * 没有卡片来源（迷你播放条 / 悬浮歌词）时跳过 ①，直接淡入播放页。
+ * 关闭时反向播放。没有卡片来源（迷你播放条 / 悬浮歌词）时跳过 ①，只做遮罩 + 淡入。
  */
 object PlayerRevealOrigin {
-    /** 最近一次布局的曲库卡片矩形（窗口坐标）。卡片在 onGloballyPositioned 里更新。 */
-    var lastCard: Rect = Rect.Zero
+    /**
+     * 每张曲库卡片自己的矩形（窗口坐标），按歌曲 uri 存。
+     * 不能只存"最后一个布局的卡片"—— 那样无论点哪张，都会从最后布局的那张（通常是右下角）弹出。
+     */
+    val cardBounds = mutableMapOf<String, Rect>()
 }
 
 /**
@@ -53,7 +79,7 @@ object PlayerRevealOrigin {
 object PlayerRevealProgress {
     var value by mutableFloatStateOf(0f)
 
-    /** 播放页背景的透明度：封面铺满屏幕之后才开始出现。 */
+    /** 播放页背景的透明度：卡片铺满屏幕之后才开始出现。 */
     var backdropAlpha by mutableFloatStateOf(0f)
 }
 
@@ -67,6 +93,8 @@ fun PlayerReveal(
     visible: Boolean,
     origin: Rect?,
     song: Song?,
+    favorite: Boolean,
+    playing: Boolean,
     content: @Composable () -> Unit,
 ) {
     var kept by remember { mutableStateOf(visible) }
@@ -97,39 +125,49 @@ fun PlayerReveal(
         val fullH = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         val p = anim.value
 
-        // ① 卡片放大：0 → 0.58
-        val expand = smooth(p / 0.58f)
-        // ② 封面层退场 / 播放页淡入：0.55 → 1
-        val contentAlpha = smooth((p - 0.55f) / 0.45f)
-        val coverAlpha = 1f - contentAlpha
+        // ① 卡片整体放大：0 → 0.55
+        val expand = smooth(p / 0.55f)
+        // ② 遮罩：0.45 起、0.65 到顶、0.85 后退场
+        val scrim = smooth((p - 0.45f) / 0.20f) * (1f - smooth((p - 0.85f) / 0.15f))
+        // ③ 播放页：0.62 → 1 显影；卡片在遮罩下退场
+        val contentAlpha = smooth((p - 0.62f) / 0.38f)
+        val cardAlpha = 1f - smooth((p - 0.50f) / 0.25f)
 
         val o = origin?.let {
             Rect(it.left - boxOffset.x, it.top - boxOffset.y, it.right - boxOffset.x, it.bottom - boxOffset.y)
         }
 
-        // ① 封面层：从卡片矩形长到全屏
-        if (o != null && coverAlpha > 0.001f) {
-            val startScaleX = (o.width / fullW).coerceIn(0.05f, 1f)
-            val startScaleY = (o.height / fullH).coerceIn(0.05f, 1f)
+        // ① 卡片快照：整张卡从网格里的矩形长到全屏
+        if (o != null && o.width > 1f && o.height > 1f && cardAlpha > 0.001f) {
+            val density = LocalDensity.current
+            val cardW = with(density) { o.width.toDp() }
+            val cardH = with(density) { o.height.toDp() }
+            // 等比放大到"卡片宽度铺满屏幕"；高度会超出屏幕，由窗口裁掉
+            val targetScale = (fullW / o.width).coerceAtLeast(1f)
             Box(
                 Modifier
-                    .fillMaxSize()
+                    .size(cardW, cardH)
                     .graphicsLayer {
                         transformOrigin = TransformOrigin(0f, 0f)
-                        scaleX = startScaleX + (1f - startScaleX) * expand
-                        scaleY = startScaleY + (1f - startScaleY) * expand
                         translationX = o.left * (1f - expand)
                         translationY = o.top * (1f - expand)
-                        alpha = coverAlpha
+                        val s = 1f + (targetScale - 1f) * expand
+                        scaleX = s
+                        scaleY = s
+                        alpha = cardAlpha
                     }
-                    .clip(RoundedCornerShape((18f * (1f - expand)).dp)),
+                    .clip(RoundedCornerShape(18.dp)),
             ) {
-                Box(Modifier.fillMaxSize().background(Color.Black))
-                Artwork(song, Modifier.fillMaxSize(), radius = 0, requestPx = 900)
+                CardSnapshot(song, favorite, playing)
             }
         }
 
-        // ② 播放页：从整屏封面里显影出来
+        // ② 遮罩
+        if (scrim > 0.001f) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.92f * scrim)))
+        }
+
+        // ③ 播放页
         if (contentAlpha > 0.001f) {
             Box(
                 Modifier
@@ -142,6 +180,85 @@ fun PlayerReveal(
                     },
             ) {
                 content()
+            }
+        }
+    }
+}
+
+/**
+ * 卡片快照：和曲库网格里的卡片同一套排版（封面 + 歌名 + 艺术家 + 格式）。
+ * 只用于转场，不响应点击；封面用 420px 请求，和卡片共用内存缓存，放大瞬间就有图，
+ * 不会先闪一下默认唱片占位。
+ */
+@Composable
+private fun CardSnapshot(song: Song?, favorite: Boolean, playing: Boolean) {
+    val scheme = MiuixTheme.colorScheme
+    Column(Modifier.fillMaxSize().background(scheme.surfaceContainer)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
+            // 卡片上的四个小圆钮也一起放大，否则点下去的一瞬间它们会"消失"
+            Box(
+                Modifier.align(Alignment.TopStart).padding(6.dp).size(28.dp)
+                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.QueueMusic, null, Modifier.size(18.dp), tint = Color.White) }
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp)
+                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    null,
+                    Modifier.size(17.dp),
+                    tint = if (favorite) scheme.primary else Color.White,
+                )
+            }
+            Box(
+                Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp)
+                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.Add, null, Modifier.size(20.dp), tint = Color.White) }
+            Box(
+                Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)
+                    .clip(CircleShape).background(scheme.surfaceContainerHigh.copy(alpha = 0.62f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(20.dp), tint = Color.White) }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text(
+                song?.title.orEmpty(),
+                style = MiuixTheme.textStyles.title4,
+                color = if (playing) scheme.primary else scheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                song?.artist.orEmpty(),
+                style = MiuixTheme.textStyles.footnote1,
+                color = scheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                LiquidPill(song?.format?.uppercase().orEmpty())
+                Text(
+                    when {
+                        song == null -> ""
+                        song.bitDepth > 0 -> song.bitDepth.toString() + "bit/" + (song.sampleRate / 1000.0) + "kHz"
+                        song.duration > 0 -> com.localmusic.app.data.formatTime(song.duration)
+                        else -> song.album
+                    },
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = scheme.onSurfaceVariantSummary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
