@@ -72,7 +72,7 @@ fun EqualizerSheet(
                     Icon(Icons.Rounded.GraphicEq, null, Modifier.size(22.dp), tint = scheme.primary)
                     Spacer(Modifier.width(LiquidSpacing.inline))
                     Text(stringResource(R.string.settings_equalizer), style = MiuixTheme.textStyles.title2, color = scheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.eq_collapse)) }
+                    MotionIconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.eq_collapse)) }
                 }
 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

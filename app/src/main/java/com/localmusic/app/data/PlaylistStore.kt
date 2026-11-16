@@ -65,6 +65,13 @@ object PlaylistStore {
         true
     } catch (_: Exception) { false }
 
+    /** 按给定 uri 顺序重排乐单。 */
+    fun reorder(context: Context, id: Long, uris: List<String>): Boolean = try {
+        MusicDatabase(context.applicationContext).reorderPlaylist(id, uris)
+        refresh()
+        true
+    } catch (_: Exception) { false }
+
     private fun refresh() {
         synchronized(lock) { cache = null }
         _revision.value += 1

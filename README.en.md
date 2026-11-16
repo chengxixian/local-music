@@ -41,7 +41,12 @@ Two skins, switchable instantly under Settings → **Appearance** (no restart):
 - **M3E accents**: wallpaper, MIUI blue, blue, violet, green, orange, signal red, cyan, amber, rose, lime — 11 in total.
 - **Red is an accent only**: in the dot-matrix skin it appears on the now-playing title, liked hearts, the seek thumb and the current queue item.
 - **Font**: the system open-source Noto Serif (Android's serif family; the system aliases times new roman to it), with Noto Serif CJK for Chinese.
-- **Motion**: tapping a library card scales the whole player page up from the card cover position to its final layout (cover moves to the player cover, title/controls settle with it) — no expand-then-shrink; page switches slide + scale + fade; the mini player slides in/out; the top-bar title slides up; the selected dock icon scales slightly; cards spring back on press.
+- **Motion** (unified in 0.9.1; parameters ported from [FlClash](https://github.com/chen08209/FlClash)'s prism_ui, see `ui/Motion.kt`):
+  - **Press**: every icon button swells under the finger, stretches a little toward a drag (rubber-banded) and springs back; a quick tap still swells all the way before settling. Large surfaces (cards, mini player) sink slightly instead.
+  - **Icon morph**: play⇄pause, ♡⇄♥, repeat⇄repeat-one shrink + blur out while the new glyph pops in from 0.2×; colors ease over 200 ms. The dot-matrix play key grows from a rounded rect into a pill while playing.
+  - **Content switches**: pages, cover⇄lyrics⇄queue and the About page use fade-through (old content fades out in 90 ms, new content fades in scaling 0.92→1); page switches add a 24 dp directional shift.
+  - **Dock**: the lens travels on a 400 ms / 0.15-bounce spring, the selected tint eases, the pressed tab icon dips; quick taps swell fully.
+  - Plus the card-to-player transition, mini player slide, line-by-line floating lyrics, springy wheel highlight and settling dialogs.
 
 ![FEATURES](docs/sections/features.png)
 ## Features

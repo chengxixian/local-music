@@ -306,32 +306,36 @@ private fun LibraryGridCard(
 ) {
     val scheme = MiuixTheme.colorScheme
     // 按压缩放：点下去的瞬间卡片轻微缩小、松手回弹 —— 和系统点图标的手感一致
+    // 轻点也会先沉到底再弹回（见 elasticPress），不会出现"点太快看不到反馈"
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val pressScale by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (pressed) 0.955f else 1f,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = 0.55f,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
-        ),
-        label = "cardPress",
+    // 滚轮高亮：只有"高亮与否"翻转的那两张卡会重组，放大用弹簧过渡（原来是瞬间跳到 1.055）
+    val highlighted by remember(index) { derivedStateOf { highlightState.value == index } }
+    val highlightScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (highlighted) 1.055f else 1f,
+        animationSpec = Motion.settle(),
+        label = "cardHighlight",
+    )
+    val ringAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (highlighted) 1f else 0f,
+        animationSpec = Motion.look(),
+        label = "cardRing",
     )
     Card(
         onClick = { playState.value(song) },
         interactionSource = interaction,
         modifier = Modifier.fillMaxWidth()
-            // 记录卡片在窗口里的位置：播放页要从这张卡片"长"出来
-            .onGloballyPositioned { PlayerRevealOrigin.cardBounds[song.uri] = it.boundsInRoot() }
+            // 转场起点：登记卡片位置 + 录一份绘制快照（播放页从这张卡片"长"出来，关闭时缩回来）
+            .zoomSource(cardZoomKey(song.uri))
             // 高亮只在图层/绘制里读，不在组合里读：转动时不会让卡片重组，只重画
             .graphicsLayer {
-                val s = (if (highlightState.value == index) 1.055f else 1f) * pressScale
-                scaleX = s; scaleY = s
+                scaleX = highlightScale; scaleY = highlightScale
             }
+            .elasticPress(interaction, sink = true, pull = false)
             .drawWithContent {
                 drawContent()
-                if (highlightState.value == index) {
+                if (ringAlpha > 0f) {
                     drawRoundRect(
-                        color = scheme.primary,
+                        color = scheme.primary.copy(alpha = ringAlpha),
                         cornerRadius = CornerRadius(18.dp.toPx()),
                         style = Stroke(width = 2.dp.toPx()),
                     )
@@ -342,44 +346,25 @@ private fun LibraryGridCard(
     ) {
         Column {
             // 上半：正方形封面铺满
-            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).zoomSourceCover(cardZoomKey(song.uri))) {
                 Artwork(song, Modifier.matchParentSize(), radius = 0, requestPx = 420)
                 // 左上角：加入乐单（和右上角的心形成一对，操作逻辑一致 —— 点一下即加/去）
-                Box(
-                    Modifier.align(Alignment.TopStart).padding(6.dp).size(28.dp)
-                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
-                        .clickable { playlistState.value(song) },
-                    contentAlignment = Alignment.Center,
-                ) {
+                // 四个角标：按下鼓起（28dp 的小圆钮鼓得更明显一点），心形切换走图标换形
+                CardCornerButton(Modifier.align(Alignment.TopStart), onClick = { playlistState.value(song) }) {
                     Icon(Icons.Rounded.QueueMusic, stringResource(R.string.pl_add_title), tint = Color.White, modifier = Modifier.size(18.dp))
                 }
-                Box(
-                    Modifier.align(Alignment.TopEnd).padding(6.dp).size(28.dp)
-                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
-                        .clickable { favoriteState.value(song) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
+                CardCornerButton(Modifier.align(Alignment.TopEnd), onClick = { favoriteState.value(song) }) {
+                    MorphIcon(
                         if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
                         modifier = Modifier.size(17.dp),
                         tint = if (favorite) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else scheme.primary) else Color.White,
                     )
                 }
-                Box(
-                    Modifier.align(Alignment.BottomStart).padding(6.dp).size(28.dp)
-                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
-                        .clickable { queueState.value(song) },
-                    contentAlignment = Alignment.Center,
-                ) {
+                CardCornerButton(Modifier.align(Alignment.BottomStart), onClick = { queueState.value(song) }) {
                     Icon(Icons.Rounded.Add, stringResource(R.string.card_add_queue), modifier = Modifier.size(20.dp), tint = Color.White)
                 }
-                Box(
-                    Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)
-                        .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f))
-                        .clickable { playState.value(song) },
-                    contentAlignment = Alignment.Center,
-                ) {
+                CardCornerButton(Modifier.align(Alignment.BottomEnd), onClick = { playState.value(song) }) {
                     Icon(Icons.Rounded.PlayArrow, stringResource(R.string.player_play), modifier = Modifier.size(20.dp), tint = Color.White)
                 }
             }
@@ -396,9 +381,6 @@ private fun LibraryGridCard(
                     song.artist,
                     style = MiuixTheme.textStyles.footnote1,
                     color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.onGloballyPositioned {
-                        PlayerRevealOrigin.cardArtist[song.uri] = it.boundsInRoot()
-                    },
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -473,6 +455,22 @@ internal val SETTINGS_CARD_OF_WHEEL: Map<Int, Int> = mapOf(
 /** 卡片高亮：反查 [SETTINGS_CARD_OF_WHEEL]，避免每张卡各写一遍 `wheelIndex in …`。 */
 private fun Modifier.wheelCursorFor(card: Int, wheelIndex: Int, color: Color): Modifier =
     wheelCursor(SETTINGS_CARD_OF_WHEEL[wheelIndex] == card, color)
+
+/** 曲库卡片角上的小圆钮：半透明底 + 鼓起反馈。 */
+@Composable
+private fun CardCornerButton(
+    modifier: Modifier,
+    onClick: () -> Unit,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Box(
+        modifier.padding(6.dp).size(28.dp)
+            .springClickable(growth = 10.dp, maxScale = 0.32f, onClick = onClick)
+            .clip(CircleShape).background(MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.62f)),
+        contentAlignment = Alignment.Center,
+        content = content,
+    )
+}
 
 /**
  * App 内的点阵 "Lm" 标记（和图标同一套字形）。
@@ -555,11 +553,19 @@ private fun SettingChoices(
     ) {
         options.forEach { (value, label) ->
             val active = value == selectedValue
-            TextButton(onClick = { onPick(value) }) {
+            val color by androidx.compose.animation.animateColorAsState(
+                if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary, Motion.look(), label = "choiceColor",
+            )
+            val src = remember { MutableInteractionSource() }
+            TextButton(
+                onClick = { onPick(value) },
+                interactionSource = src,
+                modifier = Modifier.elasticPress(src, growth = 8.dp, maxScale = 0.1f),
+            ) {
                 Text(
                     label,
                     style = MiuixTheme.textStyles.body2,
-                    color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = color,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
@@ -581,18 +587,22 @@ private fun <T> AppearanceOptionRow(
     ) {
         options.forEach { (value, label) ->
             val active = value == selected
+            // 选中态的底色 / 字色 200ms 过渡（FlClash PressSurface 的 "eases between fills"）
+            val fg by androidx.compose.animation.animateColorAsState(
+                if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary, Motion.look(), label = "optFg",
+            )
+            val bg by androidx.compose.animation.animateColorAsState(
+                if (active) accent.copy(alpha = 0.14f) else MiuixTheme.colorScheme.surfaceVariant, Motion.look(), label = "optBg",
+            )
             Text(
                 text = label,
                 style = MiuixTheme.textStyles.body2,
-                color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                color = fg,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 modifier = Modifier
+                    .springClickable(growth = 8.dp, maxScale = 0.1f) { onPick(value) }
                     .clip(RoundedCornerShape(50))
-                    .background(
-                        if (active) accent.copy(alpha = 0.14f) else MiuixTheme.colorScheme.surfaceVariant,
-                        RoundedCornerShape(50),
-                    )
-                    .clickable { onPick(value) }
+                    .background(bg, RoundedCornerShape(50))
                     .padding(horizontal = 13.dp, vertical = 7.dp),
             )
         }
@@ -612,11 +622,19 @@ private fun AppearanceAccentRow(
     ) {
         com.localmusic.app.data.AccentOptions.forEach { option ->
             val active = option.value == selected
+            val ring by androidx.compose.animation.animateColorAsState(
+                if (active) accent else Color.Transparent, Motion.look(), label = "accentRing",
+            )
+            val ringWidth by androidx.compose.animation.core.animateDpAsState(
+                if (active) 2.dp else 1.dp, Motion.settle(), label = "accentRingW",
+            )
+            val label by androidx.compose.animation.animateColorAsState(
+                if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary, Motion.look(), label = "accentLabel",
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onPick(option.value) }
+                    .springClickable(growth = 10.dp, maxScale = 0.12f) { onPick(option.value) }
                     .padding(horizontal = 7.dp, vertical = 5.dp)
                     .width(58.dp),
             ) {
@@ -624,7 +642,7 @@ private fun AppearanceAccentRow(
                     Modifier
                         .size(26.dp)
                         .background(option.preview, CircleShape)
-                        .border(if (active) 2.dp else 1.dp, if (active) accent else Color.Transparent, CircleShape),
+                        .border(ringWidth, ring, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (option.isDynamic) {
@@ -635,7 +653,7 @@ private fun AppearanceAccentRow(
                 Text(
                     stringResource(option.labelRes),
                     style = MiuixTheme.textStyles.footnote1,
-                    color = if (active) accent else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    color = label,
                     maxLines = 1,
                 )
             }
@@ -1034,20 +1052,24 @@ fun SettingsPage(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     WheelGlassTints.forEachIndexed { index, tint ->
+                        val on = index == shown.index
+                        val ringW by androidx.compose.animation.core.animateDpAsState(if (on) 3.dp else 1.dp, Motion.settle(), label = "tintRingW")
+                        val ringC by androidx.compose.animation.animateColorAsState(
+                            if (on) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f), Motion.look(), label = "tintRingC",
+                        )
+                        val nameC by androidx.compose.animation.animateColorAsState(
+                            if (on) scheme.primary else scheme.onSurfaceVariantSummary, Motion.look(), label = "tintName",
+                        )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
-                                Modifier.size(30.dp).clip(CircleShape)
+                                Modifier.size(30.dp)
+                                    .springClickable(growth = 10.dp, maxScale = 0.3f) { onGlassTint(tintState.copy(index = index)) }
+                                    .clip(CircleShape)
                                     .background(tint.color)
-                                    .border(
-                                        width = if (index == shown.index) 3.dp else 1.dp,
-                                        color = if (index == shown.index) scheme.primary else scheme.onSurfaceVariantSummary.copy(alpha = 0.35f),
-                                        shape = CircleShape,
-                                    )
-                                    .clickable { onGlassTint(tintState.copy(index = index)) }
+                                    .border(width = ringW, color = ringC, shape = CircleShape)
                             )
                             Spacer(Modifier.height(4.dp))
-                            Text(stringResource(tint.nameRes), style = MiuixTheme.textStyles.footnote1,
-                                color = if (index == shown.index) scheme.primary else scheme.onSurfaceVariantSummary)
+                            Text(stringResource(tint.nameRes), style = MiuixTheme.textStyles.footnote1, color = nameC)
                         }
                     }
                 }
@@ -1165,8 +1187,8 @@ internal fun AboutAction(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .springClickable(growth = 10.dp, maxScale = 0.14f, onClick = onClick)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Icon(icon, contentDescription = label, tint = tint)
@@ -1210,10 +1232,7 @@ fun PlaylistHeader(
     GlassCard(backdrop = backdrop, modifier = modifier, contentPadding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 返回：从乐单详情回乐单列表（系统返回键也能用，但页面上得有看得见的入口）
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
+            MotionIconButton(onClick = onBack, size = 40.dp) {
                 Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.pl_back), tint = MiuixTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.width(6.dp))
@@ -1228,10 +1247,7 @@ fun PlaylistHeader(
                 Text(stringResource(R.string.pl_count, playlist.count), style = MiuixTheme.textStyles.body2, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
             // 重命名 / 换封面 / 删除 收进这一个按钮里（原来是三行列表，太占地方）
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onMenu),
-                contentAlignment = Alignment.Center,
-            ) {
+            MotionIconButton(onClick = onMenu, size = 40.dp) {
                 Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.pl_settings), tint = MiuixTheme.colorScheme.onSurface)
             }
         }
@@ -1344,14 +1360,19 @@ fun PlaylistPage(
 @Composable
 private fun PlaylistGridCard(playlist: Playlist, firstSong: Song?, onClick: () -> Unit) {
     val scheme = MiuixTheme.colorScheme
+    // 与曲库卡片同一套按压：沉下去再弹回
+    val interaction = remember { MutableInteractionSource() }
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        interactionSource = interaction,
+        modifier = Modifier.fillMaxWidth()
+            .zoomSource(playlistZoomKey(playlist.id))
+            .elasticPress(interaction, sink = true, pull = false),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
     ) {
         Column {
-            Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(1f).zoomSourceCover(playlistZoomKey(playlist.id))) {
                 when {
                     playlist.cover != null -> FileImage(path = playlist.cover, modifier = Modifier.matchParentSize())
                     firstSong != null -> Artwork(firstSong, Modifier.matchParentSize(), radius = 0, requestPx = 420)
@@ -1498,7 +1519,7 @@ fun AboutPage(
             item {
                 LiquidCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.pl_back_about)) }
+                        MotionIconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.pl_back_about)) }
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.about_title), style = MiuixTheme.textStyles.title3)
                     }
@@ -1669,12 +1690,10 @@ fun PopIn(
     androidx.compose.runtime.LaunchedEffect(visible) {
         if (visible) {
             kept = true
-            anim.animateTo(1f, androidx.compose.animation.core.spring(
-                dampingRatio = 0.72f,
-                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
-            ))
+            // 入场：FlClash 弹窗的落位弹簧（轻微过冲后稳住）；退场：加速淡出，不拖泥带水
+            anim.animateTo(1f, Motion.settle())
         } else {
-            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 160))
+            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 150, easing = Motion.FadeThroughOut))
             kept = false
         }
     }
@@ -1682,8 +1701,8 @@ fun PopIn(
         Box(
             modifier.graphicsLayer {
                 val v = anim.value
-                alpha = v
-                val s = 0.92f + 0.08f * v
+                alpha = v.coerceIn(0f, 1f)
+                val s = 0.9f + 0.1f * v
                 scaleX = s
                 scaleY = s
             }
@@ -1711,12 +1730,10 @@ fun <T : Any> PopInData(
     val anim = remember { androidx.compose.animation.core.Animatable(if (visible) 1f else 0f) }
     androidx.compose.runtime.LaunchedEffect(visible) {
         if (visible) {
-            anim.animateTo(1f, androidx.compose.animation.core.spring(
-                dampingRatio = 0.72f,
-                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow,
-            ))
+            // 入场：FlClash 弹窗的落位弹簧（轻微过冲后稳住）；退场：加速淡出，不拖泥带水
+            anim.animateTo(1f, Motion.settle())
         } else {
-            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 160))
+            anim.animateTo(0f, androidx.compose.animation.core.tween(durationMillis = 150, easing = Motion.FadeThroughOut))
             kept = null
         }
     }
@@ -1724,8 +1741,8 @@ fun <T : Any> PopInData(
         Box(
             modifier.graphicsLayer {
                 val v = anim.value
-                alpha = v
-                val s = 0.92f + 0.08f * v
+                alpha = v.coerceIn(0f, 1f)
+                val s = 0.9f + 0.1f * v
                 scaleX = s
                 scaleY = s
             }

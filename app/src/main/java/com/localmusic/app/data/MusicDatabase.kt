@@ -227,4 +227,18 @@ class MusicDatabase(context: Context) : SQLiteOpenHelper(context, "library.db", 
         }, SQLiteDatabase.CONFLICT_REPLACE)
         else db.delete("playlist_songs", "playlist = ? AND uri = ?", arrayOf(playlist.toString(), uri))
     }
+
+    /** 按 [uris] 的顺序重写乐单内的 added 时间戳（读取时 ORDER BY added ASC，即列表顺序）。 */
+    fun reorderPlaylist(id: Long, uris: List<String>) {
+        val db = writableDatabase
+        val base = System.currentTimeMillis() - uris.size
+        db.beginTransaction()
+        try {
+            uris.forEachIndexed { i, uri ->
+                db.execSQL("UPDATE playlist_songs SET added = ? WHERE playlist = ? AND uri = ?",
+                    arrayOf<Any>(base + i, id, uri))
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
 }

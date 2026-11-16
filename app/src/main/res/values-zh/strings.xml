@@ -287,4 +287,19 @@
     <string name="accent_amber">琥珀</string>
     <string name="accent_rose">玫红</string>
     <string name="accent_lime">青柠</string>
+    <string name="queue_page_title">播放队列</string>
+    <string name="queue_count">共 %1$d 首</string>
+    <string name="queue_locate">定位当前</string>
+    <string name="queue_clear_others">清空其余</string>
+    <string name="queue_removed">已移除「%1$s」</string>
+    <string name="action_undo">撤销</string>
+    <string name="queue_hint">按住右侧把手拖动排序 · 左滑移除</string>
+    <string name="pl_play_all">播放全部</string>
+    <string name="pl_shuffle_play">随机播放</string>
+    <string name="pl_summary">%1$d 首 · %2$s</string>
+    <string name="pl_removed">已从乐单移除「%1$s」</string>
+    <string name="pl_reorder_hint">长按歌曲拖动排序 · 左滑移除</string>
+    <string name="mini_queue">队列</string>
+    <string name="pl_songs_empty">乐单还是空的</string>
+    <string name="pl_songs_empty_hint">在曲库卡片左上角点「加入乐单」即可添加</string>
 </resources>

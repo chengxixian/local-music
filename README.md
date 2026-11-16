@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
-  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.9.0-blue" alt="Latest release: v0.9.0"></a>
+  <a href="https://github.com/chengxixian/local-music/releases"><img src="https://img.shields.io/badge/release-v0.9.1-blue" alt="Latest release: v0.9.1"></a>
   <img src="https://img.shields.io/badge/Android-13%2B%20(API%2033)-3DDC84?logo=android&logoColor=white" alt="Android 13+ (API 33)">
   <img src="https://img.shields.io/badge/USB%20passthrough-Android%2014%2B%20(API%2034)-3DDC84?logo=android&logoColor=white" alt="USB passthrough: Android 14+ (API 34)">
   <img src="https://img.shields.io/badge/language-Kotlin%20%2B%20C-7F52FF" alt="Kotlin + C">
@@ -39,7 +39,12 @@
 - **M3E 配色**：跟随壁纸、MIUI 蓝、蓝、紫、绿、橙、信号红、青、琥珀、玫红、青柠，共 11 种。
 - **红色只做点缀**：点阵皮肤里红色仅出现在正在播放的标题、喜欢的红心、进度条手柄、当前队列项。
 - **字体**：全局使用系统开源的 Noto Serif（Android 的 serif 家族，系统把 times new roman 别名到它），中文为 Noto Serif CJK。
-- **动效**：点曲库卡片时播放页整体从卡片封面的位置平滑放大到最终布局（封面位移到播放页封面处、标题/控件一起就位），不再有"先放大到全屏再缩回"的两段跳；切页为滑入 + 轻微缩放 + 淡入；迷你播放条滑入滑出；顶栏标题上滑淡入；dock 选中图标轻微放大；卡片按下有回弹。
+- **动效**（0.9.1 起统一为一套，参数取自 [FlClash](https://github.com/chen08209/FlClash) 的 prism_ui 动效库，见 `ui/Motion.kt`）：
+  - **点按**：所有图标按钮按下"鼓起"、拖动时被手指橡皮筋式拉开一点、松手弹簧回弹；轻点也会先鼓到满再落回，不会"点太快看不到反馈"。卡片、迷你播放条这类大面积元素改为轻微下沉。
+  - **图标换形**：播放⇄暂停、♡⇄♥、循环⇄单曲循环等切换时，旧图标缩小 + 模糊 + 淡出，新图标从 0.2 倍弹出；颜色 200ms 过渡。点阵播放键在播放中由圆角矩形长成胶囊。
+  - **内容切换**：切页、封面⇄歌词⇄队列、关于页进出统一为 fade-through（旧内容 90ms 先淡出，新内容淡入并 0.92→1 放大），切页另带 24dp 方向位移，不再两页重影。
+  - **dock**：滑块飞行改用 400ms / bounce 0.15 的弹簧（更快停稳），选中色平滑过渡，按下的 tab 图标下压；轻点同样有完整的鼓起。
+  - 卡片转场（播放页从卡片封面位置放大）、迷你播放条滑入滑出、悬浮歌词逐行滑动、滚轮高亮弹簧放大、弹窗落位弹簧等。
 
 ![FEATURES](docs/sections/features.png)
 ## 功能

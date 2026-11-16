@@ -10,6 +10,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -146,9 +149,7 @@ fun WavePlayerPage(
     onClose: () -> Unit,
     onChangeCover: () -> Unit,
     onOpenEq: () -> Unit,
-    onJumpTo: (Int) -> Unit,
-    onMoveInQueue: (Int, Int) -> Unit,
-    onRemoveFromQueue: (Int) -> Unit,
+    onOpenQueue: () -> Unit,
 ) {
     // NOTHING 配色：封面平均色只决定背景明暗，控件不再跟封面染色。
     // 点阵皮肤：白色控件；M3E：恢复封面动态取色。
@@ -180,7 +181,8 @@ fun WavePlayerPage(
     // 然后才异步换成真封面（用户实测到的"先弹一下默认封面"）。
     // 页面层不随 middle 变化，所以这里的 state 一直活着，切回来直接就是真封面。
     val coverRevision by CoverStore.revision.collectAsState()
-    val cover by produceState<ImageBitmap?>(null, song?.uri, coverRevision) {
+    // 初值先取内存里卡片那张（420px）：转场第一帧就有图，不闪占位唱片
+    val cover by produceState<ImageBitmap?>(song?.let { ArtworkStore.peek(it, 420)?.asImageBitmap() }, song?.uri, coverRevision) {
         value = withContext(Dispatchers.IO) {
             song?.let { s ->
                 val bmp = CoverStore.decode(context.applicationContext, s.uri, CoverPx)
@@ -191,6 +193,7 @@ fun WavePlayerPage(
     }
 
     var middle by remember(song?.uri) { mutableStateOf(WaveMiddle.Cover) }
+    val trackDir = rememberTrackDirection(player.queue.indexOfFirst { it.current })
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
 
@@ -242,11 +245,19 @@ fun WavePlayerPage(
         Spacer(Modifier.height(10.dp))
 
         // ② 中间三态：封面 / 歌词 / 队列
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (middle) {
+        // 封面 / 歌词 / 队列之间 fade-through（不缩放：封面矩形要给转场取位置，必须保持精确）
+        androidx.compose.animation.AnimatedContent(
+            targetState = middle,
+            transitionSpec = { fadeThrough(initialScale = 1f) },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            label = "waveMiddle",
+        ) { pane ->
+        Box(Modifier.fillMaxSize()) {
+            when (pane) {
                 WaveMiddle.Cover -> CoverPane(
                     song = song,
                     cover = cover,
+                    direction = trackDir,
                     onOpenLyrics = { middle = WaveMiddle.Lyrics },
                 )
                 WaveMiddle.Lyrics -> LyricsPane(
@@ -255,15 +266,8 @@ fun WavePlayerPage(
                     positionMs = livePosition,
                     onBackToCover = { middle = WaveMiddle.Cover },
                 )
-                WaveMiddle.Queue -> QueuePane(
-                    queue = player.queue,
-                    ink = chipInk,
-                    onJump = onJumpTo,
-                    onMove = onMoveInQueue,
-                    onRemove = onRemoveFromQueue,
-                    onClose = { middle = WaveMiddle.Cover },
-                )
             }
+        }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -359,10 +363,7 @@ fun WavePlayerPage(
                 icon = Icons.Rounded.PlaylistPlay,
                 description = stringResource(R.string.player_queue),
                 tint = chipInk,
-                active = middle == WaveMiddle.Queue,
-                    onClick = {
-                    middle = if (middle == WaveMiddle.Queue) WaveMiddle.Cover else WaveMiddle.Queue
-                },
+                onClick = onOpenQueue,
             )
         }
 
@@ -382,7 +383,7 @@ fun WavePlayerPage(
 }
 
 /** 中间区域的三种状态。 */
-private enum class WaveMiddle { Cover, Lyrics, Queue }
+private enum class WaveMiddle { Cover, Lyrics }
 
 private val PagePad: Dp = 20.dp
 private val MainCircleSize: Dp = 72.dp
@@ -397,28 +398,39 @@ private const val CoverPx = 900
 
 /** 封面页：大圆角封面（点一下去歌词）。 */
 @Composable
-private fun CoverPane(song: Song?, cover: ImageBitmap?, onOpenLyrics: () -> Unit) {
+private fun CoverPane(song: Song?, cover: ImageBitmap?, direction: Int, onOpenLyrics: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         // 竖屏按宽度取 0.94 屏宽；横屏按高度取 —— 否则正方形封面在横屏会溢出，
         // 把下面的标题/控件整片盖掉。
         val side = minOf(maxWidth * 0.94f, maxHeight * 0.92f)
+        val source = remember { MutableInteractionSource() }
         Box(
             Modifier
                 .size(side)
-                .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() }
+                // 共享元素终点（转场期间由转场层代画，落位后交还）
+                .zoomShared(LocalPlayerZoom.current)
+                .elasticPress(source, sink = true, sinkAmount = 0.025f, pull = false)
                 .clip(RoundedCornerShape(22.dp))
-                .clickable(onClick = onOpenLyrics),
+                .clickable(interactionSource = source, indication = null, onClick = onOpenLyrics),
         ) {
-            if (cover != null) {
-                Image(
-                    bitmap = cover,
-                    contentDescription = song?.album,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-            } else {
-                // 只有真的还没解码出来（或这首歌根本没有封面）才走占位画法
-                Artwork(song, Modifier.matchParentSize(), radius = 22, requestPx = CoverPx)
+            // 切歌：新封面按方向滑入、旧封面反向滑出并缩小（不再原地瞬间换图）
+            androidx.compose.animation.AnimatedContent(
+                targetState = cover,
+                transitionSpec = { coverSwap(direction) },
+                modifier = Modifier.matchParentSize(),
+                label = "waveCover",
+            ) { bmp ->
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp,
+                        contentDescription = song?.album,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    // 只有真的还没解码出来（或这首歌根本没有封面）才走占位画法
+                    Artwork(song, Modifier.fillMaxSize(), radius = 22, requestPx = CoverPx)
+                }
             }
         }
     }
@@ -570,14 +582,7 @@ private fun InfoRow(
                 color = titleTint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .onGloballyPositioned {
-                        PlayerTargets.titleRect = it.boundsInRoot()
-                        PlayerTargets.titleStyle = titleStyle
-                        PlayerTargets.titleColor = titleTint
-                        PlayerTargets.titleText = title
-                    }
-                    .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                modifier = Modifier,
             )
             Text(
                 text = artist,
@@ -585,14 +590,7 @@ private fun InfoRow(
                 color = artistTint.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .onGloballyPositioned {
-                        PlayerTargets.artistRect = it.boundsInRoot()
-                        PlayerTargets.artistStyle = artistStyle
-                        PlayerTargets.artistColor = artistTint.copy(alpha = 0.85f)
-                        PlayerTargets.artistText = artist
-                    }
-                    .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                modifier = Modifier,
             )
         }
         Spacer(Modifier.width(10.dp))
@@ -738,111 +736,6 @@ private fun WaveSeek(
 
 private val SeekTouchHeight: Dp = 40.dp
 
-/** 队列页：平的实色行，点行进曲，右侧三个小圆钮（上移/下移/移除）。 */
-@Composable
-private fun QueuePane(
-    queue: List<QueueItem>,
-    ink: Color,
-    onJump: (Int) -> Unit,
-    onMove: (Int, Int) -> Unit,
-    onRemove: (Int) -> Unit,
-    onClose: () -> Unit,
-) {
-    if (queue.isEmpty()) {
-        Column(
-            Modifier.fillMaxSize().clickable(onClick = onClose),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = stringResource(R.string.queue_empty),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.queue_empty_hint),
-                fontSize = 13.sp,
-                color = Color.White.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-            )
-        }
-        return
-    }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.queue_title, queue.size),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                modifier = Modifier.weight(1f),
-            )
-            CircleChip(
-                icon = Icons.Rounded.KeyboardArrowDown,
-                description = stringResource(R.string.queue_collapse),
-                tint = ink,
-                onClick = onClose,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(Modifier.fillMaxSize()) {
-            itemsIndexed(queue, key = { _, item -> item.index }) { _, item ->
-                Row(
-                    Modifier.fillMaxWidth().height(52.dp).clickable { onJump(item.index) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = item.title,
-                            fontSize = 15.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = item.artist,
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.6f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    CircleChip(
-                        icon = Icons.Rounded.ArrowUpward,
-                        description = stringResource(R.string.queue_move_up),
-                        tint = ink,
-                        size = 36.dp,
-                        iconSize = 18.dp,
-                        enabled = item.index > 0,
-                        onClick = { onMove(item.index, item.index - 1) },
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    CircleChip(
-                        icon = Icons.Rounded.ArrowDownward,
-                        description = stringResource(R.string.queue_move_down),
-                        tint = ink,
-                        size = 36.dp,
-                        iconSize = 18.dp,
-                        enabled = item.index < queue.lastIndex,
-                        onClick = { onMove(item.index, item.index + 1) },
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    CircleChip(
-                        icon = Icons.Rounded.Close,
-                        description = stringResource(R.string.queue_remove),
-                        tint = ink,
-                        size = 36.dp,
-                        iconSize = 18.dp,
-                        onClick = { onRemove(item.index) },
-                    )
-                }
-            }
-        }
-    }
-}
 
 /**
  * 圆形半透明钮（参考图里那一圈圆钮）。活动态用**封面强调色**填充 + 反色图标，
@@ -862,21 +755,32 @@ private fun CircleChip(
     // 参考图：**除中间那颗播放键**之外，所有钮都是"一层很淡的主题色圆底 + 一颗主题色图标"。
     // 图标直接用封面主题色本身（不是灰白），开态只把圆底加深一档 —— 于是整排钮都带色，
     // 但谁也没抢过播放键。
-    val fill = when {
-        !enabled -> tint.copy(alpha = 0.05f)
-        active -> tint.copy(alpha = 0.34f)
-        else -> tint.copy(alpha = 0.20f)
-    }
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    // 底色三档（禁用 / 常态 / 开启）+ 按下再加深一档，全部 200ms 平滑过渡，开关状态不再"跳色"
+    val fillAlpha = when {
+        !enabled -> 0.05f
+        active -> 0.34f
+        else -> 0.20f
+    } + if (pressed && enabled) 0.10f else 0f
+    val fill by animateColorAsState(tint.copy(alpha = fillAlpha), Motion.look(), label = "chipFill")
     val iconTint = if (enabled) tint else tint.copy(alpha = 0.28f)
     Box(
         Modifier
             .size(size)
+            .elasticPress(source, enabled)
             .clip(CircleShape)
             .background(fill)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                enabled = enabled,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, description, tint = iconTint, modifier = Modifier.size(iconSize))
+        MorphIcon(icon, description, Modifier.size(iconSize), tint = iconTint)
     }
 }
 
@@ -886,19 +790,30 @@ private fun CircleChip(
  */
 @Composable
 private fun PlayKey(playing: Boolean, fill: Color, iconTint: Color, onToggle: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    // M3E 式形变：暂停态是圆角矩形，播放中圆角长成整颗胶囊（弹簧，带一点回弹）
+    val corner by animateDpAsState(if (playing) PlayKeyHeight / 2 else 20.dp, Motion.settle(), label = "playKeyCorner")
+    val keyFill by animateColorAsState(fill, Motion.look(), label = "playKeyFill")
+    val keyIcon by animateColorAsState(iconTint, Motion.look(), label = "playKeyIcon")
     Box(
         Modifier
             .size(width = PlayKeyWidth, height = PlayKeyHeight)
-            .clip(RoundedCornerShape(20.dp))
-            .background(fill)
-            .clickable(onClick = onToggle),
+            .elasticPress(source, growth = 14.dp)
+            .clip(RoundedCornerShape(corner))
+            .background(keyFill)
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = onToggle,
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-            contentDescription = stringResource(if (playing) R.string.player_pause else R.string.player_play),
-            tint = iconTint,
-            modifier = Modifier.size(28.dp),
+        MorphIcon(
+            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            stringResource(if (playing) R.string.player_pause else R.string.player_play),
+            Modifier.size(28.dp),
+            tint = keyIcon,
         )
     }
 }

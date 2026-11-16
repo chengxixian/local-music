@@ -16,7 +16,8 @@
     <application android:name=".LocalMusicApplication" android:label="local music"
         android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false"
-        android:supportsRtl="true" android:theme="@style/Theme.LocalMusic">
+        android:supportsRtl="true" android:theme="@style/Theme.LocalMusic"
+        android:enableOnBackInvokedCallback="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

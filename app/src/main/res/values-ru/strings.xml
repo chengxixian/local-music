@@ -271,4 +271,19 @@
     <string name="player_idle_title">Воспроизведение не начато</string>
     <string name="player_idle_artist">Выберите песню в библиотеке</string>
     <string name="player_unknown_track">Неизвестный трек</string>
+    <string name="queue_page_title">Далее</string>
+    <string name="queue_count">Треков: %1$d</string>
+    <string name="queue_locate">Текущий трек</string>
+    <string name="queue_clear_others">Очистить остальное</string>
+    <string name="queue_removed">Удалено: «%1$s»</string>
+    <string name="action_undo">Отменить</string>
+    <string name="queue_hint">Перетащите ручку для сортировки · свайп влево для удаления</string>
+    <string name="pl_play_all">Играть все</string>
+    <string name="pl_shuffle_play">Перемешать</string>
+    <string name="pl_summary">Треков: %1$d · %2$s</string>
+    <string name="pl_removed">«%1$s» удалён из плейлиста</string>
+    <string name="pl_reorder_hint">Удерживайте трек для сортировки · свайп влево для удаления</string>
+    <string name="mini_queue">Очередь</string>
+    <string name="pl_songs_empty">Плейлист пуст</string>
+    <string name="pl_songs_empty_hint">Нажмите «Добавить в плейлист» на карточке любой песни в медиатеке</string>
 </resources>

@@ -2,6 +2,9 @@
 package com.localmusic.app.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.size
@@ -75,7 +78,16 @@ fun GlassIconButton(
     size: Dp = 44.dp,
     tint: Color = MiuixTheme.colorScheme.onSurface,
 ) {
-    Box(modifier.size(size).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    // 点按：整颗玻璃钮鼓起 + 跟手拉伸（见 [elasticPress]），图标换形用 [MorphIcon]。
+    // 玻璃层在 elasticPress 之内，所以折射边缘跟着一起放大 —— 液态感来自这里。
+    val source = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .size(size)
+            .elasticPress(source, growth = 14.dp, maxScale = 0.22f)
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
         Box(
             Modifier.matchParentSize().liquidGlass(
                 backdrop = backdrop,
@@ -85,6 +97,6 @@ fun GlassIconButton(
                 refractionAmount = 18.dp,
             )
         )
-        Icon(icon, contentDescription, Modifier.size(size * 0.5f), tint = tint)
+        MorphIcon(icon, contentDescription, Modifier.size(size * 0.5f), tint = tint)
     }
 }

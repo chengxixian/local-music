@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalContext
@@ -105,20 +107,28 @@ fun GlassTopBar(
                         }
                     },
                 )
-                if (query.isNotEmpty()) {
-                    Icon(
-                        Icons.Rounded.Close, stringResource(R.string.player_clear_search),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.size(20.dp).clickable { onQueryChange("") },
-                    )
+                // 清除键：有字才出现，出现/消失走图标换形同一套（0.2 倍弹出 / 缩回）
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = query.isNotEmpty(),
+                    enter = fadeIn(tween(160)) + androidx.compose.animation.scaleIn(Motion.glyph(), initialScale = 0.2f),
+                    exit = fadeOut(tween(120)) + androidx.compose.animation.scaleOut(tween(160), targetScale = 0.2f),
+                ) {
+                    CompositionLocalProvider(LocalContentColor provides MiuixTheme.colorScheme.onSurfaceVariantSummary) {
+                        MotionIconButton(onClick = { onQueryChange("") }, size = 32.dp) {
+                            Icon(Icons.Rounded.Close, stringResource(R.string.player_clear_search), Modifier.size(20.dp))
+                        }
+                    }
                 }
             } else {
                 // 切页时标题做一次"上滑淡入"，而不是整条顶栏瞬间换字
                 AnimatedContent(
                     targetState = title,
                     transitionSpec = {
-                        (fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 2 })
-                            .togetherWith(fadeOut(tween(140)) + slideOutVertically(tween(180)) { -it / 2 })
+                        // 新标题自下而上滑入、旧标题向上滑出；位移用 Standard 缓动，与切页的 fade-through 同节拍
+                        (fadeIn(tween(210, delayMillis = 60, easing = Motion.FadeThroughIn)) +
+                            slideInVertically(tween(Motion.CommonMillis, easing = Motion.Standard)) { it / 2 })
+                            .togetherWith(fadeOut(tween(90, easing = Motion.FadeThroughOut)) +
+                                slideOutVertically(tween(Motion.CommonMillis, easing = Motion.Standard)) { -it / 3 })
                     },
                     label = "topBarTitle",
                 ) { t ->
@@ -156,21 +166,34 @@ fun FloatingLyricsOverlay(
     // 用户会以为"这个开关没用"。现在退回显示「♪ 歌名」，至少能看到开关真的生效了。
     val text = lyrics?.lines?.getOrNull(current)?.text?.takeIf { it.isNotBlank() }
         ?: androidx.compose.ui.res.stringResource(com.localmusic.app.R.string.floating_lyrics_none, song.title)
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     GlassPanel(
         backdrop = backdrop,
         shape = RoundedCornerShape(22.dp),
         refractionHeight = 12.dp,
         refractionAmount = 18.dp,
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .elasticPress(source, growth = 10.dp, maxScale = 0.05f)
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // 换行：新歌词从下方滑入、旧的向上淡出（像滚动的歌词，而不是整行瞬间换字）
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = {
+                (fadeIn(tween(220, delayMillis = 60)) + slideInVertically(tween(Motion.CommonMillis, easing = Motion.Standard)) { it })
+                    .togetherWith(fadeOut(tween(120)) + slideOutVertically(tween(Motion.CommonMillis, easing = Motion.Standard)) { -it })
+            },
+            label = "floatingLyric",
+        ) { line ->
+            Text(
+                text = line,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -183,20 +206,52 @@ fun MiniPlayerBar(
     onToggle: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    onQueue: () -> Unit = {},
 ) {
-    GlassPanel(backdrop, RoundedCornerShape(24.dp), modifier.height(56.dp).fillMaxWidth()) {
+    // 整条按下轻微下沉（大面积元素用"沉"，小图标用"鼓"）；播放键单独鼓起 + 换形
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    GlassPanel(
+        backdrop, RoundedCornerShape(24.dp),
+        modifier.height(56.dp).fillMaxWidth()
+            // 转场起点：播放页从这条胶囊"长"出来，关闭时（卡片不在屏幕上时）缩回这里
+            .zoomSource(MiniZoomKey)
+            .elasticPress(source, sink = true, sinkAmount = 0.03f),
+    ) {
         Row(
-            Modifier.fillMaxSize().clickable(onClick = onOpen).padding(horizontal = 10.dp),
+            Modifier.fillMaxSize()
+                .clickable(interactionSource = source, indication = null, onClick = onOpen)
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(LiquidSpacing.inline),
         ) {
-            Artwork(song, Modifier.size(40.dp), radius = 14)
-            Column(Modifier.weight(1f)) {
-                Text(player.title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(player.artist, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // 切歌：封面与文字一起 fade-through，而不是瞬间换掉
+            AnimatedContent(
+                targetState = song,
+                transitionSpec = { fadeThrough(initialScale = 0.86f) },
+                modifier = Modifier.zoomSourceCover(MiniZoomKey),
+                label = "miniArt",
+            ) { s -> Artwork(s, Modifier.size(40.dp), radius = 14, requestPx = 420) }
+            AnimatedContent(
+                targetState = player.title to player.artist,
+                transitionSpec = { fadeThrough(initialScale = 1f) },
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier.weight(1f),
+                label = "miniText",
+            ) { (title, artist) ->
+                Column(Modifier.fillMaxWidth()) {
+                    Text(title, style = MiuixTheme.textStyles.title4, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(artist, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            IconButton(onClick = onToggle) {
-                Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play))
+            MotionIconButton(onClick = onToggle) {
+                MorphIcon(
+                    if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play),
+                )
+            }
+            // 直接打开「播放队列」编辑页（不必先进播放页）
+            MotionIconButton(onClick = onQueue, size = 40.dp) {
+                Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, stringResource(R.string.mini_queue), Modifier.size(22.dp))
             }
         }
     }
@@ -215,7 +270,7 @@ private val TopRowGap = 8.dp
  *
  * 点封面 → 歌词；点歌词 → 回封面；顶部「列表」玻璃钮 → 播放列表。
  */
-private enum class Middle { Cover, Lyrics, Queue }
+private enum class Middle { Cover, Lyrics }
 
 @Composable
 fun PlayerPage(
@@ -236,9 +291,8 @@ fun PlayerPage(
     onClose: () -> Unit,
     onChangeCover: () -> Unit,
     onOpenEq: () -> Unit,
-    onJumpTo: (Int) -> Unit,
-    onMoveInQueue: (Int, Int) -> Unit,
-    onRemoveFromQueue: (Int) -> Unit,
+    /** 打开「播放队列」编辑页（独立的一页，不再挤在中间区域里）。 */
+    onOpenQueue: () -> Unit,
 ) {
     val scheme = MiuixTheme.colorScheme
     // 主题色：优先取当前歌曲封面的鲜艳色，取不到再回落默认主题色
@@ -255,6 +309,20 @@ fun PlayerPage(
     // 播放进度在播放页内部收集：只有这一屏会跟着 400ms 的进度重组，曲库网格不受影响
     val livePosition by positionFlow.collectAsState()
     var middle by remember(song?.uri) { mutableStateOf(Middle.Cover) }
+    // 封面位图提到页面层：切歌时新旧两张同时在动画里，不能各自异步加载（会闪占位唱片）
+    val coverRevision by com.localmusic.app.data.CoverStore.revision.collectAsState()
+    val coverBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        song?.let { ArtworkStore.peek(it, 420)?.asImageBitmap() }, song?.uri, coverRevision,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            song?.let { s ->
+                (com.localmusic.app.data.CoverStore.decode(context.applicationContext, s.uri, 900)
+                    ?: ArtworkStore.load(context.applicationContext, s, 900))?.asImageBitmap()
+            }
+        }
+    }
+    // 切歌方向：下一首 → 新封面从右边滑进来；上一首 → 从左边
+    val trackDir = rememberTrackDirection(player.queue.indexOfFirst { it.current })
     var lyrics by remember(song?.uri) { mutableStateOf<LyricsRepository.Lyrics?>(null) }
     var lyricsLoaded by remember(song?.uri) { mutableStateOf(false) }
 
@@ -299,9 +367,9 @@ fun PlayerPage(
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(
                     backdrop,
-                    if (middle == Middle.Queue) Icons.Rounded.QueueMusic else Icons.Rounded.PlaylistPlay,
+                    Icons.AutoMirrored.Rounded.PlaylistPlay,
                     stringResource(R.string.player_queue),
-                    onClick = { middle = if (middle == Middle.Queue) Middle.Cover else Middle.Queue },
+                    onClick = onOpenQueue,
                 )
                 Spacer(Modifier.width(LiquidSpacing.inline))
                 GlassIconButton(backdrop, Icons.Rounded.AddPhotoAlternate, stringResource(R.string.player_pick_cover), onChangeCover)
@@ -321,8 +389,19 @@ fun PlayerPage(
                 },
                 contentAlignment = Alignment.Center,
             ) {
-                when (middle) {
-                    Middle.Cover -> CoverWithGlassRing(backdrop = backdrop, song = song, onClick = { middle = Middle.Lyrics })
+                AnimatedContent(
+                    targetState = middle,
+                    transitionSpec = { fadeThrough(initialScale = 1f) },
+                    contentAlignment = Alignment.Center,
+                    // 占满中间区域：三种面板尺寸不同，若随内容测量会多出一段尺寸动画，封面位置也会跟着漂
+                    modifier = Modifier.fillMaxSize(),
+                    label = "playerMiddle",
+                ) { pane ->
+                when (pane) {
+                    Middle.Cover -> CoverWithGlassRing(
+                        backdrop = backdrop, song = song, cover = coverBitmap, direction = trackDir,
+                        onClick = { middle = Middle.Lyrics },
+                    )
                     Middle.Lyrics -> GlassPanel(
                         backdrop = backdrop,
                         shape = RoundedCornerShape(28.dp),
@@ -332,21 +411,7 @@ fun PlayerPage(
                     ) {
                         LyricsPane(accent = accent, lyrics = lyrics, loaded = lyricsLoaded, positionMs = livePosition)
                     }
-                    Middle.Queue -> GlassPanel(
-                        backdrop = backdrop,
-                        shape = RoundedCornerShape(28.dp),
-                        refractionHeight = 20.dp,
-                        refractionAmount = 30.dp,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        QueuePane(
-                            queue = player.queue,
-                            onJump = onJumpTo,
-                            onMove = onMoveInQueue,
-                            onRemove = onRemoveFromQueue,
-                            onClose = { middle = Middle.Cover },
-                        )
-                    }
+                }
                 }
             }
 
@@ -376,14 +441,7 @@ fun PlayerPage(
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .onGloballyPositioned {
-                                PlayerTargets.titleRect = it.boundsInRoot()
-                                PlayerTargets.titleStyle = titleStyle
-                                PlayerTargets.titleColor = onBackdrop
-                                PlayerTargets.titleText = player.title
-                            }
-                            .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                        modifier = Modifier,
                     )
                     Text(
                         player.artist,
@@ -392,14 +450,7 @@ fun PlayerPage(
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .onGloballyPositioned {
-                                PlayerTargets.artistRect = it.boundsInRoot()
-                                PlayerTargets.artistStyle = artistStyle
-                                PlayerTargets.artistColor = onBackdrop.copy(alpha = 0.72f)
-                                PlayerTargets.artistText = player.artist
-                            }
-                            .graphicsLayer { alpha = PlayerRevealProgress.textAlpha },
+                        modifier = Modifier,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         song?.let {
@@ -412,28 +463,36 @@ fun PlayerPage(
                     SeekBar(player, livePosition, onSeek, accent)
                     Spacer(Modifier.height(LiquidSpacing.tight))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onShuffle) {
-                            Icon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) accent else scheme.onSurfaceVariantSummary)
+                        MotionIconButton(onClick = onShuffle) {
+                            MorphIcon(Icons.Rounded.Shuffle, stringResource(R.string.player_shuffle), tint = if (player.shuffle) accent else scheme.onSurfaceVariantSummary)
                         }
-                        IconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_prev)) }
-                        FilledIconButton(
-                            onClick = onToggle,
-                            modifier = Modifier.size(56.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = accent, contentColor = scheme.onPrimary),
-                        ) {
-                            Icon(if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play), modifier = Modifier.size(30.dp))
+                        MotionIconButton(onClick = onPrev) { Icon(Icons.Rounded.SkipPrevious, stringResource(R.string.player_prev)) }
+                        // 主播放键：实心圆 + 鼓起；底色随封面取色平滑过渡，播放⇄暂停换形
+                        val keyColor by androidx.compose.animation.animateColorAsState(accent, Motion.look(), label = "playKeyColor")
+                        CompositionLocalProvider(LocalContentColor provides scheme.onPrimary) {
+                            MotionIconButton(
+                                onClick = onToggle,
+                                size = 56.dp,
+                                highlight = scheme.onPrimary.copy(alpha = 0.16f),
+                                containerColor = keyColor,
+                            ) {
+                                MorphIcon(
+                                    if (player.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    if (player.playing) stringResource(R.string.player_pause) else stringResource(R.string.player_play),
+                                    Modifier.size(30.dp),
+                                )
+                            }
                         }
-                        IconButton(onClick = onNext) { Icon(Icons.Rounded.SkipNext, stringResource(R.string.player_next)) }
-                        IconButton(onClick = onFavorite) {
-                            Icon(
+                        MotionIconButton(onClick = onNext) { Icon(Icons.Rounded.SkipNext, stringResource(R.string.player_next)) }
+                        MotionIconButton(onClick = onFavorite) {
+                            MorphIcon(
                                 if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                                 if (favorite) stringResource(R.string.player_unfavorite) else stringResource(R.string.player_favorite),
                                 tint = if (favorite) (if (nothing) Color(0xFFE1191F) else accent) else scheme.onSurfaceVariantSummary,
                             )
                         }
-                        IconButton(onClick = onRepeat) {
-                            Icon(
+                        MotionIconButton(onClick = onRepeat) {
+                            MorphIcon(
                                 if (player.repeat == androidx.media3.common.Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                                 stringResource(R.string.player_repeat),
                                 tint = if (player.repeat != androidx.media3.common.Player.REPEAT_MODE_OFF) accent else scheme.onSurfaceVariantSummary,
@@ -450,75 +509,6 @@ fun PlayerPage(
     }
 }
 
-/**
- * 播放列表（就是 ExoPlayer 当前队列）：点行跳播、↑↓ 调序、✕ 删除。
- * 改的是真正在播的顺序（`moveMediaItem` / `removeMediaItem`），不是另存一份 UI 列表。
- */
-@Composable
-private fun QueuePane(
-    queue: List<com.localmusic.app.QueueItem>,
-    onJump: (Int) -> Unit,
-    onMove: (Int, Int) -> Unit,
-    onRemove: (Int) -> Unit,
-    onClose: () -> Unit,
-) {
-    val scheme = MiuixTheme.colorScheme
-    if (queue.isEmpty()) {
-        Column(
-            Modifier.fillMaxSize().padding(LiquidSpacing.page),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(stringResource(R.string.queue_empty), style = MiuixTheme.textStyles.title4, color = scheme.onSurface)
-            Spacer(Modifier.height(LiquidSpacing.inline))
-            Text(
-                stringResource(R.string.queue_empty_hint),
-                style = MiuixTheme.textStyles.body2, color = scheme.onSurfaceVariantSummary, textAlign = TextAlign.Center,
-            )
-        }
-        return
-    }
-    Column(Modifier.fillMaxSize().padding(horizontal = LiquidSpacing.item, vertical = LiquidSpacing.item)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.queue_title, queue.size), style = MiuixTheme.textStyles.title4, modifier = Modifier.weight(1f))
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.queue_collapse)) }
-        }
-        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            itemsIndexed(queue, key = { _, item -> item.index }) { _, item ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { onJump(item.index) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "${item.index + 1}",
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = if (item.current) scheme.primary else scheme.onSurfaceVariantSummary,
-                        modifier = Modifier.width(22.dp),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(item.title, style = MiuixTheme.textStyles.body2, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            color = if (item.current) (if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else scheme.primary) else scheme.onSurface)
-                        if (item.artist.isNotBlank()) {
-                            Text(item.artist, style = MiuixTheme.textStyles.footnote1,
-                                color = scheme.onSurfaceVariantSummary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    IconButton(onClick = { onMove(item.index, item.index - 1) }, enabled = item.index > 0,
-                        modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.ArrowUpward, stringResource(R.string.queue_move_up), modifier = Modifier.size(17.dp))
-                    }
-                    IconButton(onClick = { onMove(item.index, item.index + 1) }, enabled = item.index < queue.lastIndex,
-                        modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.ArrowDownward, stringResource(R.string.queue_move_down), modifier = Modifier.size(17.dp))
-                    }
-                    IconButton(onClick = { onRemove(item.index) }, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Rounded.Close, stringResource(R.string.queue_remove), modifier = Modifier.size(17.dp))
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * 封面 + 围绕它的一圈液态玻璃。
@@ -528,10 +518,18 @@ private fun QueuePane(
  * 内容层留 18dp 内边距 → 玻璃作为一圈"光环"露出来。
  */
 @Composable
-private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: () -> Unit) {
+private fun CoverWithGlassRing(
+    backdrop: LayerBackdrop?,
+    song: Song?,
+    cover: androidx.compose.ui.graphics.ImageBitmap?,
+    direction: Int,
+    onClick: () -> Unit,
+) {
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(
         Modifier.fillMaxWidth().aspectRatio(1f)
-            .clickable(onClick = onClick),
+            .elasticPress(source, sink = true, sinkAmount = 0.025f, pull = false)
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
     ) {
         Box(
             Modifier.matchParentSize().liquidGlass(
@@ -541,11 +539,27 @@ private fun CoverWithGlassRing(backdrop: LayerBackdrop?, song: Song?, onClick: (
                 refractionAmount = 34.dp,
             )
         )
+        // 共享元素终点：转场时这块先隐藏，由转场层画飞行中的封面，落位后再交还
         Box(
             Modifier.matchParentSize().padding(18.dp)
-                .onGloballyPositioned { PlayerTargets.cover = it.boundsInRoot() },
+                .zoomShared(LocalPlayerZoom.current)
+                .clip(RoundedCornerShape(34.dp)),
         ) {
-            Artwork(song, Modifier.matchParentSize(), radius = 34, requestPx = 900)
+            AnimatedContent(
+                targetState = cover,
+                transitionSpec = { coverSwap(direction) },
+                modifier = Modifier.matchParentSize(),
+                label = "glassCover",
+            ) { bmp ->
+                if (bmp != null) {
+                    androidx.compose.foundation.Image(
+                        bmp, song?.album, Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                } else {
+                    Artwork(song, Modifier.fillMaxSize(), radius = 34, requestPx = 900)
+                }
+            }
         }
     }
 }

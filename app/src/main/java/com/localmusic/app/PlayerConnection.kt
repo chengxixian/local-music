@@ -14,7 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 /** 播放列表里的一行（index 是在真正队列里的下标，调序/删除都按它来）。 */
-data class QueueItem(val index: Int, val title: String, val artist: String, val current: Boolean)
+data class QueueItem(val index: Int, val title: String, val artist: String, val current: Boolean, val id: String = "")
 
 data class PlaybackUi(
     val connected: Boolean = false,
@@ -50,7 +50,11 @@ class PlayerConnection(context: Context) {
     /** 控制器还没连上时收到的播放请求先存这里，连上后立刻执行（否则冷启动头几秒的点击会被静默丢掉）。 */
     private var pending: (MediaController.() -> Unit)? = null
     private val listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) { update() }
+        override fun onEvents(player: Player, events: Player.Events) {
+            // 非当前曲目被移动/替换时 (数量, 当前下标) 不变，缓存会过期 —— 时间轴一变就强制重建
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) lastQueueKey = null
+            update()
+        }
         override fun onPlayerError(error: PlaybackException) { mutable.value = mutable.value.copy(error = error.errorCodeName) }
     }
     private val future = MediaController.Builder(context, SessionToken(context, ComponentName(context, PlaybackService::class.java))).buildAsync()
@@ -96,6 +100,7 @@ class PlayerConnection(context: Context) {
                     ?: appContext.getString(com.localmusic.app.R.string.player_unknown_track),
                 artist = item.mediaMetadata.artist?.toString().orEmpty(),
                 current = i == p.currentMediaItemIndex,
+                id = item.mediaId,
             )
         }
     }
@@ -105,6 +110,7 @@ class PlayerConnection(context: Context) {
         val p = controller ?: return
         if (from == to || from !in 0 until p.mediaItemCount || to !in 0 until p.mediaItemCount) return
         p.moveMediaItem(from, to)
+        lastQueueKey = null
         update()
     }
 
@@ -112,6 +118,7 @@ class PlayerConnection(context: Context) {
         val p = controller ?: return
         if (index !in 0 until p.mediaItemCount) return
         p.removeMediaItem(index)
+        lastQueueKey = null
         update()
     }
 
@@ -119,7 +126,7 @@ class PlayerConnection(context: Context) {
         if (songs.isEmpty()) return
         val action: MediaController.() -> Unit = { addMediaItems(songs.map { it.mediaItem() }) }
         val p = controller
-        if (p == null) pending = action else { p.action(); update() }
+        if (p == null) pending = action else { p.action(); lastQueueKey = null; update() }
     }
 
     fun playNext(song: Song) {
@@ -128,7 +135,29 @@ class PlayerConnection(context: Context) {
             addMediaItems(at, listOf(song.mediaItem()))
         }
         val p = controller
-        if (p == null) pending = action else { p.action(); update() }
+        if (p == null) pending = action else { p.action(); lastQueueKey = null; update() }
+    }
+
+    /** 在队列指定位置插入一首（撤销删除时放回原位用）。 */
+    fun insertAt(index: Int, song: Song) {
+        val action: MediaController.() -> Unit = {
+            addMediaItem(index.coerceIn(0, mediaItemCount), song.mediaItem())
+        }
+        val p = controller
+        if (p == null) pending = action else { p.action(); lastQueueKey = null; update() }
+    }
+
+    /** 清空除当前曲目以外的所有项（先删后面再删前面，当前曲目不会被打断）。 */
+    fun clearUpcoming() {
+        val p = controller ?: return
+        val count = p.mediaItemCount
+        if (count > 0) {
+            val cur = p.currentMediaItemIndex
+            p.removeMediaItems(cur + 1, count)
+            if (cur > 0) p.removeMediaItems(0, cur)
+        }
+        lastQueueKey = null
+        update()
     }
 
     fun jumpTo(index: Int) {
@@ -169,7 +198,7 @@ class PlayerConnection(context: Context) {
             prepare(); play()
         }
         val p = controller
-        if (p == null) pending = action else { p.action(); update() }
+        if (p == null) pending = action else { p.action(); lastQueueKey = null; update() }
     }
     fun toggle() {
         val p = controller

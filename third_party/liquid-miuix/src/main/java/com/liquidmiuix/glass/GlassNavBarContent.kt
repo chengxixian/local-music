@@ -3,6 +3,12 @@
 import androidx.compose.ui.graphics.Color
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
@@ -261,7 +267,24 @@ fun GlassNavBarContent(
     // 子节点 clickable 的 tap 识别器随之取消并发出 PressInteraction.Cancel ——
     // 于是按压状态在**整个拖动过程中都是 false**。只认 anyPressed 的话，
     // 拖动时滑块会掉回未放大的状态、折射也会被关掉。
-    val pressed = anyPressed || draggingState.value
+    val rawPressed = anyPressed || draggingState.value
+
+    // 「先鼓到满再落」（FlClash ElasticPress 的 liftSnap）：
+    // 轻点时按下与抬起往往只隔一两帧，按压进度还没涨起来就被要求回落，于是轻点几乎看不到反馈。
+    // 这里让显示用的 pressed 在抬手后**保持**到进度 ≥ 0.975 再放开，每次点按都有完整的一下鼓起。
+    var heldPressed by remember { mutableStateOf(false) }
+    val pressAnim = remember { Animatable(0f) }
+    LaunchedEffect(rawPressed) {
+        if (rawPressed) {
+            heldPressed = true
+        } else if (heldPressed) {
+            if (pressAnim.targetValue == 1f && pressAnim.value < 0.975f) {
+                snapshotFlow { pressAnim.value }.first { it >= 0.975f }
+            }
+            heldPressed = false
+        }
+    }
+    val pressed = heldPressed
 
     // 用 SideEffect 而不是 LaunchedEffect：LaunchedEffect 会晚一帧才上报，
     // 底栏与滑块的缩放就会错开一帧、看起来不是「一起放大」。
@@ -279,11 +302,10 @@ fun GlassNavBarContent(
     // 为什么不做「只在 layout lambda 里读 .value」的优化：进度必须让 `.layout{}` 的
     // lambda 与 `graphicsLayer{}` 闭包拿到**同一帧的同一个值**，组合期解包是唯一
     // 保证两者同步的方式。代价是按压动画那 ~200ms 里每帧多一次重组。
-    val pressProgress by animateFloatAsState(
-        targetValue = if (pressed) 1f else 0f,
-        animationSpec = LiquidMotion.press(),
-        label = "navSliderPressProgress",
-    )
+    LaunchedEffect(pressed) {
+        pressAnim.animateTo(if (pressed) 1f else 0f, LiquidMotion.press())
+    }
+    val pressProgress = pressAnim.value
     // 按下时每条边向外扩的量（px）：静止时本来就内缩了 SliderInset，
     // 要真正探出底栏 SliderPressedOverhang，就得外扩 内缩 + 突出。
     val pressOutsetPx =
@@ -307,8 +329,11 @@ fun GlassNavBarContent(
         //     欠阻尼弹簧追这种目标会来回振荡，看起来就是抽搐；临界阻尼只平滑拖尾、不振荡。
         //   松手后 ζ = 0.70 —— 这时目标是固定的一格，欠阻尼才有那一下 Q 弹过冲。
         // 两段之间速度是连续的（同一个 springVelocity），所以切换不会跳。
-        val stiffness = 110f
-        val damping = 2f * 0.70f * sqrt(stiffness)
+        // 0.9.1：改用 FlClash 底栏的 travel 弹簧（400ms、bounce 0.15 → k≈247、ζ=0.85）。
+        // 原来 k=110 / ζ=0.70 的落位约 0.5s 才停稳，连续点 tab 时滑块总在"追"；
+        // 现在 ~0.3s 到位、只过冲一点点，形变（拉长）仍由距离驱动，果冻感保留。
+        val stiffness = 247f
+        val damping = 2f * 0.85f * sqrt(stiffness)
         val dampingDrag = 2f * 1.0f * sqrt(stiffness)
         var lastNanos = 0L
         while (true) {
@@ -486,16 +511,29 @@ fun GlassNavBarContent(
         ) {
             items.forEachIndexed { index, (icon, label) ->
                 val selected = index == anchorIndex
-                val tint = if (selected) {
-                    (selectedColor ?: MiuixTheme.colorScheme.primary)
-                } else {
-                    MiuixTheme.colorScheme.onSurfaceVariantSummary
-                }
-                // 选中项的图标轻微放大：切页时有一个"落点"，不是纯换色
+                // 选中色 200ms 过渡（原来是瞬间换色），与滑块飞行同时完成
+                val tint by animateColorAsState(
+                    targetValue = if (selected) {
+                        (selectedColor ?: MiuixTheme.colorScheme.primary)
+                    } else {
+                        MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    },
+                    animationSpec = tween(200, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)),
+                    label = "dockTint",
+                )
+                // 选中项的图标轻微放大：切页时有一个"落点"，不是纯换色。
+                // 用 FlClash 的 settle 弹簧（500ms、bounce 0.32）：放大后带一次柔和回弹
                 val iconScale by animateFloatAsState(
                     targetValue = if (selected) 1.14f else 1f,
-                    animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow),
+                    animationSpec = spring(dampingRatio = 0.68f, stiffness = 157.9f),
                     label = "dockIconScale",
+                )
+                // 按下的那个 tab：图标再往下"压"一点（滑块鼓起的同时，图标有一个被按的落点）
+                val tabPressed by interactionSources[index].collectIsPressedAsStateCompat()
+                val pressDip by animateFloatAsState(
+                    targetValue = if (tabPressed) 0.9f else 1f,
+                    animationSpec = spring(dampingRatio = 0.593f, stiffness = 311f),
+                    label = "dockIconPress",
                 )
                 Column(
                     modifier = Modifier
@@ -516,8 +554,8 @@ fun GlassNavBarContent(
                         imageVector = icon,
                         contentDescription = label,
                         modifier = Modifier.size(22.dp).graphicsLayer {
-                            scaleX = iconScale
-                            scaleY = iconScale
+                            scaleX = iconScale * pressDip
+                            scaleY = iconScale * pressDip
                         },
                         tint = tint,
                     )
@@ -533,4 +571,23 @@ fun GlassNavBarContent(
             }
         }
     }
+}
+
+
+/** 本工程的 Compose 版本里 collectIsPressedAsState 不可见（见上面的说明），这里手写一个等价实现。 */
+@Composable
+private fun MutableInteractionSource.collectIsPressedAsStateCompat(): androidx.compose.runtime.State<Boolean> {
+    val pressed = remember(this) { mutableStateOf(false) }
+    LaunchedEffect(this) {
+        var count = 0
+        interactions.collect { i ->
+            when (i) {
+                is PressInteraction.Press -> count++
+                is PressInteraction.Release, is PressInteraction.Cancel -> count = (count - 1).coerceAtLeast(0)
+                else -> Unit
+            }
+            pressed.value = count > 0
+        }
+    }
+    return pressed
 }

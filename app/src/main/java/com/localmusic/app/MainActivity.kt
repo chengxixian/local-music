@@ -18,6 +18,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -276,8 +278,43 @@ private fun AppShell() {
     var playlistCoverTarget by remember { mutableStateOf<Long?>(null) }
 
     var playerOpen by remember { mutableStateOf(false) }
-    // 播放页从哪里"长"出来：点卡片 = 卡片矩形；迷你条 / 悬浮歌词 = null（从屏幕中部弹出）
-    var playerOrigin by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // ── 缩放转场（见 ui/Zoom.kt）──
+    // 播放页：从被点的那张卡片 / 乐单里那一行 / 迷你播放条"长"出来，关闭时缩回**当前这首**所在的位置。
+    // 乐单详情：从乐单卡片长出来。
+    val playerZoom = remember { com.localmusic.app.ui.ZoomState() }
+    val playlistZoom = remember { com.localmusic.app.ui.ZoomState() }
+    var showQueue by remember { mutableStateOf(false) }
+    // 点卡片的那一刻播放器还没切到新歌：转场用的封面与页面先按"被点的这首"来，播放器跟上后自动交还
+    var zoomSong by remember { mutableStateOf<com.localmusic.app.data.Song?>(null) }
+    val zoomDensity = androidx.compose.ui.platform.LocalDensity.current
+    fun zoomSourceFor(key: String): com.localmusic.app.ui.ZoomSource {
+        val (r, cr) = when {
+            key == com.localmusic.app.ui.MiniZoomKey -> 24.dp to 14.dp
+            key.startsWith("plrow:") -> 16.dp to 12.dp
+            else -> 18.dp to 0.dp
+        }
+        return with(zoomDensity) { com.localmusic.app.ui.ZoomRegistry.source(key, r.toPx(), cr.toPx()) }
+    }
+    /** 这首歌此刻在屏幕上的"实体"：乐单详情里的那一行 > 曲库 / 喜欢里的卡片 > 迷你播放条。 */
+    fun bestZoomKeyFor(uri: String?): String? {
+        val screen = playerZoom.open.takeIf { it.width > 0f }
+            ?: androidx.compose.ui.geometry.Rect(0f, 0f, 1e5f, 1e5f)
+        val candidates = buildList {
+            if (uri != null) {
+                if (playlistZoom.restful) add("plrow:$uri")
+                if (!playlistZoom.active) add(com.localmusic.app.ui.cardZoomKey(uri))
+            }
+            add(com.localmusic.app.ui.MiniZoomKey)
+        }
+        return candidates.firstOrNull { k ->
+            com.localmusic.app.ui.ZoomRegistry.rectOf(k)?.visibleIn(screen) == true
+        }
+    }
+    fun openPlayerFrom(key: String?) {
+        playerZoom.source = key?.let { zoomSourceFor(it) }
+        showQueue = false
+        playerOpen = true
+    }
 
     /**
      * 统一的"播这首歌"入口。
@@ -292,8 +329,8 @@ private fun AppShell() {
         // 媒体项并 prepare → 正在听的歌被"从 0:00 重来"。用户明确要求：点当前这首不要重启。
         // 现在的语义：暂停中就继续播，正在播就什么都不做，两种都把播放页打开。
         if (song.uri == playback.id) {
-            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
-            playerOpen = true
+            zoomSong = song
+            openPlayerFrom(bestZoomKeyFor(song.uri))
             if (!playback.playing) player.toggle()
             return@play
         }
@@ -310,8 +347,8 @@ private fun AppShell() {
         // 这里只剩两件事：DSD 先转码、然后交给播放器。
         if (!com.localmusic.app.data.Dsd.isDsd(song.uri)) {
             player.play(list, song)
-            playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
-            playerOpen = true
+            zoomSong = song
+            openPlayerFrom(bestZoomKeyFor(song.uri))
             return@play
         }
         // DSD（.dsf/.dff）：Media3 解不了，必须先抽成 176.4kHz/24bit PCM WAV。
@@ -344,8 +381,8 @@ private fun AppShell() {
                     bitDepth = 24,
                 )
                 player.play(list.map { if (it.uri == song.uri) converted else it }, converted)
-                playerOrigin = com.localmusic.app.ui.PlayerRevealOrigin.cardBounds[song.uri]
-                playerOpen = true
+                zoomSong = song
+                openPlayerFrom(bestZoomKeyFor(song.uri))
             }
         }
     }
@@ -430,6 +467,52 @@ private fun AppShell() {
     val barScale by animateFloatAsState(if (barPressed) BarPressedScale else 1f, LiquidMotion.press(), label = "barScale")
 
     val nowPlaying = remember(songs, playback.id) { songs.firstOrNull { it.uri == playback.id } }
+    val songsByUri = remember(songs) { songs.associateBy { it.uri } }
+    // 播放器跟上"被点的那首"后，转场的临时歌曲就交还给 nowPlaying
+    LaunchedEffect(playback.id, zoomSong) {
+        val z = zoomSong ?: return@LaunchedEffect
+        if (playback.id == z.uri) zoomSong = null
+        else { kotlinx.coroutines.delay(1500); zoomSong = null }   // DSD 转码后 uri 会变：兜底交还
+    }
+    LaunchedEffect(playerOpen) { if (!playerOpen) showQueue = false }
+    // 共享封面：先同步取内存里卡片那张，取不到再去 IO 线程加载
+    val sharedSong = zoomSong ?: nowPlaying
+    val playerShared by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        sharedSong?.let { com.localmusic.app.ui.ArtworkStore.peek(it, 420)?.asImageBitmap() }, sharedSong?.uri,
+    ) {
+        val s = sharedSong ?: run { value = null; return@produceState }
+        com.localmusic.app.ui.ArtworkStore.peek(s, 420)?.let { value = it.asImageBitmap(); return@produceState }
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            (com.localmusic.app.data.CoverStore.decode(context.applicationContext, s.uri, 420)
+                ?: com.localmusic.app.ui.ArtworkStore.load(context.applicationContext, s, 420))?.asImageBitmap()
+        }
+    }
+    // 乐单详情：关闭动画期间 openPlaylist 已经是 null，内容要靠"最后一次打开的那个"撑住
+    var lastPlaylist by remember { mutableStateOf<com.localmusic.app.data.Playlist?>(null) }
+    if (openPlaylist != null && openPlaylist?.id != lastPlaylist?.id) lastPlaylist = openPlaylist
+    val livePlaylist = lastPlaylist?.let { lp -> playlists.firstOrNull { it.id == lp.id } ?: lp }
+    val playlistListState = remember(lastPlaylist?.id) { androidx.compose.foundation.lazy.LazyListState() }
+    var playlistUndo by remember { mutableStateOf<Triple<Long, com.localmusic.app.data.Song, List<String>>?>(null) }
+    val playlistCover by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, livePlaylist?.id, livePlaylist?.cover, playlistsRevision) {
+        val pl = livePlaylist ?: run { value = null; return@produceState }
+        val first = com.localmusic.app.data.PlaylistStore.songIds(context, pl.id).firstNotNullOfOrNull { songsByUri[it] }
+        if (pl.cover == null && first != null) {
+            com.localmusic.app.ui.ArtworkStore.peek(first, 420)?.let { value = it.asImageBitmap(); return@produceState }
+        }
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (pl.cover != null) {
+                runCatching {
+                    val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(pl.cover, o)
+                    var sample = 1
+                    while (maxOf(o.outWidth, o.outHeight) / (sample * 2) >= 720) sample *= 2
+                    android.graphics.BitmapFactory.decodeFile(pl.cover, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })?.asImageBitmap()
+                }.getOrNull()
+            } else first?.let { com.localmusic.app.ui.ArtworkStore.load(context.applicationContext, it, 420)?.asImageBitmap() }
+        }
+    }
+    // 切 tab 时乐单详情直接收起（乐单卡片已不在屏幕上，没有地方可以"缩回去"）
+    LaunchedEffect(page) { if (page != Page.Playlists) playlistZoom.snapClosed() }
     // dock 仅在播放页跟随封面（主界面用主题色）
     // dock 选中色：跟随当前歌曲封面（取不到则回落到主题色）
 
@@ -446,8 +529,8 @@ private fun AppShell() {
         songs.filter { favorites.contains(it.uri) && matches(it) }
     }
     // 当前打开的乐单里的歌（按加入顺序；乐单里已不存在的歌自动忽略）
-    val playlistSongs = remember(openPlaylist, songs, playlistsRevision) {
-        val pl = openPlaylist ?: return@remember emptyList()
+    val playlistSongs = remember(lastPlaylist, songs, playlistsRevision) {
+        val pl = lastPlaylist ?: return@remember emptyList()
         val byUri = songs.associateBy { it.uri }
         com.localmusic.app.data.PlaylistStore.songIds(context, pl.id).mapNotNull { byUri[it] }
     }
@@ -606,14 +689,13 @@ private fun AppShell() {
 
     // 返回键：先关播放页，再收均衡器面板
     BackHandler(enabled = showEq) { showEq = false }
-    BackHandler(enabled = playerOpen && !showEq) { playerOpen = false }
+    // 播放页 / 乐单详情的返回由各自的 ZoomHost 接管（预测性返回：页面跟着手势缩小）
     // 以前缺这三个：在「关于」页 / 语言弹窗 / 乐单菜单上按返回键会**直接退出 App**，
     // 因为没有任何 BackHandler 把系统返回事件接住。
     BackHandler(enabled = showPlaylistMenu) { showPlaylistMenu = false }
     BackHandler(enabled = showLanguage) { showLanguage = false }
     BackHandler(enabled = showAbout) { showAbout = false }
     BackHandler(enabled = pickerSong != null) { pickerSong = null }
-    BackHandler(enabled = openPlaylist != null && pickerSong == null) { openPlaylist = null }
 
     Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
@@ -696,19 +778,15 @@ private fun AppShell() {
                     // ── 采集层：背景 + 全部页面内容（玻璃唯一能采样到的东西）──
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
                         AppBackground()
+                        val pageShiftPx = with(androidx.compose.ui.platform.LocalDensity.current) { 24.dp.roundToPx() }
                         AnimatedContent(
                             targetState = page,
                             transitionSpec = {
                                 val forward = targetState.ordinal > initialState.ordinal
-                                val dir = if (forward) 1 else -1
-                                // 新页从侧向滑入 + 轻微放大 + 淡入；旧页反向滑出并略缩小 —— 有"推进"的方向感
-                                val enter = fadeIn(tween(260)) +
-                                    slideInHorizontally(tween(340)) { dir * it / 5 } +
-                                    scaleIn(tween(340), initialScale = 0.94f)
-                                val exit = fadeOut(tween(200)) +
-                                    slideOutHorizontally(tween(300)) { -dir * it / 8 } +
-                                    scaleOut(tween(300), targetScale = 0.97f)
-                                enter togetherWith exit
+                                // FlClash 式 fade-through：旧页 90ms 内先淡出，新页再淡入 + 0.92→1 放大，
+                                // 两页不会同时半透明叠在一起（原来 260ms/200ms 交叉淡化时能看到两页重影）。
+                                // 另叠 24dp 的同向位移保留"往左/往右"的方向感。
+                                fadeThrough(slidePx = if (forward) pageShiftPx else -pageShiftPx)
                             },
                             label = "page",
                         ) { p ->
@@ -759,33 +837,18 @@ private fun AppShell() {
                                         topPadding = pageTopPadding,
                                     )
                                     Page.Playlists -> {
-                                        val opened = openPlaylist
-                                        if (opened == null) {
+                                        // 乐单列表一直在这里；详情页是盖在它上面的缩放转场（见下方 ZoomHost）
+                                        run {
                                             PlaylistPage(
                                                 playlists = playlists,
                                                 firstSongs = playlistFirstSongs.filterValues { it != null }.mapValues { it.value!! },
                                                 topPadding = pageTopPadding,
                                                 onCreate = { name -> com.localmusic.app.data.PlaylistStore.create(context, name) },
-                                                onOpen = { openPlaylist = it },
+                                                onOpen = { pl ->
+                                                    playlistZoom.source = zoomSourceFor(com.localmusic.app.ui.playlistZoomKey(pl.id))
+                                                    openPlaylist = pl
+                                                },
                                                 onAskName = askName,
-                                            )
-                                        } else {
-                                            LibraryPage(
-                                                songs = playlistSongs,
-                                                nowPlaying = playback.id,
-                                                favorites = favorites,
-                                                highlightIndex = if (page == Page.Playlists) wheelIndex else -1,
-                                                filtering = false,
-                                                onToggleFavorite = { song ->
-                                                    com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
-                                                },
-                                                onPlay = { song -> playSong(playlistSongs, song) },
-                                                onAddToQueue = { song ->
-                                                    player.appendToQueue(listOf(song))
-                                                    android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
-                                                },
-                                                onAddToPlaylist = { song -> pickerSong = song },
-                                                topPadding = pageTopPadding + 300.dp,
                                             )
                                         }
                                     }
@@ -896,14 +959,60 @@ private fun AppShell() {
 
                         // 播放页的背景：当前封面放大 + 高斯模糊（画在**采集层之内**，
                         // 这样播放页的玻璃折射到的就是这张封面，而不是背后的曲库页）
-                        if (playerOpen) {
+                        // ── 乐单详情：从乐单卡片放大出来（内容在采集层里，顶部玻璃栏才折射得到它）──
+                        com.localmusic.app.ui.ZoomHost(
+                            state = playlistZoom,
+                            visible = openPlaylist != null && page == Page.Playlists,
+                            fill = MiuixTheme.colorScheme.surface,
+                            scrim = true,
+                            backEnabled = !playerOpen && !showQueue && pickerSong == null && !showPlaylistMenu && naming == null,
+                            onDismiss = { openPlaylist = null; showPlaylistMenu = false },
+                            closingSource = {
+                                lastPlaylist?.let { pl ->
+                                    val key = com.localmusic.app.ui.playlistZoomKey(pl.id)
+                                    if (com.localmusic.app.ui.ZoomRegistry.rectOf(key)?.visibleIn(playlistZoom.open) == true) zoomSourceFor(key) else null
+                                }
+                            },
+                            sharedImage = { playlistCover },
+                            sharedTargetRadius = with(zoomDensity) { 28.dp.toPx() },
+                        ) {
+                            livePlaylist?.let { pl ->
+                                com.localmusic.app.ui.PlaylistDetailPage(
+                                    playlist = pl,
+                                    songs = playlistSongs,
+                                    nowPlaying = playback.id,
+                                    playing = playback.playing,
+                                    favorites = favorites,
+                                    cover = playlistCover,
+                                    zoom = playlistZoom,
+                                    listState = playlistListState,
+                                    topInset = contentPadding.calculateTopPadding(),
+                                    bottomInset = 230.dp,
+                                    accent = MiuixTheme.colorScheme.primary,
+                                    onPlay = { song -> playSong(playlistSongs, song) },
+                                    onPlayAll = { playlistSongs.firstOrNull()?.let { player.play(playlistSongs, it, shuffle = false); zoomSong = it; openPlayerFrom(bestZoomKeyFor(it.uri)) } },
+                                    onShuffleAll = { if (playlistSongs.isNotEmpty()) { val first = playlistSongs.random(); player.play(playlistSongs, first, shuffle = true); zoomSong = first; openPlayerFrom(bestZoomKeyFor(first.uri)) } },
+                                    onToggleFavorite = { song -> com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri)) },
+                                    onAddToQueue = { song ->
+                                        player.appendToQueue(listOf(song))
+                                        android.widget.Toast.makeText(context, context.getString(R.string.toast_added_queue, song.title), android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    onReorder = { uris -> com.localmusic.app.data.PlaylistStore.reorder(context, pl.id, uris) },
+                                    onRemove = { song ->
+                                        val before = playlistSongs.map { it.uri }
+                                        com.localmusic.app.data.PlaylistStore.setSong(context, pl.id, song.uri, false)
+                                        playlistUndo = Triple(pl.id, song, before)
+                                    },
+                                )
+                            }
+                        }
+
+                        // 播放页的背景：裁成转场容器的形状、随进度填满（采集层之内，玻璃才折射得到）
+                        if (playerZoom.active) {
                             PlayerBackdrop(
-                                song = nowPlaying,
+                                song = zoomSong ?: nowPlaying,
                                 monochrome = com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING,
-                                modifier = Modifier.matchParentSize().graphicsLayer {
-                                    // 转场进度只在绘制层读取，不触发重组
-                                    alpha = com.localmusic.app.ui.PlayerRevealProgress.backdropAlpha
-                                },
+                                modifier = Modifier.matchParentSize().zoomFill(playerZoom),
                             )
                         }
 
@@ -921,80 +1030,17 @@ private fun AppShell() {
 
                     // ── 玻璃浮层：播放页 + 顶栏 + 迷你播放条 + dock，都在采集层之外 ──
                     Box(Modifier.fillMaxSize().padding(contentPadding)) {
-                        // 播放页：带玻璃的界面必须在采集层外（见上面 when 分支的说明）。
-                        // 顶栏让位给页面自己的那行玻璃圆钮。
-                        PlayerReveal(
-                            visible = playerOpen,
-                            origin = playerOrigin,
-                            song = nowPlaying,
-                            favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
-                            playing = nowPlaying != null && nowPlaying.uri == playback.id,
-                        ) {
-                            if (com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE) {
-                                WavePlayerPage(
-                                backdrop = backdrop,
-                                song = nowPlaying,
-                                player = playback,
-                                favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
-                                topPadding = 8.dp,
-                                bottomPadding = BarMargin + 16.dp,
-                                positionFlow = player.position,
-                                onToggle = { player.toggle() },
-                                onNext = { player.next() },
-                                onPrev = { player.previous() },
-                                onSeek = { player.seek(it) },
-                                onShuffle = { player.shuffle() },
-                                onRepeat = { player.repeat() },
-                                onClose = { playerOpen = false },
-                                onFavorite = {
-                                    nowPlaying?.let { song ->
-                                        com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
-                                    }
-                                },
-                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
-                                onOpenEq = { showEq = true },
-                                onJumpTo = { player.jumpTo(it) },
-                                onMoveInQueue = { from, to -> player.moveInQueue(from, to) },
-                                onRemoveFromQueue = { player.removeFromQueue(it) },
-                                )
-                            } else {
-                                PlayerPage(
-                                backdrop = backdrop,
-                                song = nowPlaying,
-                                player = playback,
-                                favorite = nowPlaying != null && favorites.contains(nowPlaying.uri),
-                                topPadding = 8.dp,
-                                bottomPadding = BarHeight + BarMargin + 28.dp,
-                                positionFlow = player.position,
-                                onToggle = { player.toggle() },
-                                onNext = { player.next() },
-                                onPrev = { player.previous() },
-                                onSeek = { player.seek(it) },
-                                onShuffle = { player.shuffle() },
-                                onRepeat = { player.repeat() },
-                                onClose = { playerOpen = false },
-                                onFavorite = {
-                                    nowPlaying?.let { song ->
-                                        com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
-                                    }
-                                },
-                                onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
-                                onOpenEq = { showEq = true },
-                                onJumpTo = { player.jumpTo(it) },
-                                onMoveInQueue = { from, to -> player.moveInQueue(from, to) },
-                                onRemoveFromQueue = { player.removeFromQueue(it) },
-                                )
-                            }
-                        }
                         // 乐单详情：顶部玻璃工具栏（浮层 → 真玻璃；同时这个状态收起滚轮）
-                        openPlaylist?.let { opened ->
-                            if (!playerOpen && !showAbout) {
-                                PlaylistHeader(
+                        livePlaylist?.let { opened ->
+                            if (playlistZoom.active && !showAbout) {
+                                com.localmusic.app.ui.PlaylistDetailBar(
                                     backdrop = backdrop,
-                                    playlist = opened,
+                                    title = opened.name,
+                                    listState = playlistListState,
+                                    zoom = playlistZoom,
                                     modifier = Modifier
                                         .align(Alignment.TopCenter)
-                                        .padding(start = 16.dp, end = 16.dp, top = 80.dp)
+                                        .padding(start = 12.dp, end = 12.dp, top = 8.dp)
                                         .fillMaxWidth(),
                                     onBack = { openPlaylist = null; showPlaylistMenu = false },
                                     onMenu = { showPlaylistMenu = true },
@@ -1035,7 +1081,14 @@ private fun AppShell() {
                             )
                         }
                         // 关于页：独立页面（原本平铺在设置页里，现在只有一个入口）
-                        if (showAbout) {
+                        // 进出用 fade-through（淡入 + 0.92→1 放大），和切页同一节拍
+                        AnimatedVisibility(
+                            visible = showAbout,
+                            enter = fadeIn(tween(210, delayMillis = 60, easing = com.localmusic.app.ui.Motion.FadeThroughIn)) +
+                                scaleIn(tween(270, delayMillis = 30, easing = com.localmusic.app.ui.Motion.FadeThroughIn), initialScale = 0.92f),
+                            exit = fadeOut(tween(120, easing = com.localmusic.app.ui.Motion.FadeThroughOut)) +
+                                scaleOut(tween(150, easing = com.localmusic.app.ui.Motion.FadeThroughOut), targetScale = 0.96f),
+                        ) {
                             AboutPage(onBack = { showAbout = false })
                         }
                         // 设置里写的是「**在曲库页面**显示当前歌词行」，但这里以前没有页面判断：
@@ -1046,7 +1099,7 @@ private fun AppShell() {
                                 backdrop = backdrop,
                                 song = nowPlaying,
                                 positionFlow = player.position,
-                                onClick = { playerOrigin = null; playerOpen = true },
+                                onClick = { openPlayerFrom(null) },
                                 modifier = Modifier.align(Alignment.TopCenter)
                                     .padding(start = 44.dp, end = 44.dp, top = TopBarMargin + TopBarHeight + 8.dp)
                                     .fillMaxWidth(),
@@ -1083,7 +1136,8 @@ private fun AppShell() {
                                 onAskName = askName,
                             )
                         }
-                        if (!playerOpen && !showAbout) {
+                        // 顶栏：乐单详情展开时随转场淡出（详情页有自己的玻璃栏）；播放页打开时同样淡出
+                        if (!showAbout && !(playlistZoom.restful)) {
                             GlassTopBar(
                                 backdrop = backdrop,
                                 title = stringResource(page.titleRes),
@@ -1093,12 +1147,18 @@ private fun AppShell() {
                                 modifier = Modifier.align(Alignment.TopCenter)
                                     .padding(start = BarMargin, end = BarMargin, top = TopBarMargin)
                                     .fillMaxWidth()
-                                    .height(TopBarHeight),
+                                    .height(TopBarHeight)
+                                    .graphicsLayer {
+                                        val a = if (playlistZoom.active) playlistZoom.progress.value.coerceIn(0f, 1f) else 0f
+                                        val b = if (playerZoom.active) playerZoom.progress.value.coerceIn(0f, 1f) else 0f
+                                        alpha = (1f - a) * (1f - b)
+                                        translationY = -a * 12.dp.toPx()
+                                    },
                             )
                         }
                         // 滚轮：转一圈选一项；单击中间键切页；双击中间键确认。
                         // 先放在 dock 上方（确认可用后再去掉 dock、把它挪到 dock 的位置）。
-                        if (!playerOpen && !showAbout && !showLanguage && !showPlaylistMenu && naming == null && pickerSong == null && openPlaylist == null) {
+                        if (!playerOpen && !playerZoom.active && !playlistZoom.active && !showAbout && !showLanguage && !showPlaylistMenu && naming == null && pickerSong == null && openPlaylist == null) {
                             ClickWheel(
                                 backdrop = backdrop,
                                 onTick = { dir ->
@@ -1121,19 +1181,28 @@ private fun AppShell() {
                         Column(
                             Modifier.align(Alignment.BottomCenter)
                                 .padding(start = BarMargin, end = BarMargin, bottom = BarMargin)
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                // 播放页展开时 dock / 迷你条随进度淡出（迷你条若是起点，则由转场容器"变成"它）
+                                .graphicsLayer {
+                                    alpha = 1f - (if (playerZoom.active) playerZoom.progress.value.coerceIn(0f, 1f) else 0f)
+                                },
                         ) {
                             // 播放页本身就是播放界面，所以只在别的页面显示迷你播放条。
                             // 出现/消失用滑入滑出，而不是"啪"地出现。
                             AnimatedVisibility(
-                                visible = playback.id != null && !playerOpen,
-                                enter = slideInVertically(tween(260)) { it / 2 } + fadeIn(tween(220)),
-                                exit = slideOutVertically(tween(200)) { it / 2 } + fadeOut(tween(160)),
+                                visible = playback.id != null && !showAbout,
+                                // 入场用位移弹簧（有一点点回弹），退场加速滑出
+                                enter = slideInVertically(com.localmusic.app.ui.Motion.travel(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 2 } +
+                                    fadeIn(tween(220, easing = com.localmusic.app.ui.Motion.FadeThroughIn)),
+                                exit = slideOutVertically(tween(200, easing = com.localmusic.app.ui.Motion.FadeThroughOut)) { it / 2 } +
+                                    fadeOut(tween(160)),
                             ) {
                                 Column {
                                     MiniPlayerBar(
                                         backdrop = backdrop, song = nowPlaying, player = playback,
-                                        onToggle = { player.toggle() }, onOpen = { playerOrigin = null; playerOpen = true },
+                                        onToggle = { player.toggle() },
+                                        onOpen = { openPlayerFrom(com.localmusic.app.ui.MiniZoomKey) },
+                                        onQueue = { showQueue = true },
                                     )
                                     Spacer(Modifier.height(12.dp))
                                 }
@@ -1142,7 +1211,7 @@ private fun AppShell() {
                             // 播放页自己的控件已经占满底部，再叠一条导航栏只会挡住它 ——
                             // 用户要求"播放页去掉 dock，把按钮疏散"，所以这里也收起来。
                             // 迷你播放条留着 —— 它算播放控制，不算导航。
-                            if (!showAbout && !playerOpen) {
+                            if (!showAbout) {
                                 Box(
                                     // 设计说明（按设计规范修正）：dock 是**悬浮胶囊**，宜窄于内容宽度，
                                     // 且应比顶栏窄一档才有层次。
@@ -1168,7 +1237,7 @@ private fun AppShell() {
                                         items = Page.entries.map { it.icon to stringResource(it.titleRes) },
                                         selectedIndex = Page.entries.indexOf(page),
                                         selectedColor = null,
-                                        onSelect = { page = Page.entries[it]; playerOpen = false; showAbout = false; openPlaylist = null; showPlaylistMenu = false; pickerSong = null; naming = null },
+                                        onSelect = { page = Page.entries[it]; playerOpen = false; showQueue = false; showAbout = false; openPlaylist = null; showPlaylistMenu = false; pickerSong = null; naming = null },
                                         modifier = Modifier.matchParentSize(),
                                         backdrop = backdrop,
                                         contentHeight = BarHeight,
@@ -1182,6 +1251,110 @@ private fun AppShell() {
                             Spacer(Modifier.height(14.dp))
                         }
                     }
+
+                    // ── 播放页：缩放转场宿主（铺满整个窗口，状态栏也在容器里）──
+                    val waveStyle = com.localmusic.app.data.PlayerStyleState.current == com.localmusic.app.data.PlayerStyle.WAVE
+                    val pageSong = zoomSong ?: nowPlaying
+                    CompositionLocalProvider(com.localmusic.app.ui.LocalPlayerZoom provides playerZoom) {
+                        com.localmusic.app.ui.ZoomHost(
+                            state = playerZoom,
+                            visible = playerOpen,
+                            scrim = true,
+                            backEnabled = !showEq && !showQueue,
+                            onDismiss = { playerOpen = false },
+                            closingSource = { bestZoomKeyFor(nowPlaying?.uri)?.let { zoomSourceFor(it) } },
+                            sharedImage = { playerShared },
+                            sharedTargetRadius = with(zoomDensity) { (if (waveStyle) 22.dp else 34.dp).toPx() },
+                        ) {
+                            Box(Modifier.fillMaxSize().padding(contentPadding)) {
+                                val isFavorite = pageSong != null && favorites.contains(pageSong.uri)
+                                val onFavorite = {
+                                    pageSong?.let { song ->
+                                        com.localmusic.app.data.FavoritesStore.set(context, song.uri, !favorites.contains(song.uri))
+                                    }
+                                    Unit
+                                }
+                                if (waveStyle) {
+                                    WavePlayerPage(
+                                        backdrop = backdrop,
+                                        song = pageSong,
+                                        player = playback,
+                                        favorite = isFavorite,
+                                        topPadding = 8.dp,
+                                        bottomPadding = BarMargin + 16.dp,
+                                        positionFlow = player.position,
+                                        onToggle = { player.toggle() },
+                                        onNext = { player.next() },
+                                        onPrev = { player.previous() },
+                                        onSeek = { player.seek(it) },
+                                        onShuffle = { player.shuffle() },
+                                        onRepeat = { player.repeat() },
+                                        onClose = { playerOpen = false },
+                                        onFavorite = onFavorite,
+                                        onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
+                                        onOpenEq = { showEq = true },
+                                        onOpenQueue = { showQueue = true },
+                                    )
+                                } else {
+                                    PlayerPage(
+                                        backdrop = backdrop,
+                                        song = pageSong,
+                                        player = playback,
+                                        favorite = isFavorite,
+                                        topPadding = 8.dp,
+                                        bottomPadding = BarMargin + 24.dp,
+                                        positionFlow = player.position,
+                                        onToggle = { player.toggle() },
+                                        onNext = { player.next() },
+                                        onPrev = { player.previous() },
+                                        onSeek = { player.seek(it) },
+                                        onShuffle = { player.shuffle() },
+                                        onRepeat = { player.repeat() },
+                                        onClose = { playerOpen = false },
+                                        onFavorite = onFavorite,
+                                        onChangeCover = { coverPicker.launch(arrayOf("image/*")) },
+                                        onOpenEq = { showEq = true },
+                                        onOpenQueue = { showQueue = true },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 播放队列编辑页（从播放页或迷你条打开）──
+                    com.localmusic.app.ui.QueueSheet(
+                        visible = showQueue,
+                        queue = playback.queue,
+                        playing = playback.playing,
+                        shuffle = playback.shuffle,
+                        repeat = playback.repeat,
+                        songsByUri = songsByUri,
+                        accent = if (com.localmusic.app.data.UiSettings.skin == com.localmusic.app.data.UiSkin.NOTHING) Color(0xFFE1191F) else MiuixTheme.colorScheme.primary,
+                        onJump = { player.jumpTo(it) },
+                        onMove = { from, to -> player.moveInQueue(from, to) },
+                        onRemove = { player.removeFromQueue(it) },
+                        onInsert = { i, song -> player.insertAt(i, song) },
+                        onShuffle = { player.shuffle() },
+                        onRepeat = { player.repeat() },
+                        onClearOthers = { player.clearUpcoming() },
+                        onDismiss = { showQueue = false },
+                    )
+
+                    // 乐单里移除歌曲后的「撤销」
+                    com.localmusic.app.ui.UndoBar(
+                        message = playlistUndo?.second?.title?.let { stringResource(R.string.pl_removed, it) },
+                        actionLabel = stringResource(R.string.action_undo),
+                        onAction = {
+                            playlistUndo?.let { (id, song, before) ->
+                                com.localmusic.app.data.PlaylistStore.setSong(context, id, song.uri, true)
+                                com.localmusic.app.data.PlaylistStore.reorder(context, id, before)
+                            }
+                            playlistUndo = null
+                        },
+                        onTimeout = { playlistUndo = null },
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(contentPadding)
+                            .padding(start = 16.dp, end = 16.dp, bottom = BarHeight + BarMargin + 24.dp),
+                    )
 
                     // ── 首次打开：选 FLAC 导出位置（玻璃浮层，和采集层同一个窗口，折射才成立）──
                     if (showExportPrompt) {
@@ -1216,7 +1389,7 @@ private fun AppShell() {
                     // 播放界面已经不在采集层里渲染（见上面的说明）。
 
                     // ── 均衡器：独立的液态玻璃面板（同窗口浮层，玻璃才折射得到东西）──
-                    if (showEq) {
+                    PopIn(visible = showEq) {
                         EqualizerSheet(
                             backdrop = backdrop,
                             eq = eqState,

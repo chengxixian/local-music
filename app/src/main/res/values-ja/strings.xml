@@ -271,4 +271,19 @@
     <string name="player_idle_title">まだ再生していません</string>
     <string name="player_idle_artist">ライブラリから曲を選んでください</string>
     <string name="player_unknown_track">不明な曲</string>
+    <string name="queue_page_title">次に再生</string>
+    <string name="queue_count">%1$d 曲</string>
+    <string name="queue_locate">再生中の曲へ</string>
+    <string name="queue_clear_others">他をクリア</string>
+    <string name="queue_removed">「%1$s」を削除しました</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="queue_hint">右のハンドルをドラッグで並べ替え · 左スワイプで削除</string>
+    <string name="pl_play_all">すべて再生</string>
+    <string name="pl_shuffle_play">シャッフル</string>
+    <string name="pl_summary">%1$d 曲 · %2$s</string>
+    <string name="pl_removed">「%1$s」をこのプレイリストから削除しました</string>
+    <string name="pl_reorder_hint">曲を長押しで並べ替え · 左スワイプで削除</string>
+    <string name="mini_queue">キュー</string>
+    <string name="pl_songs_empty">このプレイリストは空です</string>
+    <string name="pl_songs_empty_hint">ライブラリの曲カードで「プレイリストに追加」をタップしてください</string>
 </resources>

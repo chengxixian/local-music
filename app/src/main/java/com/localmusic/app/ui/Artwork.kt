@@ -63,6 +63,9 @@ object ArtworkStore {
         for (song in songs) runCatching { load(context, song, requestPx) }
     }
 
+    /** 只查内存缓存（主线程可调）：转场开始那一帧要立刻拿到卡片上那张封面。 */
+    fun peek(song: Song, requestPx: Int): Bitmap? = memory.get("${song.uri}@${requestPx.coerceIn(48, 2048)}")
+
     fun load(context: Context, song: Song, requestPx: Int): Bitmap? {
         val px = requestPx.coerceIn(48, 2048)
         val key = "${song.uri}@$px"
